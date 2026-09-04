@@ -13,3 +13,8 @@ The five canonical triage roles use their default label strings (`needs-triage`,
 ### Domain docs
 
 Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Branches
+
+- `develop` — default branch, where all day-to-day work lands.
+- `main` — release branch. Only updated when cutting a release.
