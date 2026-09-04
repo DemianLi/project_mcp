@@ -40,10 +40,26 @@ milestone.
 **Stdio only.** If a second transport is ever needed it will be Streamable HTTP;
 SSE is its deprecated predecessor and is not a target.
 
+## Building and running
+
+Requires a JDK 25 and Maven.
+
+```bash
+mvn package
+java -jar target/project-mcp-0.1.0-SNAPSHOT.jar
+```
+
+**Do not use `mvn spring-boot:run`.** Maven writes its own build output to stdout
+before the application starts, and an MCP client will try to parse that as JSON-RPC
+and fail. Always run the packaged jar.
+
+Logs go to `logs/project-mcp.log`, never to the console — see `application.yml`.
+
 ## Status
 
-Early. No Server code has been committed yet — the repo currently holds the domain
-glossary and the conventions that agents and contributors work from.
+Early. The server starts, registers zero Tools, and keeps stdout clean; the first
+Tool (`list_issues`) is not implemented yet. Progress is tracked on the wayfinder
+map in [issue #1](https://github.com/DemianLi/project_mcp/issues/1).
 
 ## Documentation
 

@@ -1,0 +1,20 @@
+# stdout belongs to JSON-RPC. Every setting in the `spring.main` and `logging`
+# blocks below exists to keep something else from writing to it.
+spring:
+  main:
+    banner-mode: off
+    web-application-type: none
+  ai:
+    mcp:
+      server:
+        type: SYNC
+        name: project-mcp
+        version: 0.1.0
+
+logging:
+  file:
+    name: logs/project-mcp.log
+  threshold:
+    # Silence the console appender outright. A blank `logging.pattern.console`
+    # also keeps stdout clean, but logback complains about it on stderr.
+    console: "OFF"
