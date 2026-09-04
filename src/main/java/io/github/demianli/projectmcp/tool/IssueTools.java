@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.github.demianli.projectmcp.gh.GhCli;
+import io.github.demianli.projectmcp.gh.GhFailure;
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
@@ -11,8 +13,9 @@ import org.springframework.stereotype.Component;
 /**
  * The issue-reading Tools.
  *
- * <p>Parameters and return shape are fixed by
- * {@code docs/adr/0001-list-issues-parameters-and-return-shape.md}. The three known
+ * <p>Parameters and the success shape are fixed by
+ * {@code docs/adr/0001-list-issues-parameters-and-return-shape.md}; the failure shape by
+ * {@code docs/adr/0002-failure-contract-for-gh-calls.md}. The three known
  * limitations recorded there are repeated in the parameter descriptions below rather than
  * left in the ADR, so a Client meets them in the schema instead of discovering them at
  * runtime.
@@ -50,7 +53,11 @@ public class IssueTools {
             {items, count, truncated}; `truncated` is true when more issues exist beyond \
             this response. Each issue carries number, title, state, labels, assignees, url \
             and updatedAt — not the body, which `get_issue` is for.""")
-    public ListResult<IssueSummary> listIssues(
+    // Returns CallToolResult rather than the Envelope directly, because a failure has to
+    // carry structuredContent and an isError flag, and a Java method has one return type.
+    // Spring AI passes a CallToolResult through untouched; the success branch below
+    // reproduces exactly what it would otherwise have built.
+    public CallToolResult listIssues(
 
             @McpToolParam(required = true,
                     description = "Repository owner, e.g. \"DemianLi\".")
@@ -95,7 +102,11 @@ public class IssueTools {
             }
         }
 
-        return mapper.toEnvelope(gh.run(args), effectiveLimit);
+        try {
+            return ToolResults.of(mapper.toEnvelope(gh.run(args), effectiveLimit));
+        } catch (GhFailure e) {
+            return ToolResults.failure(e);
+        }
     }
 
     /**

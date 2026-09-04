@@ -153,9 +153,10 @@ Clients see.
   [#7](https://github.com/DemianLi/project_mcp/issues/7). Two things bound the damage: the
   verbatim stderr always travels alongside, so a misclassification loses nothing, and
   unmatched output falls to `UNKNOWN` rather than to a confident wrong answer.
-- Dropping the argv has a cost worth naming: console logging is off (`logging.threshold.console=OFF`,
-  the price of stdout hygiene), so the argv is not moved to a log — it is **gone**.
-  Recovering it would need a file log, which is beyond this map.
+- Dropping the argv from the payload costs nothing diagnostically. It is written to the log
+  file at `WARN` instead, with the Remedy alongside. Only the *console* appender is off
+  (`logging.threshold.console=OFF`, the price of stdout hygiene); `logging.file.name` has
+  been pointing at `logs/project-mcp.log` since the scaffold.
 - Rate limiting is contracted for but unverified. The first real rate limit will show
   whether `gh`'s wording is matchable and whether a wait can be extracted; until then it
   lands in `UNKNOWN`, which is the designed-for outcome rather than a surprise.
@@ -174,3 +175,13 @@ Clients see.
   would need already belongs to `GhCli`.
 - **Remedy in `content` as a JSON string.** A string inside a string, for a reader that was
   chosen precisely so it would not have to parse prose.
+
+## Amendments
+
+**2026-09-05, during [#10](https://github.com/DemianLi/project_mcp/issues/10).** As first
+written, the consequence above claimed the argv would be *gone* once removed from the
+payload, because console logging is off, and that recovering it would need a file log
+"beyond this map". That was wrong on a fact: `application.yml` has configured
+`logging.file.name: logs/project-mcp.log` since the scaffold, and it was actively writing.
+The decision is unaffected — the argv still stays out of what the caller sees — but its
+stated cost was not real, so the implementation logs it rather than discarding it.
