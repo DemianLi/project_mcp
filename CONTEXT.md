@@ -53,6 +53,14 @@ of the MCP protocol, which is why it sits here rather than under Primitives. See
 `docs/adr/0001-list-issues-parameters-and-return-shape.md`.
 _Avoid_: wrapper, response object, payload, 外层
 
+**Remedy**:
+What a caller should _do next_ about a failure — retry, fix the request, or ask a human.
+Every failure this Server reports carries one. It classifies by the action available, not
+by the cause: two failures with different causes and the same action share a Remedy. Like
+the Envelope it is this Server's own design, learned once and holding across every Tool.
+See `docs/adr/0002-failure-contract-for-gh-calls.md`.
+_Avoid_: error code, error type, failure kind, 错误码
+
 ### Testing
 
 **Acceptance layer**:
