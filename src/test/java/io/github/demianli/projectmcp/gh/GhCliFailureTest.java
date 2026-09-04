@@ -64,7 +64,11 @@ class GhCliFailureTest {
 
     @Test
     void timeoutIsRetryAndReportsTheBudgetItSpent() throws Exception {
-        GhCli gh = new GhCli(FakeGh.writing(tmp, "sleep 30"), 1);
+        // "exit 0" after the sleep stops the shell exec-optimising it away, so `sleep`
+        // is genuinely a grandchild holding the same pipe open. Without that this
+        // reproduces on some shells and not others -- it passed on macOS and took the
+        // full 30s on CI.
+        GhCli gh = new GhCli(FakeGh.writing(tmp, "sleep 30\nexit 0"), 1);
         long start = System.nanoTime();
         assertThatThrownBy(() -> gh.run(List.of("issue", "list")))
                 .asInstanceOf(type(GhFailure.class))

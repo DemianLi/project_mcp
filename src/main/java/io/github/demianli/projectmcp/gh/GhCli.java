@@ -109,7 +109,11 @@ public class GhCli {
             Future<byte[]> stderr = executor.submit(() -> process.getErrorStream().readAllBytes());
 
             if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
+                kill(process);
+                // Nothing is read after a timeout, and waiting for the readers would undo
+                // the timeout: see kill(Process).
+                stdout.cancel(true);
+                stderr.cancel(true);
                 throw failure(command, new GhFailure(Remedy.RETRY,
                         "The GitHub CLI did not answer within " + timeoutSeconds + " seconds.",
                         "", timeoutSeconds));
@@ -124,15 +128,34 @@ public class GhCli {
             return out;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            process.destroyForcibly();
+            kill(process);
             throw failure(command, new GhFailure(Remedy.RETRY,
                     "The GitHub CLI call was interrupted before it finished.", "", null));
         } catch (ExecutionException e) {
-            process.destroyForcibly();
+            kill(process);
             throw failure(command, new GhFailure(Remedy.UNKNOWN,
                     "The output of the GitHub CLI could not be read.",
                     String.valueOf(e.getCause()), null));
         }
+    }
+
+    /**
+     * Kills the process <em>and everything it spawned</em>.
+     *
+     * <p>{@link Process#destroyForcibly()} alone kills only the direct child. Anything that
+     * child started inherits the same pipes and keeps the write end open, so
+     * {@code readAllBytes} goes on blocking and a timeout stops being a timeout — the call
+     * runs for as long as the grandchild does. That is precisely the "hangs with no error to
+     * report" failure this class exists to avoid, arriving through a different door.
+     *
+     * <p>Found by CI on its first run: the timeout test asserts it really waited about a
+     * second, and on the Ubuntu runner it took the grandchild's full 30. It did not
+     * reproduce on macOS, where the shell disposes of the child differently — so the test
+     * had to be right about wall-clock time for the bug to show up at all.
+     */
+    private static void kill(Process process) {
+        process.descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
     }
 
     /**
