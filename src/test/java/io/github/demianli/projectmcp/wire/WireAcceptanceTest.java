@@ -47,15 +47,12 @@ class WireAcceptanceTest {
      * same main class, same Spring context, same Stdio transport, a genuinely separate
      * process, and a real JSON-RPC conversation across a pipe.
      */
-    private McpSyncClient serverWith(String ghScriptDir) {
+    private McpSyncClient serverWithPath(String path) {
         var params = ServerParameters.builder(
                         Path.of(System.getProperty("java.home"), "bin", "java").toString())
                 .args("-cp", System.getProperty("java.class.path"),
                         "io.github.demianli.projectmcp.ProjectMcpApplication")
-                // The stand-in comes first and the real gh is nowhere on this PATH --
-                // /usr/bin and /bin carry no gh, only the shell utilities the stand-in
-                // itself needs. Nothing here can reach the network.
-                .env(Map.of("PATH", ghScriptDir + ":/usr/bin:/bin"))
+                .env(Map.of("PATH", path))
                 .build();
 
         var client = McpClient.sync(new StdioClientTransport(params, McpJsonDefaults.getMapper()))
@@ -63,6 +60,20 @@ class WireAcceptanceTest {
                 .build();
         client.initialize();
         return client;
+    }
+
+    /**
+     * A Server that finds the stand-in {@code gh} and nothing else worth finding.
+     *
+     * <p>The stand-in comes <em>first</em>, and that — not the absence of a real {@code gh}
+     * — is the guarantee. GitHub-hosted Ubuntu runners ship the GitHub CLI at
+     * {@code /usr/bin/gh}, so assuming the trailing directories are empty of it would be
+     * true on a laptop and false in CI. Shadowing holds either way. The trailing
+     * {@code /usr/bin:/bin} is there for the shell utilities the stand-in script itself
+     * uses, nothing more.
+     */
+    private McpSyncClient serverWith(String ghScriptDir) {
+        return serverWithPath(ghScriptDir + ":/usr/bin:/bin");
     }
 
     private static CallToolResult listIssues(McpSyncClient client) {
@@ -119,9 +130,15 @@ class WireAcceptanceTest {
     @Test
     void anAbsentGhCrossesTheWireToo() throws Exception {
         // The failure with no stderr to classify, and the one that never reaches a non-zero
-        // exit. An empty directory on PATH is exactly how a real deployment gets this.
+        // exit. An empty PATH is exactly how a real deployment gets this.
+        //
+        // PATH is that one empty directory and nothing else -- deliberately not the usual
+        // trailing /usr/bin:/bin. This test needs `gh` to be findable nowhere, and a
+        // GitHub-hosted Ubuntu runner keeps a real gh at /usr/bin/gh: appending it here
+        // would turn an offline test into a live call to api.github.com. The Server needs
+        // no PATH of its own, since java is launched by absolute path.
         Path empty = Files.createDirectory(tmp.resolve("empty"));
-        try (McpSyncClient client = serverWith(empty.toString())) {
+        try (McpSyncClient client = serverWithPath(empty.toString())) {
             CallToolResult result = listIssues(client);
 
             assertThat(result.isError()).isTrue();

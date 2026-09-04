@@ -1,0 +1,51 @@
+# Runs the offline test suite on every push and pull request.
+#
+# The suite never touches the network, and that is a property worth defending rather
+# than assuming: the "shadow gh" step below makes any call to the real binary fail
+# loudly, the same check the suite is developed under locally.
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: temurin
+          cache: maven
+
+      # This runner image ships the GitHub CLI at /usr/bin/gh (the image README lists it;
+      # cli/cli packages it with `bindir: /usr`). The suite is built to be indifferent to
+      # that — the wire tests put their stand-in first, and the absent-gh test uses a PATH
+      # with no system directories at all — so this line is evidence, not a check. If a
+      # future image moves gh, the log says where it went.
+      - name: Where the real gh lives
+        run: command -v gh && gh --version | head -1
+
+      # Anything invoking `gh` by name from inside the JVM now fails loudly instead of
+      # reaching GitHub. This does not cover the wire tests, which set PATH for their own
+      # child process; those are kept offline by shadowing, and by the absent-gh test
+      # carrying no system PATH at all.
+      - name: Shadow gh with a poison binary
+        run: |
+          mkdir -p "$RUNNER_TEMP/poison"
+          cat > "$RUNNER_TEMP/poison/gh" <<'EOF'
+          #!/bin/sh
+          echo "POISON: the real gh was invoked by name" >&2
+          exit 66
+          EOF
+          chmod +x "$RUNNER_TEMP/poison/gh"
+          echo "$RUNNER_TEMP/poison" >> "$GITHUB_PATH"
+
+      - name: mvn test
+        run: mvn -B test
