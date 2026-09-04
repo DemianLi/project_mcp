@@ -44,6 +44,15 @@ Data the Server exposes for a Client to _read_. Contrast with Tool: a Resource i
 fetched, a Tool is called.
 _Avoid_: document, file, context, asset
 
+### Server design
+
+**Envelope**:
+The fixed outer structure every `list_*` Tool returns — `items`, `count`, `truncated`. A
+Client learns it once and it holds across Tools. It is this Server's own design, _not_ part
+of the MCP protocol, which is why it sits here rather than under Primitives. See
+`docs/adr/0001-list-issues-parameters-and-return-shape.md`.
+_Avoid_: wrapper, response object, payload, 外层
+
 ### Transport
 
 **Transport**:
