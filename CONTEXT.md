@@ -53,6 +53,22 @@ of the MCP protocol, which is why it sits here rather than under Primitives. See
 `docs/adr/0001-list-issues-parameters-and-return-shape.md`.
 _Avoid_: wrapper, response object, payload, 外层
 
+### Testing
+
+**Acceptance layer**:
+The thin outer layer of the test suite, which drives the Server across its wire boundary
+as a real Client would. It exists because the shape of a result — whether it is an error,
+and what the Client actually receives — has no existence below that boundary, so no
+test beneath it can observe the shape. It proves the shape; it is not where coverage
+lives.
+_Avoid_: end-to-end test, integration test, e2e
+
+**Coverage layer**:
+The inner layer of the test suite, which walks every case without crossing the wire
+boundary. Named as a counterpart to the Acceptance layer: the two are a division of
+labour, not two names for the same tests.
+_Avoid_: unit test, fast test
+
 ### Transport
 
 **Transport**:
