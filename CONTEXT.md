@@ -1,10 +1,18 @@
 # project_mcp
 
-An MCP server written in Java with the official `java-sdk`. It declares the Tools and
-Resources that carry this project's business logic, and during development is exercised
-by the MCP Inspector acting as its client.
+An MCP server that exposes GitHub platform operations as Tools. It is written in Java
+on Spring Boot, and during development is exercised by the MCP Inspector acting as its
+client.
 
 ## Language
+
+### Domain
+
+**GitHub operation**:
+An action against the GitHub platform — issues, pull requests, labels, reviews. This is
+what the Server's Tools wrap. It is _not_ version control: local git work (commit,
+branch, merge) is deliberately outside this Server.
+_Avoid_: version control, git operation, 版控
 
 ### Roles
 
@@ -45,9 +53,15 @@ _Avoid_: protocol, connection
 
 **Stdio**:
 The Transport where the Client launches the Server as a subprocess and speaks over
-stdin/stdout.
+stdin/stdout. The only Transport this Server implements.
+
+**Streamable HTTP**:
+The Transport where the Server runs as an HTTP process. In `java-sdk` 2.x this is
+`HttpServletStreamableServerTransportProvider`. Not implemented here — the term is
+defined so it stays consistent if it lands.
 
 **SSE**:
-The Transport where the Server runs as an HTTP process and streams responses over
-Server-Sent Events. _Not implemented yet_ — the term is defined here so it stays
-consistent when it lands, but only Stdio exists today.
+The deprecated predecessor to Streamable HTTP, using Server-Sent Events. Defined here
+only because older tutorials and 1.x-era `java-sdk` code are full of it — recognise it,
+don't reach for it.
+_Avoid_: using it for new work; say Streamable HTTP instead.
