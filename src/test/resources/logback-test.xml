@@ -1,0 +1,7 @@
+<!-- Tests provoke failures on purpose, and GhCli logs every one at WARN with the argv.
+     That is correct in production and pure noise here. Silenced rather than removed:
+     the log line itself is verified at the wire, on issue #10. -->
+<configuration>
+  <logger name="io.github.demianli.projectmcp.gh.GhCli" level="OFF"/>
+  <root level="WARN"/>
+</configuration>

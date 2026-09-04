@@ -1,0 +1,149 @@
+package io.github.demianli.projectmcp.gh;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.type;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * Coverage layer: every Remedy in ADR-0002, walked without crossing the wire.
+ *
+ * <p>No network and no real {@code gh}. What is <em>not</em> substituted is the point — the
+ * spawn, the pipes, the exit code and the timeout stay real, so these exercise
+ * {@link GhCli}'s machinery rather than a description of it.
+ */
+class GhCliFailureTest {
+
+    @TempDir Path tmp;
+
+    private static GhCli pointingAt(String executable) {
+        return new GhCli(executable, 30);
+    }
+
+    private GhFailure failure(String stderr) throws IOException {
+        try {
+            pointingAt(FakeGh.failing(tmp, stderr)).run(List.of("issue", "list"));
+        } catch (GhFailure e) {
+            return e;
+        }
+        throw new AssertionError("expected a GhFailure");
+    }
+
+    @Test
+    void networkUnreachableIsRetry() throws Exception {
+        GhFailure f = failure(
+                "Post \"https://api.github.com/graphql\": dial tcp: connect: connection refused");
+        assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
+        assertThat(f.retryAfterSeconds()).isNull();
+        assertThat(f.stderr()).contains("connection refused");
+    }
+
+    @Test
+    void rateLimitIsRetryAndKeepsTheWaitWhenGhNamesOne() throws Exception {
+        assertThat(failure("You have exceeded a secondary rate limit").remedy())
+                .isEqualTo(Remedy.RETRY);
+
+        GhFailure withWait = failure("API rate limit exceeded. Please retry after 60 seconds.");
+        assertThat(withWait.remedy()).isEqualTo(Remedy.RETRY);
+        assertThat(withWait.retryAfterSeconds()).isEqualTo(60);
+    }
+
+    @Test
+    void rateLimitWithoutAStatedWaitLeavesItUnset() throws Exception {
+        // gh's rate-limit wording is unverified: it could not be provoked against the real
+        // API. The contract is built so that not knowing it costs the wait, not the
+        // classification.
+        assertThat(failure("API rate limit exceeded").retryAfterSeconds()).isNull();
+    }
+
+    @Test
+    void timeoutIsRetryAndReportsTheBudgetItSpent() throws Exception {
+        GhCli gh = new GhCli(FakeGh.writing(tmp, "sleep 30"), 1);
+        long start = System.nanoTime();
+        assertThatThrownBy(() -> gh.run(List.of("issue", "list")))
+                .asInstanceOf(type(GhFailure.class))
+                .satisfies(f -> {
+                    assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
+                    assertThat(f.retryAfterSeconds()).isEqualTo(1);
+                    assertThat(f.getMessage()).contains("within 1 seconds");
+                });
+        assertThat(Duration.ofNanos(System.nanoTime() - start).toMillis())
+                .as("it really waited, rather than reporting a timeout it never took")
+                .isBetween(900L, 5000L);
+    }
+
+    @Test
+    void repoNotFoundIsFixRequest() throws Exception {
+        assertThat(failure("GraphQL: Could not resolve to a Repository with the name 'a/b'. "
+                + "(repository)").remedy()).isEqualTo(Remedy.FIX_REQUEST);
+    }
+
+    @Test
+    void malformedRepoSlugIsFixRequest() throws Exception {
+        assertThat(failure("expected the \"[HOST/]OWNER/REPO\" format, got \"notavalidthing\"")
+                .remedy()).isEqualTo(Remedy.FIX_REQUEST);
+    }
+
+    @Test
+    void issuesDisabledIsFixRequest() throws Exception {
+        assertThat(failure("the 'torvalds/linux' repository has disabled issues").remedy())
+                .isEqualTo(Remedy.FIX_REQUEST);
+    }
+
+    @Test
+    void badCredentialsIsAskOperator() throws Exception {
+        assertThat(failure("HTTP 401: Bad credentials (https://api.github.com/graphql)\n"
+                + "Try authenticating with:  gh auth login").remedy())
+                .isEqualTo(Remedy.ASK_OPERATOR);
+    }
+
+    @Test
+    void anAbsentBinaryIsAskOperatorAndCarriesNoStderr() {
+        // The asymmetry ADR-0002 names: this never reaches a non-zero exit. The path below
+        // genuinely does not exist, so the IOException is the real one from the real
+        // ProcessBuilder.start() rather than one a test invented.
+        GhCli gh = pointingAt(tmp.resolve("no-such-gh").toString());
+        assertThatThrownBy(() -> gh.run(List.of("issue", "list")))
+                .asInstanceOf(type(GhFailure.class))
+                .satisfies(f -> {
+                    assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
+                    assertThat(f.stderr()).isEmpty();
+                    assertThat(f.getMessage()).contains("not installed");
+                });
+    }
+
+    @Test
+    void unrecognisedStderrIsUnknownAndSurvivesVerbatim() throws Exception {
+        // The usage blob gh prints for a bad flag. Unreachable through the Tool's typed
+        // surface, so it can only mean a bug in this Server — ADR-0002 gives it no Remedy of
+        // its own, and this is where it lands instead.
+        String blob = "unknown flag: --banana\n\nUsage:  gh issue list [flags]\n\nFlags:\n"
+                + "      --app string         Filter by GitHub App author";
+        GhFailure f = failure(blob);
+        assertThat(f.remedy()).isEqualTo(Remedy.UNKNOWN);
+        assertThat(f.stderr()).isEqualTo(blob);
+    }
+
+    @Test
+    void stderrLargerThanThePipeBufferDoesNotDeadlock() throws Exception {
+        // The single bug GhCli's concurrent draining exists to prevent. Only a real process
+        // can fill a real pipe buffer, which is why the seam sits at the executable name and
+        // no deeper.
+        GhCli gh = pointingAt(FakeGh.writing(tmp,
+                "i=0; while [ $i -lt 4000 ]; do echo 'noise noise noise noise' >&2; "
+                        + "i=$((i+1)); done; echo '[]'"));
+        assertThat(gh.run(List.of("issue", "list"))).isEqualTo("[]\n");
+    }
+
+    @Test
+    void successReturnsStdoutUntouched() throws Exception {
+        GhCli gh = pointingAt(FakeGh.writing(tmp, "echo '[{\"number\":1}]'"));
+        assertThat(gh.run(List.of("issue", "list"))).isEqualTo("[{\"number\":1}]\n");
+    }
+}

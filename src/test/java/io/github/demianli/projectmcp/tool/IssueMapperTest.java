@@ -1,5 +1,8 @@
 package io.github.demianli.projectmcp.tool;
 
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -9,33 +12,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Exercises the half of {@code list_issues} that is a pure function of a string.
  *
- * <p>No Spring context, no subprocess, no GitHub account: the payload below was captured
- * verbatim from {@code gh issue list --repo DemianLi/project_mcp --state all --limit 3
- * --json number,title,state,labels,assignees,url,updatedAt}, so it carries the real shape
- * of the object arrays that get flattened — including the empty {@code assignees[].name}.
- *
- * <p>This is not a testing strategy for the Server as a whole; how to test a shell-out
- * Server without hitting the real GitHub API is still an open item on the map (issue #1).
+ * <p>Coverage layer. No Spring context, no subprocess, no GitHub account: the fixture was
+ * captured verbatim from {@code gh issue list --repo DemianLi/project_mcp --state all
+ * --limit 3 --json number,title,state,labels,assignees,url,updatedAt}, so it carries the
+ * real shape of the object arrays that get flattened — including the empty
+ * {@code assignees[].name}, and an issue with no labels and no assignees at all, which the
+ * other fixture happens not to have.
  */
 class IssueMapperTest {
 
-    private static final String THREE_ISSUES = """
-            [{"assignees":[{"id":"U_kgDOCLEPUw","login":"DemianLi","name":"","databaseId":145821523}],\
-            "labels":[{"id":"LA_kwDOUOMf088AAAACzwxQIA","name":"wayfinder:task",\
-            "description":"Wayfinder ticket: manual work unblocking a decision","color":"006b75"}],\
-            "number":6,"state":"OPEN","title":"Implement list_issues and verify it in the Inspector",\
-            "updatedAt":"2026-09-04T15:12:34Z","url":"https://github.com/DemianLi/project_mcp/issues/6"},\
-            {"assignees":[{"id":"U_kgDOCLEPUw","login":"DemianLi","name":"","databaseId":145821523}],\
-            "labels":[{"id":"LA_kwDOUOMf088AAAACzwxPqg","name":"wayfinder:grilling",\
-            "description":"Wayfinder ticket: HITL conversation","color":"d93f0b"}],\
-            "number":5,"state":"CLOSED","title":"Decide the parameters and return shape of list_issues",\
-            "updatedAt":"2026-09-04T14:58:56Z","url":"https://github.com/DemianLi/project_mcp/issues/5"},\
-            {"assignees":[],\
-            "labels":[],\
-            "number":4,"state":"CLOSED","title":"Get a zero-Tool Stdio server to handshake in the Inspector",\
-            "updatedAt":"2026-09-04T14:24:23Z","url":"https://github.com/DemianLi/project_mcp/issues/4"}]""";
+    private static final String THREE_ISSUES = fixture("issue-list-with-empty-arrays.json");
 
     private final IssueMapper mapper = new IssueMapper();
+
+    /** Fixtures live in one place, {@code src/test/resources/gh}, and are all real captures. */
+    private static String fixture(String name) {
+        try {
+            return Files.readString(Path.of("src/test/resources/gh", name));
+        } catch (java.io.IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     @Test
     void keepsTheSevenFieldsAndFlattensTheObjectArrays() {

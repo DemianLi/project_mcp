@@ -47,6 +47,32 @@ public class GhCli {
      */
     static final int TIMEOUT_SECONDS = 30;
 
+    private final String executable;
+    private final int timeoutSeconds;
+
+    public GhCli() {
+        this("gh", TIMEOUT_SECONDS);
+    }
+
+    /**
+     * Lets a test point at a stand-in binary and shorten the timeout.
+     *
+     * <p>Public because it is a real configuration point — a deployment with {@code gh}
+     * somewhere other than the PATH can use it — but its reason for existing is the test
+     * suite.
+     *
+     * <p>The substitution deliberately happens at the executable name and nowhere deeper:
+     * everything below it — the spawn, the concurrent pipe draining, the exit code, the
+     * timeout — stays real, so the tests exercise the machinery rather than replace it. A
+     * mock in front of {@link ProcessBuilder} would make a missing binary, a timeout and a
+     * full pipe buffer untestable, which is most of what can actually go wrong here. See
+     * issue #9.
+     */
+    public GhCli(String executable, int timeoutSeconds) {
+        this.executable = executable;
+        this.timeoutSeconds = timeoutSeconds;
+    }
+
     /** {@code gh} sometimes names a wait; the wording is unverified, so this is best-effort. */
     private static final Pattern RETRY_AFTER =
             Pattern.compile("retry after (\\d+)", Pattern.CASE_INSENSITIVE);
@@ -60,7 +86,7 @@ public class GhCli {
      */
     public String run(List<String> args) {
         List<String> command = new ArrayList<>(args.size() + 1);
-        command.add("gh");
+        command.add(executable);
         command.addAll(args);
 
         Process process;
@@ -82,11 +108,11 @@ public class GhCli {
             Future<byte[]> stdout = executor.submit(() -> process.getInputStream().readAllBytes());
             Future<byte[]> stderr = executor.submit(() -> process.getErrorStream().readAllBytes());
 
-            if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 throw failure(command, new GhFailure(Remedy.RETRY,
-                        "The GitHub CLI did not answer within " + TIMEOUT_SECONDS + " seconds.",
-                        "", TIMEOUT_SECONDS));
+                        "The GitHub CLI did not answer within " + timeoutSeconds + " seconds.",
+                        "", timeoutSeconds));
             }
 
             String out = new String(stdout.get(), StandardCharsets.UTF_8);
