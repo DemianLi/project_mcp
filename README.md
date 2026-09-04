@@ -1,5 +1,7 @@
 # project_mcp
 
+[![CI](https://github.com/DemianLi/project_mcp/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/DemianLi/project_mcp/actions/workflows/ci.yml?query=branch%3Adevelop)
+
 An [MCP](https://modelcontextprotocol.io) server that exposes **GitHub platform
 operations** — issues, pull requests, labels — as Tools. Think of it as a guardrailed,
 typed subset of the `gh` CLI: callers get a declared set of operations with typed
