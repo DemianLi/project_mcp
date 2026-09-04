@@ -14,15 +14,7 @@ When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the 
 
 Edit the right-hand column to match whatever vocabulary you actually use.
 
-> **Not yet created on GitHub.** These labels do not exist in `DemianLi/project_mcp` yet.
-> Before the first triage run, create them:
->
-> ```bash
-> gh label create needs-triage    --description "Maintainer needs to evaluate this issue"
-> gh label create needs-info      --description "Waiting on reporter for more information"
-> gh label create ready-for-agent --description "Fully specified, ready for an AFK agent"
-> gh label create ready-for-human --description "Requires human implementation"
-> gh label create wontfix         --description "Will not be actioned"
-> ```
->
-> (`wontfix` ships as a GitHub default label on new repos — that call may report it already exists, which is fine.)
+> **Created on GitHub.** All five labels exist in `DemianLi/project_mcp`:
+> `needs-triage` (#fbca04), `needs-info` (#c5def5), `ready-for-agent` (#0e8a16),
+> `ready-for-human` (#1d76db), and `wontfix` (#ffffff — GitHub's default label,
+> kept as shipped). Apply them with `gh issue edit <n> --add-label "<label>"`.
