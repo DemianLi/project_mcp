@@ -148,8 +148,9 @@ refuse translating multiple labels into an OR.
 The **Envelope** (ADR-0001), inherited without change — `ListResult<T>` is already generic,
 so `ListResult<LabelSummary>` costs nothing. `count` and `truncated` both mean here what they
 mean there, and `truncated` is produced the same way: ask `gh` for `limit + 1`, and on
-getting that many back set the flag and drop the spare. Verified to work under `search` too
-(6 matches, `--limit 3` → 3 rows, `--limit 6` → 5 rows).
+getting that many back set the flag and drop the spare. Verified under `search` too: on this
+repository `--search wayfinder` matches 5 labels, and `--limit 4` returns 4 — the boundary
+the mechanism turns on.
 
 Each item carries **two fields**:
 
@@ -167,10 +168,16 @@ the same symmetry argument ADR-0001 used to flatten labels there.
 assumed. It is not decoration: on this repository all 19 descriptions are non-empty and every
 one of them is doing disambiguation a name cannot (`needs-triage` "Maintainer needs to
 evaluate this issue" against `needs-info` "Waiting on reporter for more information";
-`ready-for-agent` against `ready-for-human`). On `rust-lang/rust` only 9 of 976 are empty. A
-model choosing which label to filter on cannot choose from names alone. The cost is roughly
-threefold (462 → 1,393 bytes here; 27,432 → 86,274 on `rust-lang/rust`), and it is the reason
-`limit` and `search` are not optional extras.
+`ready-for-agent` against `ready-for-human`). A model choosing which label to filter on
+cannot choose from names alone. The cost is roughly threefold (462 → 1,393 bytes here;
+27,432 → 86,274 on `rust-lang/rust`), and it is the reason `limit` and `search` are not
+optional extras.
+
+How often the field is empty varies more than those two samples suggest, and the middle one
+is the honest case: `rust-lang/rust` 9 of 976, this repository 0 of 19, but **`cli/cli` 20 of
+83 — 24%**. An empty description is therefore a shape a Client will meet in practice, so it
+is passed through as `""` rather than dropping the key — the same treatment `IssueDetail`
+gives `gh`'s own two spellings of absence (ADR-0003).
 
 Six fields are excluded, by ADR-0003's rule — a field earns its place if the Client can *do*
 something with it:
