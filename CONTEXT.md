@@ -79,6 +79,23 @@ as ordinary content. Every read operation here is therefore a Tool. See
 [#15](https://github.com/DemianLi/project_mcp/issues/15).
 _Avoid_: document, file, context, asset
 
+**Annotations**:
+What a Tool declares about itself: whether it reads or writes, whether the write is
+destructive, whether calling it twice differs from calling it once, whether it touches an
+open world beyond this Server. They are the Server talking about its own Tools, and the
+protocol's one requirement of a Client is that it **not** trust them — nothing verifies an
+annotation, so a Client gating on one is gating on an assertion. See
+[#26](https://github.com/DemianLi/project_mcp/issues/26).
+
+`readOnlyHint` plays three roles here and they are not interchangeable. As a
+**declaration** it is what a Client is told about one Tool. As a **switch** it is what
+gives the other two hints meaning at all — `destructiveHint` and `idempotentHint` say
+nothing until it is false (see ADR-0007). And this Server reads its own **partition** off
+it: which Tools count as writes is that field, not a second list kept alongside. The first
+role is a claim about a Tool; a Read-only instance is a claim about something else
+entirely, so neither is a stronger grade of the other.
+_Avoid_: guarantee, permission, enforcement, 保证
+
 ### Server design
 
 **Envelope**:
@@ -97,6 +114,41 @@ by the cause: two failures with different causes and the same action share a Rem
 the Envelope it is this Server's own design, learned once and holding across every Tool.
 See `docs/adr/0002-failure-contract-for-gh-calls.md`.
 _Avoid_: error code, error type, failure kind, 错误码
+
+### Deployment
+
+**Read-only instance**:
+A running Server from which no write reaches GitHub. The unit is the instance, not the
+Server: the Server can be running twice, one instance writing and one not.
+
+The word names **two different promises**, and which one is meant depends on where the
+constraint lives.
+
+**Ungranted**: the ability to write was never handed to this instance. Whatever login
+`gh` resolves lacks the scope, so GitHub refuses — a bug in this Server, or a caller
+arriving by a path nobody anticipated, still produces no comment. The constraint sits
+outside the Server, which can only report having run into it.
+
+**Withheld**: the instance holds a login that could write, and does not. The constraint is
+the Server's own, so it covers everything the Server does — and nothing that goes around
+the Server.
+
+The two are not grades of one promise. `Ungranted` covers every route to GitHub but was
+never this Server's to hand out; `Withheld` is this Server's to hand out but covers only
+what travels through it.
+
+Today this Server hands out neither promise. `Ungranted` is reachable anyway — anyone
+deploying this Server can pick a login without the scope — but what comes back is this Server
+misdescribing it: the refusal matches nothing known and arrives with the `UNKNOWN` Remedy,
+while the nearest Remedy that would match tells the reader to log in again, which does not
+fix a scope. `Withheld` does not exist here at all. Which of the two, if either, this
+Server should offer is the question of
+[#32](https://github.com/DemianLi/project_mcp/issues/32).
+_Avoid_: read-only mode, safe mode, sandboxed, 只读模式 — an instance's identity is fixed
+when it starts, not a mode it can be put into. Also avoid the bare "the Server is
+read-only" without saying which of the two is meant: it read as true while every Tool
+read, and ADR-0001, ADR-0003 and ADR-0004 still carry it frozen as a constraint of their
+day.
 
 ### Testing
 
