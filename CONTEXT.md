@@ -14,6 +14,14 @@ what the Server's Tools wrap. It is _not_ version control: local git work (commi
 branch, merge) is deliberately outside this Server.
 _Avoid_: version control, git operation, 版控
 
+**Pull request**:
+A GitHub pull request. It shares one number space with issues, and GitHub's data model
+makes every pull request an issue — though not the reverse. In this Server's vocabulary
+the two are nevertheless distinct: an issue is never a pull request. The read Tools here
+are about issues only, so handing a pull request number to an issue Tool is a rejected
+request, not a variant read.
+_Avoid_: treating a PR as a kind of issue, 把 PR 当成 issue 的一种
+
 ### Roles
 
 **Server**:
