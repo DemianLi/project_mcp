@@ -22,6 +22,16 @@ are about issues only, so handing a pull request number to an issue Tool is a re
 request, not a variant read.
 _Avoid_: treating a PR as a kind of issue, 把 PR 当成 issue 的一种
 
+**Label**:
+A named tag a repository can put on an issue. A Label plays two roles here, and they are
+not interchangeable. As an **attribute** of an issue it is just its name — that name is
+also what a Client passes back to filter by, so nothing else about it is load-bearing. As
+an **object of choice**, when a Client is deciding which label to filter on, the name alone
+is often not enough to tell two labels apart, and the description is what distinguishes
+them. The Server therefore reports a Label in two shapes depending on which role it is
+in; that asymmetry is deliberate, not an inconsistency to be tidied away. See ADR-0004.
+_Avoid_: tag, category, 分类
+
 ### Roles
 
 **Server**:
