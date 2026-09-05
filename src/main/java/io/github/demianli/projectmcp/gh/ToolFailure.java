@@ -42,7 +42,13 @@ public class ToolFailure extends RuntimeException {
         return stderr;
     }
 
-    /** Seconds to wait before retrying, or {@code null} when unknown or not applicable. */
+    /**
+     * Seconds to wait before retrying, or {@code null} when unknown or not applicable —
+     * which is nearly always. It is filled only from a wait {@code gh} names for a rate
+     * limit. A timeout carries none: the budget it spent is a fact about the past, and this
+     * field says "do not retry before this", which is a claim about the future. ADR-0008
+     * removed the one place the two were confused.
+     */
     public Integer retryAfterSeconds() {
         return retryAfterSeconds;
     }

@@ -12,11 +12,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Coverage layer: every Remedy in ADR-0002, walked without crossing the wire.
+ * Coverage layer: every Remedy, walked without crossing the wire — the four of ADR-0002 and
+ * the fifth ADR-0008 added for writes.
  *
  * <p>No network and no real {@code gh}. What is <em>not</em> substituted is the point — the
  * spawn, the pipes, the exit code and the timeout stay real, so these exercise
  * {@link GhCli}'s machinery rather than a description of it.
+ *
+ * <p>One branch has no test and cannot get one here: the {@code ExecutionException} arm,
+ * which ADR-0008 also reclassifies on a write. It fires when {@code readAllBytes} throws,
+ * and a stand-in binary cannot make it — a killed process gives EOF, not an
+ * {@link java.io.IOException}. Reaching it would mean putting the seam in front of
+ * {@link ProcessBuilder}, which is what {@link GhCli}'s own javadoc argues against, because
+ * that is what makes the absent binary, the timeout and the full pipe buffer above testable
+ * at all. Recorded as a gap rather than paid for. See issue #31.
  */
 class GhCliFailureTest {
 
@@ -63,7 +72,7 @@ class GhCliFailureTest {
     }
 
     @Test
-    void timeoutIsRetryAndReportsTheBudgetItSpent() throws Exception {
+    void timeoutOnAReadIsRetryAndCarriesNoWait() throws Exception {
         // "exit 0" after the sleep stops the shell exec-optimising it away, so `sleep`
         // is genuinely a grandchild holding the same pipe open. Without that this
         // reproduces on some shells and not others -- it passed on macOS and took the
@@ -74,12 +83,102 @@ class GhCliFailureTest {
                 .asInstanceOf(type(ToolFailure.class))
                 .satisfies(f -> {
                     assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
-                    assertThat(f.retryAfterSeconds()).isEqualTo(1);
+                    // It used to report the budget it spent. ADR-0008 took that away: the
+                    // field means "do not retry before this", so a Client obeying it waited
+                    // out the timeout and then called again -- harmless on a read and the
+                    // duplicate itself on a write.
+                    assertThat(f.retryAfterSeconds()).isNull();
                     assertThat(f.getMessage()).contains("within 1 seconds");
                 });
         assertThat(Duration.ofNanos(System.nanoTime() - start).toMillis())
                 .as("it really waited, rather than reporting a timeout it never took")
                 .isBetween(900L, 5000L);
+    }
+
+    @Test
+    void timeoutOnAWriteSaysToCheckRatherThanToRetry() throws Exception {
+        GhCli gh = new GhCli(FakeGh.writing(tmp, "sleep 30\nexit 0"), 1);
+        assertThatThrownBy(() -> gh.runWrite(List.of("api", "graphql", "-f", "query=x")))
+                .asInstanceOf(type(ToolFailure.class))
+                .satisfies(f -> {
+                    assertThat(f.remedy()).isEqualTo(Remedy.CHECK_BEFORE_RETRY);
+                    assertThat(f.retryAfterSeconds()).isNull();
+                    assertThat(f.getMessage())
+                            .as("the same first sentence a read gets, so the cause is not "
+                                    + "lost, then the ADR-0008 wording -- asserted across "
+                                    + "the join, because the space that makes it prose "
+                                    + "lives at the head of a constant and a reformat "
+                                    + "would eat it silently")
+                            .contains("within 1 seconds. The comment could not be "
+                                    + "confirmed.")
+                            .contains("list_issue_comments");
+                });
+    }
+
+    @Test
+    void interruptionIsRetryOnAReadAndCheckOnAWrite() throws Exception {
+        // Setting the flag before the call and letting the call find it, rather than
+        // interrupting from a second thread into a window that would have to be guessed at.
+        //
+        // The shell is `sleep 1 & exit 0` for a measured reason. Two places on this path can
+        // notice the flag -- waitFor, and the Future.get that follows it -- and which one
+        // does is not predictable: the same pre-set flag threw out of waitFor immediately in
+        // a stripped-down harness and only when the process ended (30s) through GhCli. So
+        // the fake exits at once, and a backgrounded sleep holds the stdout pipe open so
+        // that get() is still blocking when it is reached. Both orders throw, and neither
+        // costs 30 seconds.
+        String slow = FakeGh.writing(tmp, "sleep 1 & exit 0");
+        long start = System.nanoTime();
+
+        Thread.currentThread().interrupt();
+        try {
+            assertThatThrownBy(() -> new GhCli(slow, 30).run(List.of("issue", "list")))
+                    .asInstanceOf(type(ToolFailure.class))
+                    .satisfies(f -> {
+                        assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
+                        assertThat(f.getMessage()).doesNotContain("list_issue_comments");
+                    });
+        } finally {
+            // GhCli re-sets the flag on its way out, which is correct of it and would leak
+            // into whatever runs next on this thread.
+            assertThat(Thread.interrupted()).isTrue();
+        }
+
+        Thread.currentThread().interrupt();
+        try {
+            assertThatThrownBy(
+                    () -> new GhCli(slow, 30).runWrite(List.of("api", "graphql", "-f", "query=x")))
+                    .asInstanceOf(type(ToolFailure.class))
+                    .satisfies(f -> {
+                        assertThat(f.remedy()).isEqualTo(Remedy.CHECK_BEFORE_RETRY);
+                        assertThat(f.getMessage())
+                                .contains("interrupted")
+                                .contains("list_issue_comments");
+                    });
+        } finally {
+            assertThat(Thread.interrupted()).isTrue();
+        }
+
+        assertThat(Duration.ofNanos(System.nanoTime() - start).toSeconds())
+                .as("an interrupt returns at once; it does not wait out the process it "
+                        + "abandoned")
+                .isLessThan(10);
+    }
+
+    @Test
+    void aWriteThatFailsForAnyOtherReasonIsClassifiedExactlyAsAReadWouldBe() throws Exception {
+        // The write route changes the three exits that abandon the call without learning
+        // what it did, and nothing else. A non-zero exit is `gh` telling us what happened,
+        // so classify() has the answer and the route is irrelevant.
+        GhCli gh = new GhCli(FakeGh.failing(tmp,
+                "GraphQL: Could not resolve to a Repository with the name 'a/b'. (repository)"),
+                30);
+        assertThatThrownBy(() -> gh.runWrite(List.of("api", "graphql", "-f", "query=x")))
+                .asInstanceOf(type(ToolFailure.class))
+                .satisfies(f -> {
+                    assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
+                    assertThat(f.getMessage()).doesNotContain("list_issue_comments");
+                });
     }
 
     @Test

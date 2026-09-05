@@ -33,6 +33,14 @@ import org.springframework.stereotype.Component;
  * Tool inherits the contract by calling {@link #run}, with no per-Tool code. It also puts
  * every string comparison in one file, which is the only place that needs changing when
  * {@code gh}'s wording drifts.
+ *
+ * <p>Since ADR-0008 it also knows which calls <em>change something</em>. Three of the exits
+ * below kill the process without learning what it did, and that means "nothing happened,
+ * try again" on a read and "something may have happened" on a write — one failure, two
+ * different actions for the caller. A Tool says which it is by choosing {@link #run} or
+ * {@link #runWrite}, and nothing else about the distinction leaves this class. Rewriting
+ * the Remedy in a Tool's {@code catch} would move half the contract to exactly where the
+ * paragraph above says it must not live, and every future write Tool would copy it.
  */
 @Component
 public class GhCli {
@@ -42,8 +50,14 @@ public class GhCli {
     /**
      * How long a single {@code gh} call may take.
      *
-     * <p>Part of the failure contract, not a private tuning knob: a timeout reports this
-     * number as the wait already spent, so changing it changes what callers are told.
+     * <p>The default only: what a call actually gets is {@link #timeoutSeconds}, which the
+     * two-argument constructor sets.
+     *
+     * <p>Part of the failure contract, not a private tuning knob — though no longer for the
+     * reason ADR-0002 gave. It is no longer reported as a wait to observe (ADR-0008 removed
+     * that), but it is still named in the timeout's sentence, and on a write whatever this
+     * budget is set to decides how often a caller is told to go and check. Shortening it
+     * buys responsiveness and costs unconfirmed writes.
      */
     static final int TIMEOUT_SECONDS = 30;
 
@@ -73,18 +87,59 @@ public class GhCli {
         this.timeoutSeconds = timeoutSeconds;
     }
 
+    /**
+     * What a caller is told after a write this Server could not confirm, quoted from
+     * ADR-0008.
+     *
+     * <p>The tension is deliberate and recorded rather than designed away: this is the
+     * first per-Tool string in a class whose javadoc promises every Tool inherits the
+     * contract "with no per-Tool code", and it names {@code list_issue_comments} by hand,
+     * so renaming that Tool silently falsifies this sentence with nothing at compile time
+     * noticing. ADR-0008 accepted both costs — the whole reason recovery is left with the
+     * Client is that this Server provides the means, and a means the Client is not told
+     * about is a hope rather than a contract. The second write Tool will collide with it;
+     * that is the point at which to parameterise, not before.
+     */
+    private static final String CHECK_INSTEAD_OF_RETRYING =
+            " The comment could not be confirmed. It may already have been posted. Before "
+                    + "writing it again, check with `list_issue_comments` whether a comment "
+                    + "of yours with this body is already on the issue.";
+
     /** {@code gh} sometimes names a wait; the wording is unverified, so this is best-effort. */
     private static final Pattern RETRY_AFTER =
             Pattern.compile("retry after (\\d+)", Pattern.CASE_INSENSITIVE);
 
     /**
-     * Runs {@code gh} with the given arguments and returns its stdout.
+     * Runs a {@code gh} call that only reads, and returns its stdout.
      *
      * @throws ToolFailure if {@code gh} is missing, exits non-zero, or outlives the timeout.
      *     The shape the Client sees is fixed by
      *     {@code docs/adr/0002-failure-contract-for-gh-calls.md}.
      */
     public String run(List<String> args) {
+        return run(args, false);
+    }
+
+    /**
+     * Runs a {@code gh} call that changes something, and returns its stdout.
+     *
+     * <p>The same spawn, the same draining, the same {@link #classify}. The one difference
+     * is what the caller is told when the call is abandoned before its result could be read:
+     * those three exits carry {@link Remedy#CHECK_BEFORE_RETRY} instead of advice to call
+     * again. See ADR-0008.
+     *
+     * <p>A sibling method rather than a parameter on {@code run}, so that the four calls
+     * that read say nothing at all — a read is the unmarked case, and marking it would put
+     * a {@code false} at four call sites whose only job is to stay quiet.
+     *
+     * @throws ToolFailure on every failure {@link #run} throws for, with the three
+     *     unconfirmed-write exits reclassified.
+     */
+    public String runWrite(List<String> args) {
+        return run(args, true);
+    }
+
+    private String run(List<String> args, boolean write) {
         List<String> command = new ArrayList<>(args.size() + 1);
         command.add(executable);
         command.addAll(args);
@@ -114,9 +169,15 @@ public class GhCli {
                 // the timeout: see kill(Process).
                 stdout.cancel(true);
                 stderr.cancel(true);
-                throw failure(command, new ToolFailure(Remedy.RETRY,
-                        "The GitHub CLI did not answer within " + timeoutSeconds + " seconds.",
-                        "", timeoutSeconds));
+                // No wait travels with this. `retryAfterSeconds` means "do not retry
+                // before this", and the budget already spent is a fact about the past; a
+                // Client obeying the documented meaning waited it out and then retried,
+                // which on a write is what schedules the duplicate. See ADR-0008.
+                throw failure(command, new ToolFailure(
+                        write ? Remedy.CHECK_BEFORE_RETRY : Remedy.RETRY,
+                        "The GitHub CLI did not answer within " + timeoutSeconds + " seconds."
+                                + (write ? CHECK_INSTEAD_OF_RETRYING : ""),
+                        "", null));
             }
 
             String out = new String(stdout.get(), StandardCharsets.UTF_8);
@@ -129,12 +190,21 @@ public class GhCli {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             kill(process);
-            throw failure(command, new ToolFailure(Remedy.RETRY,
-                    "The GitHub CLI call was interrupted before it finished.", "", null));
+            throw failure(command, new ToolFailure(
+                    write ? Remedy.CHECK_BEFORE_RETRY : Remedy.RETRY,
+                    "The GitHub CLI call was interrupted before it finished."
+                            + (write ? CHECK_INSTEAD_OF_RETRYING : ""),
+                    "", null));
         } catch (ExecutionException e) {
             kill(process);
-            throw failure(command, new ToolFailure(Remedy.UNKNOWN,
-                    "The output of the GitHub CLI could not be read.",
+            // The worst of the three on a write: the process may have run to completion and
+            // the failure be nothing but this Server not reading the bytes back. On a read
+            // it stays UNKNOWN, which is where a Java exception string standing in for
+            // stderr comes from.
+            throw failure(command, new ToolFailure(
+                    write ? Remedy.CHECK_BEFORE_RETRY : Remedy.UNKNOWN,
+                    "The output of the GitHub CLI could not be read."
+                            + (write ? CHECK_INSTEAD_OF_RETRYING : ""),
                     String.valueOf(e.getCause()), null));
         }
     }

@@ -4,7 +4,8 @@ Date: 2026-09-05
 
 ## Status
 
-Accepted. Resolves [#28](https://github.com/DemianLi/project_mcp/issues/28). Builds on
+Accepted. Resolves [#28](https://github.com/DemianLi/project_mcp/issues/28); binds the
+implementation in [#31](https://github.com/DemianLi/project_mcp/issues/31). Builds on
 ADR-0007, which added the first write.
 
 **Supersedes ADR-0002 in part.** Two of its rulings are withdrawn — that the four Remedies
