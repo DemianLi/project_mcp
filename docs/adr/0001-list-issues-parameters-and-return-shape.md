@@ -159,3 +159,39 @@ rather than discovered at runtime:
 - **STRUCTURED mode** — a known upgrade path, not a rejected option. Measuring whether the
   Inspector renders `structuredContent` is a five-minute experiment during #6; if it does, the
   reversal costs one boolean.
+
+## Amendments
+
+**2026-09-05, after [#18](https://github.com/DemianLi/project_mcp/issues/18).** The escape
+hatch this ADR left itself is welded shut, and has been since ADR-0002 landed. *Out of
+scope* above records STRUCTURED mode as "a known upgrade path, not a rejected option",
+costed at "one boolean" once the Inspector was measured. The Inspector was measured during
+[#17](https://github.com/DemianLi/project_mcp/issues/17) and it does render
+`structuredContent` — but the boolean no longer does anything, because ADR-0002 changed
+what a Tool method returns.
+
+Verified in `spring-ai-mcp-annotations-2.0.1-sources.jar`, at two independent points:
+
+- `SyncMcpToolProvider` skips output-schema generation outright when the method's return
+  type is `CallToolResult` — the guard names the class explicitly. With no `outputSchema`,
+  `useStructuredOtput` is false and the mode falls back to `TEXT`.
+- `AbstractMcpToolMethodCallback.convertValueToCallToolResult()` returns a `CallToolResult`
+  untouched *before* it consults `returnMode` at all, so even a Tool that somehow reached
+  STRUCTURED would bypass the structured branch.
+
+`@McpTool` has no `outputSchema` attribute either — only `generateOutputSchema`, a boolean —
+so there is no way to supply a schema by hand and keep the current return type. Setting
+`generateOutputSchema = true` on any of this Server's three Tools today is a **silent
+no-op**: the flag is read, the guard makes it inert, and the mode stays `TEXT` with nothing
+reported.
+
+All three Tools return `CallToolResult`, and that is not incidental — ADR-0002 requires a
+failure to carry both `isError` and `structuredContent`, and a Java method has one return
+type. So the two ADRs are in tension: this one's deferred upgrade was priced before the
+other one existed, and nobody re-priced it, because ADR-0002 was not thinking about an
+upgrade path in ADR-0001.
+
+Nothing about the decision above changes — TEXT was the right first choice and still is what
+ships. What changes is its stated cost. Whoever picks STRUCTURED up is not flipping a
+boolean; they are deciding how a failure travels if a Tool method stops returning
+`CallToolResult`, which is ADR-0002's territory, not this one's.

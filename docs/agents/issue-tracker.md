@@ -3,11 +3,6 @@
 Issues and specs for this repo live as GitHub issues in **`DemianLi/project_mcp`**
 (`https://github.com/DemianLi/project_mcp.git`). Use the `gh` CLI for all operations.
 
-> **Setup status**: this working directory is not a git repository yet and has no
-> GitHub remote configured. Every `gh` command below assumes both exist. Run
-> `git init`, add the remote above, and confirm the GitHub repo exists before
-> relying on these operations.
-
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
