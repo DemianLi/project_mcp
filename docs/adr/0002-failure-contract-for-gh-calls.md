@@ -8,6 +8,13 @@ Accepted. Resolves [#8](https://github.com/DemianLi/project_mcp/issues/8); binds
 implementation in [#10](https://github.com/DemianLi/project_mcp/issues/10) and the suite
 in [#11](https://github.com/DemianLi/project_mcp/issues/11).
 
+**Superseded in part by ADR-0008**, which was written once the Server gained a Tool that
+writes. Two rulings below no longer hold: that four Remedies are enough (a fifth,
+`CHECK_BEFORE_RETRY`, exists for a write whose result could not be read), and that a
+timeout reports the budget it spent in the optional wait (it now carries none). The
+principle this ADR is built on — classify by the action available, not by the cause — is
+untouched, and is what ADR-0008 argues from.
+
 ## Context
 
 The first map deferred this deliberately: `list_issues` reached its acceptance condition
