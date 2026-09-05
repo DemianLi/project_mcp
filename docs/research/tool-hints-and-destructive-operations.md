@@ -521,11 +521,19 @@ Verbatim:
    - But this only applies to task-augmented requests, not normal tool calls
 
 3. **Timeout/Crash Handling:**
-   - Spec is COMPLETELY SILENT on timeouts, crashes, connection loss
-   - No retry guidance, no exactly-once vs at-least-once, no timeout semantics
+   - The spec is **not** silent on timeouts. Both versions carry a `## Timeouts`
+     section: `2025-11-25/basic/lifecycle.mdx` and
+     `2026-07-28/basic/patterns/cancellation.mdx`. Both say the same thing --
+     "Implementations **SHOULD** establish timeouts for all sent requests", and on
+     expiry the sender **SHOULD** cancel the request.
+   - What is absent is one level down: no retry guidance, no exactly-once vs
+     at-least-once, no way to learn whether the cancelled call had already taken
+     effect. See *Corrections* at the end of this file -- the spec does not merely
+     omit the undecidable state, its normative timeout path produces it.
 
 **Answers:**
-- ❌ Spec does NOT handle tool call timeouts or crashes (no guidance provided)
+- ⚠️ Spec DOES give timeout guidance (SHOULD set one, SHOULD cancel on expiry) but gives
+  no way to determine whether the cancelled call already took effect
 - ❌ Clients CANNOT safely retry based on idempotentHint alone
 - ❌ There is NO request ID or correlation mechanism for retries in normal tool calls
 - ❌ Spec does NOT state "exactly-once" or "at-least-once" delivery
@@ -611,9 +619,9 @@ Verbatim:
 
 4. **Servers CAN trigger elicitation for user input**, but this is optional, not required by spec. MRTR (2026-07-28) enables embedding elicitation within tool responses.
 
-5. **The specification is SILENT on retry semantics and exactly-once delivery** — there is no request ID mechanism, no timeout guidance, and no defined recovery behavior for crashed tool calls
+5. **The specification is silent on retry semantics and exactly-once delivery** — there is no request ID mechanism and no defined recovery behaviour for crashed tool calls. It is **not** silent on timeouts: see the correction below.
 
-6. **Spring AI's defaults and javadoc add semantics beyond the spec** — what Spring AI calls a "hint that is meaningful only when readOnlyHint==false" is an SDK-specific constraint, not a specification-level one
+6. **Spring AI's defaults and javadoc are the spec's, copied verbatim** — both the four defaults and the parenthetical "(This property is meaningful only when `readOnlyHint == false`)" are in `schema/<version>/schema.ts` itself, identical in both versions. Nothing here is SDK-specific. See the correction below.
 
 7. **Version 2026-07-28 adds significant capability via MRTR and InputRequiredResult**, enabling richer interactive workflows that were not possible in 2025-11-25
 
@@ -630,3 +638,89 @@ Verbatim:
 - [x] Created side-by-side comparison of spec versions
 - [x] Noted specification silences (absence of guidance)
 
+
+
+---
+
+## Corrections (2026-09-05, verified against primary sources)
+
+Three claims above were wrong when first committed in `423df34`. They have been
+corrected in place; this section records what was wrong and what the primary
+source actually says, so the correction is auditable rather than silent.
+
+### 1. `meaningful only when readOnlyHint == false` is the spec's own sentence, not Spring AI's
+
+The original summary called it "an SDK-specific constraint, not a specification-level
+one". It is in the specification, word for word, in **both** versions:
+
+`schema/2025-11-25/schema.ts` and `schema/2026-07-28/schema.ts`, `interface ToolAnnotations` --
+the two blocks are byte-identical:
+
+```ts
+  /**
+   * If true, the tool may perform destructive updates to its environment.
+   * If false, the tool performs only additive updates.
+   *
+   * (This property is meaningful only when `readOnlyHint == false`)
+   *
+   * Default: true
+   */
+  destructiveHint?: boolean;
+```
+
+The four defaults (`readOnlyHint` false, `destructiveHint` true, `idempotentHint`
+false, `openWorldHint` true) are likewise stated in the spec's own comments. Spring
+AI copied both. Consequence for this repo: `IssueTools.java:52-55` attributes those
+defaults to Spring AI. They are the **spec's** defaults, so the read-only Tools'
+explicit annotations are not working around an SDK choice -- they are overriding
+the protocol's own default posture, which assumes a Tool writes and may destroy.
+
+### 2. The spec is not silent on timeouts -- and its timeout path manufactures the undecidable write
+
+Both versions carry a `## Timeouts` section (`2025-11-25/basic/lifecycle.mdx`,
+`2026-07-28/basic/patterns/cancellation.mdx`), with the same normative chain. Read
+together with the cancellation semantics on the same page, the chain closes into a
+hole rather than a gap:
+
+1. "Implementations **SHOULD** establish timeouts for all sent requests, to prevent
+   hung connections"; on expiry the sender **SHOULD** cancel.
+2. Cancellation is racy by design: "cancellation notifications may arrive after
+   request processing has completed, and potentially after a response has already
+   been sent."
+3. And then: "The client **SHOULD** ignore any response to the cancelled request
+   that arrives afterward."
+
+So the protocol's own prescribed reaction to a timeout is to cancel, accept that the
+work may already be done, and **discard the response that would have said so**. For a
+read that is harmless. For a write it is the exact failure this map is about: the
+comment is posted, and the caller is instructed to throw away the only evidence.
+The spec offers no detection mechanism and no idempotency key to close it.
+
+One layer lower, the same race is this repo's own: `GhCli.TIMEOUT_SECONDS = 30`
+supplies the timeout the spec asks for, but killing the `gh` subprocess does not
+unsend an HTTP request GitHub has already accepted.
+
+### 3. Tasks did not move to `patterns` in 2026-07-28 -- they left the core spec
+
+Counted in the schemas: `schema/2025-11-25/schema.ts` mentions `task` **129** times
+and defines the `Task` interfaces; `schema/2026-07-28/schema.ts` mentions it **3**
+times and defines none. All three surviving mentions are the extension registry:
+
+```ts
+   * (e.g., "io.modelcontextprotocol/tasks"), and values are per-extension settings
+```
+
+Tasks became an **extension** in 2026-07-28, not a renamed core utility. The
+per-Tool field went with it: `execution.taskSupport` is listed in
+`2025-11-25/server/tools.mdx` as a Tool property (`"forbidden"` default,
+`"optional"`, `"required"`) and is absent from `2026-07-28/server/tools.mdx`. That
+is Tool-shaped, so it belongs to the version diff that the parameters-and-return
+ticket reads.
+
+### Not a correction, but mis-filed above
+
+The line "the JSON-RPC `id` **MUST** be different between the initial request and the
+retry" (`2026-07-28/server/tools.mdx:234`) is quoted under retry semantics. In
+context it is **MRTR's** retry -- resubmitting a `tools/call` carrying
+`inputResponses` after an `InputRequiredResult` -- not a retry after a failure. It
+says nothing about retrying a timed-out call.
