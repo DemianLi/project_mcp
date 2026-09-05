@@ -105,12 +105,12 @@ case. The case is the size: on `rust-lang/rust`, `--search regression` returns *
 against 86,274 for the full set — 1/136. Client-side filtering means paying the 86 KB first.
 
 **`limit` is clamped at both ends**, as in ADR-0001, and for the same reason at the floor
-(`gh` rejects `--limit 0` and negatives: `invalid limit: 0`). The ceiling differs in
-character and the parameter description says so: `gh issue list` has its own paging
-behaviour, whereas **`gh label list` has no cap at all** — `--limit 1000` really does return
-all 976 rows on `rust-lang/rust`. The 100 here is entirely the Server's, and it now has a
-second measured justification beyond context size: 4,812 ms for 976 rows against 587 ms for
-100, an eightfold difference. (`--search regression`: 776 ms.)
+(`gh` rejects `--limit 0` and negatives: `invalid limit: 0`). The ceiling is one rule across
+both Tools and neither half of it comes from `gh`: measured on `rust-lang/rust`,
+`gh label list --limit 1000` returns all 976 rows and `gh issue list --limit 300` returns
+300. ADR-0001 was already explicit that the 100 there is the Server's own; the same holds
+here, and it gains a second measured justification beyond context size — 4,812 ms for 976
+label rows against 587 ms for 100, an eightfold difference. (`--search regression`: 776 ms.)
 
 **Not included: `sort` and `order`,** although `gh label list` has both and `gh issue list`
 has neither. See the next section — this is the one place where having more available from
