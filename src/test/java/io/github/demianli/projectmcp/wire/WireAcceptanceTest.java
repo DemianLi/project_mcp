@@ -220,4 +220,57 @@ class WireAcceptanceTest {
                     .contains("\"count\":19", "\"truncated\":false");
         }
     }
+
+    @Test
+    void theEnvelopeThatGrewCrossesTheWireWithBothExtraKeys() throws Exception {
+        // list_issue_comments is the first Tool to add keys to the Envelope, which is the
+        // one thing ADR-0001's amendment permits and the thing a Client would notice. The
+        // shape is only real on the wire: below it, `nextCursor` is a String field like any
+        // other, and whether a null one survives serialisation as an explicit null or
+        // vanishes is decided by the transport. A vanished key would quietly turn "there
+        // is no next page" into "this Server does not page".
+        String fixture = Files.readString(
+                Path.of("src/test/resources/gh/comments-last-page.json"));
+        Path payload = tmp.resolve("comments.json");
+        Files.writeString(payload, fixture);
+
+        try (McpSyncClient client = serverWith(dirWithFakeGh("cat " + payload))) {
+            assertThat(client.listTools().tools())
+                    .as("the annotation scanner found the third component too")
+                    .extracting(io.modelcontextprotocol.spec.McpSchema.Tool::name)
+                    .contains("list_issues", "get_issue", "list_labels", "list_issue_comments");
+
+            CallToolResult result = client.callTool(new CallToolRequest("list_issue_comments",
+                    Map.of("owner", "cli", "repo", "cli", "number", 14361)));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result))
+                    .startsWith("{\"items\":[")
+                    .contains("\"count\":1", "\"truncated\":false", "\"totalCount\":1")
+                    .as("null arrives as a null, not as a missing key")
+                    .contains("\"nextCursor\":null");
+        }
+    }
+
+    @Test
+    void aCursorFromTheWrongIssueIsRefusedAcrossTheWireWithoutTouchingGh() throws Exception {
+        // The second failure this Server invents rather than inherits, and the first that
+        // is refused before `gh` runs at all. The stand-in here exits non-zero with a
+        // stderr that would classify as something else entirely, so if the check were
+        // happening after the call this assertion could not pass.
+        try (McpSyncClient client = serverWith(dirWithFakeGh(
+                "echo 'GraphQL: Could not resolve to a Repository' >&2\nexit 1"))) {
+
+            CallToolResult result = client.callTool(new CallToolRequest("list_issue_comments",
+                    Map.of("owner", "cli", "repo", "cli", "number", 14361,
+                            "cursor", "bm90LWZvci10aGlzLWlzc3Vl")));
+
+            assertThat(result.isError()).isTrue();
+            assertThat(structured(result))
+                    .containsEntry("remedy", "FIX_REQUEST")
+                    .as("no gh ran, so there is no stderr to report")
+                    .containsEntry("stderr", "");
+            assertThat(text(result)).contains("cursor");
+        }
+    }
 }

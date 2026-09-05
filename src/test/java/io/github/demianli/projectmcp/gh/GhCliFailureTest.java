@@ -96,6 +96,48 @@ class GhCliFailureTest {
     }
 
     @Test
+    void theGraphqlWordingForTheSameThingIsAlsoFixRequest() throws Exception {
+        // The same condition down the other route, and it does not match the branch above:
+        // `gh api graphql` says "an Issue with the number of", singular and without the
+        // "or pull request" clause. Captured verbatim; before ADR-0005 this fell through
+        // to UNKNOWN. It is the whole reason list_issue_comments could not simply inherit
+        // the failure contract unchanged.
+        ToolFailure f = failure("gh: Could not resolve to an Issue with the number of 14362.");
+        assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
+        assertThat(f.getMessage())
+                .as("one sentence covers both causes, because the action is the same")
+                .contains("pull request");
+    }
+
+    @Test
+    void theTwoIssueWordingsDoNotDisturbEachOther() throws Exception {
+        // get_issue and list_issues depend on the porcelain wording, so the branch added
+        // for GraphQL must not swallow it. Neither string contains the other, and this
+        // pins that rather than leaving it to a reading of the chain.
+        String porcelain = "GraphQL: Could not resolve to an issue or pull request with the "
+                + "number of 9999. (repository.issue)";
+        String graphql = "gh: Could not resolve to an Issue with the number of 14362.";
+
+        assertThat(failure(porcelain).getMessage())
+                .as("porcelain still gets the sentence that can promise there is no pull "
+                        + "request with that number either -- true there, false on GraphQL")
+                .contains("no pull request with it either");
+        assertThat(failure(graphql).getMessage())
+                .doesNotContain("no pull request with it either");
+    }
+
+    @Test
+    void anUnusableCursorIsFixRequest() throws Exception {
+        // Cursors wraps the cursor a Client is given and refuses one from the wrong issue
+        // before `gh` is called. It cannot refuse a correctly-addressed wrapper whose
+        // inner half is corrupt: that reaches GitHub, and this is what comes back.
+        // Captured verbatim.
+        ToolFailure f = failure("gh: `not-a-cursor` does not appear to be a valid cursor.");
+        assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
+        assertThat(f.getMessage()).contains("cursor");
+    }
+
+    @Test
     void repoNotFoundIsFixRequest() throws Exception {
         assertThat(failure("GraphQL: Could not resolve to a Repository with the name 'a/b'. "
                 + "(repository)").remedy()).isEqualTo(Remedy.FIX_REQUEST);

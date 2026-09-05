@@ -202,6 +202,37 @@ public class GhCli {
                             + "no pull request with it either.",
                     stderr, null);
         }
+        // The same condition, worded differently because it arrives from a different
+        // route. `gh api graphql` says "an Issue with the number of", singular and without
+        // the "or pull request" clause the porcelain commands use, so it misses the branch
+        // above and would otherwise land on UNKNOWN. The two strings cannot both match, so
+        // neither branch disturbs the other -- which matters, because get_issue and
+        // list_issues depend on the wording above.
+        //
+        // One sentence covers a number that does not exist and a number that is a pull
+        // request, because GraphQL reports both with these same words and separating them
+        // would cost a second call on the failure path. ADR-0002 classifies by the action
+        // available rather than by the cause, and the action here is identical: change
+        // `number`. See ADR-0005.
+        if (s.contains("could not resolve to an issue with the number of")) {
+            return new ToolFailure(Remedy.FIX_REQUEST,
+                    "That repository has no issue with that number. It may not exist at "
+                            + "all, or it may be a pull request \u2014 GitHub numbers both "
+                            + "from one sequence, and this Server's issue Tools take issues "
+                            + "only.",
+                    stderr, null);
+        }
+        // A cursor that is not a cursor. The wrapper Cursors puts around one catches a
+        // cursor belonging to a different issue before the call is made; it cannot catch a
+        // correctly-addressed wrapper whose inner half is corrupt, which reaches GitHub and
+        // fails here. See ADR-0006.
+        if (s.contains("does not appear to be a valid cursor")) {
+            return new ToolFailure(Remedy.FIX_REQUEST,
+                    "That `cursor` is not one GitHub recognises. Pass back the "
+                            + "`nextCursor` from a previous response unchanged, or omit it "
+                            + "to start from the newest comments.",
+                    stderr, null);
+        }
         if (s.contains("could not resolve to a repository")) {
             return new ToolFailure(Remedy.FIX_REQUEST,
                     "No such repository. Check `owner` and `repo` — note that a private "

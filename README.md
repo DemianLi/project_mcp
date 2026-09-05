@@ -62,8 +62,14 @@ Logs go to `logs/project-mcp.log`, never to the console — see `application.yml
 
 ## Status
 
-Three Tools, all read-only: **`list_issues`**, **`get_issue`** and **`list_labels`**.
-Each has been driven end to end in the Inspector against real GitHub.
+Four Tools, all read-only: **`list_issues`**, **`get_issue`**, **`list_labels`** and
+**`list_issue_comments`**. Each has been driven end to end against real GitHub.
+
+The fourth is the first to reach GitHub over `gh api graphql` rather than porcelain, and the
+first whose Envelope carries more than `items` / `count` / `truncated` — it pages, because
+an issue's comments are the one list here with no narrowing parameter to fall back on. See
+[ADR-0005](./docs/adr/0005-comments-are-read-over-graphql.md) and
+[ADR-0006](./docs/adr/0006-list-issue-comments-parameters-and-return-shape.md).
 
 **Zero Resources, and that is a result rather than a gap.** Fetching an MCP Resource has
 no way to report a failure — `ReadResourceResult` carries no `isError` — so a failure
@@ -71,11 +77,13 @@ would have to travel as a protocol error the model never sees, or be disguised a
 content. Every read operation here is therefore a Tool. See
 [ADR-0004](./docs/adr/0004-list-labels-tool-shape-parameters-and-return.md).
 
-Work is charted on wayfinder maps in this repo's issues. Three are complete:
+Work is charted on wayfinder maps in this repo's issues. Four are complete:
 [#1](https://github.com/DemianLi/project_mcp/issues/1) — a working Stdio server and
 `list_issues`; [#7](https://github.com/DemianLi/project_mcp/issues/7) — the failure
 contract and an offline test suite that proves it;
-[#12](https://github.com/DemianLi/project_mcp/issues/12) — `get_issue` and `list_labels`.
+[#12](https://github.com/DemianLi/project_mcp/issues/12) — `get_issue` and `list_labels`;
+[#19](https://github.com/DemianLi/project_mcp/issues/19) — `list_issue_comments`, which
+settles the debt `get_issue` left when it excluded comments.
 
 ## Documentation
 
