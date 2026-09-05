@@ -177,6 +177,11 @@ learned once. ADR-0002 has since put `structuredContent` on the failure path, so
 is no longer unmeasured ground — but changing it is a decision covering every Tool, not one
 `get_issue` takes in passing.
 
+The gap ADR-0001 named has since been closed by direct observation rather than by argument:
+driving this Server through the Inspector during #17 shows it renders `structuredContent` in
+a panel of its own, next to the text half. Whoever reopens the cross-Tool decision starts from
+a measurement instead of the five-minute experiment ADR-0001 deferred.
+
 ## Known limitations
 
 - **An issue's discussion cannot be read at all.** `get_issue` returns the issue; nothing
