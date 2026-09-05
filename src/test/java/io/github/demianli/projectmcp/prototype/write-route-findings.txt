@@ -1,0 +1,100 @@
+PROTOTYPE — THROWAWAY.  Raw output for issue #27.  Measured 2026-09-05.
+
+Every side effect landed in DemianLi/project-mcp-sandbox.  The two rejection scenarios
+point at repos I do not own; both are rejections by construction, so nothing could land.
+
+=========================================================================================
+1. WriteRouteProbe output
+=========================================================================================
+
+scenario              route         calls    bytes      ms  remedy        what came back
+-----------------------------------------------------------------------------------------
+issue (writes)        P porcelain       1       81   1,012  ok            https://github.com/DemianLi/project-mcp-sandbox/issues/1#issuecomment-5552530862
+issue (writes)        G graphql         2      356   1,359  ok            {"data":{"addComment":{"commentEdge":{"node":{"author":{"login":"DemianLi"},"authorAssoc…
+issue (writes)        R rest            1    1,727     734  ok            {"url":"https://api.github.com/repos/DemianLi/project-mcp-sandbox/issues/comments/555253…
+
+PR number (writes?)   P porcelain       1       79   1,351  ok            https://github.com/DemianLi/project-mcp-sandbox/pull/3#issuecomment-5552531148
+PR number (writes?)   G graphql         1        -     503  FIX_REQUEST   gh: Could not resolve to an Issue with the number of 3.
+PR number (writes?)   R rest            1    1,725     846  ok            {"url":"https://api.github.com/repos/DemianLi/project-mcp-sandbox/issues/comments/555253…
+
+no such issue         P porcelain       1        -     500  FIX_REQUEST   GraphQL: Could not resolve to an issue or pull request with the number of 99999999. (rep…
+no such issue         G graphql         1        -     473  FIX_REQUEST   gh: Could not resolve to an Issue with the number of 99999999.
+no such issue         R rest            1        -     470  UNKNOWN       gh: Not Found (HTTP 404)
+
+no such repo          P porcelain       1        -     498  FIX_REQUEST   GraphQL: Could not resolve to a Repository with the name 'DemianLi/nonexistent-xyzzy'. (…
+no such repo          G graphql         1        -     449  FIX_REQUEST   gh: Could not resolve to a Repository with the name 'DemianLi/nonexistent-xyzzy'.
+no such repo          R rest            1        -     453  UNKNOWN       gh: Not Found (HTTP 404)
+
+empty repo            P porcelain       1        -      23  FIX_REQUEST   expected the "[HOST/]OWNER/REPO" format, got "DemianLi/"
+empty repo            G graphql         1        -     423  FIX_REQUEST   gh: Could not resolve to a Repository with the name 'DemianLi/'.
+empty repo            R rest            1        -     350  UNKNOWN       gh: Not Found (HTTP 404)
+
+archived repo         P porcelain       1        -     974  UNKNOWN       GraphQL: Repository was archived so is read-only and unable to create comment because is…
+archived repo         G graphql         2        -     990  UNKNOWN       gh: Repository was archived so is read-only and unable to create comment because issue i…
+archived repo         R rest            1        -     599  UNKNOWN       gh: Repository was archived so is read-only. (HTTP 403)
+
+Note on the graphql row for "archived repo": calls=2 means call 1 (resolve the node id)
+SUCCEEDED and call 2 (the mutation) failed.  Reading an archived repo is fine.
+
+=========================================================================================
+2. The GraphQL mutation payload, verbatim
+=========================================================================================
+
+The node id is 24 bytes: I_kwDOUPQgXc8AAAABP10LbA
+
+mutation($s:ID!,$b:String!){
+  addComment(input:{subjectId:$s, body:$b}){
+    commentEdge{ node{ author{login} authorAssociation createdAt body url } }
+  }
+}
+
+{
+    "data": { "addComment": { "commentEdge": { "node": {
+        "author": { "login": "DemianLi" },
+        "authorAssociation": "OWNER",
+        "createdAt": "2026-09-05T14:38:38Z",
+        "body": "probe #27 payload-of-record",
+        "url": "https://github.com/DemianLi/project-mcp-sandbox/issues/1#issuecomment-5552534202"
+    } } } }
+}
+
+All five fields ADR-0006 keeps for a Comment come back from the mutation itself.  The
+cost is that reaching it took a first call to turn (owner, repo, number) into subjectId.
+
+=========================================================================================
+3. The write-rejection class — two members, measured separately
+=========================================================================================
+
+The ticket asked for "a public repo you are not a collaborator on".  That does not
+measure a write-permission failure: commenting on a public repository's issue is open to
+any authenticated user, so the call would have SUCCEEDED and left a comment on someone
+else's repo.  Two constructions do produce a genuine rejection:
+
+(a) ARCHIVED REPOSITORY — read-only for everyone, including its owner.
+    facebookarchive/draft-js#1
+
+    P  GraphQL: Repository was archived so is read-only and unable to create comment because issue is locked (addComment)
+    G  gh: Repository was archived so is read-only and unable to create comment because issue is locked
+    R  gh: Repository was archived so is read-only. (HTTP 403)
+
+(b) LOCKED ISSUE, and the caller is not a collaborator.
+    cli/cli#13212  (repo permissions for this token: pull=true, push=false)
+
+    P  GraphQL: Unable to create comment because issue is locked (addComment)
+    G  gh: Unable to create comment because issue is locked
+    R  gh: Unable to create comment because issue is locked. (HTTP 403)
+
+    Confirmed nothing landed: the comment count on cli/cli#13212 was unchanged.
+
+(c) NEGATIVE RESULT — locking an issue in a repo you DO have push on does not reject you.
+    Locked DemianLi/project-mcp-sandbox#4 and wrote to it on all three routes; all three
+    SUCCEEDED.  A lock keeps out non-collaborators, not the repo's own admins.  So
+    "locked" is not one condition: whether it rejects depends on who is asking.
+
+All six rows above are UNKNOWN today — classify() has no branch for any of them.
+
+No single substring covers all six.  Two do:
+    "was archived so is read-only"
+    "unable to create comment because issue is locked"
+The archived message is a composite that contains both, so it matches either; the
+archived REST row is the only one that needs the first.
