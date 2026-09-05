@@ -17,9 +17,10 @@ _Avoid_: version control, git operation, 版控
 **Pull request**:
 A GitHub pull request. It shares one number space with issues, and GitHub's data model
 makes every pull request an issue — though not the reverse. In this Server's vocabulary
-the two are nevertheless distinct: an issue is never a pull request. The read Tools here
-are about issues only, so handing a pull request number to an issue Tool is a rejected
-request, not a variant read.
+the two are nevertheless distinct: an issue is never a pull request. Handing a pull request
+number to any issue Tool is a rejected request, not a variant read — on a read, allowing it
+costs the wrong thing returned; on a write, an irreversible side effect on an object nobody
+asked for.
 _Avoid_: treating a PR as a kind of issue, 把 PR 当成 issue 的一种
 
 **Label**:
