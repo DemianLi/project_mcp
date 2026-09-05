@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.github.demianli.projectmcp.gh.GhCli;
+import io.github.demianli.projectmcp.gh.Remedy;
 import io.github.demianli.projectmcp.gh.ToolFailure;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.springframework.ai.mcp.annotation.McpTool;
@@ -11,22 +12,32 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * The comment-reading Tool.
+ * The comment Tools: one that reads an issue's discussion, and one that adds to it.
  *
  * <p>A third component, for the reason {@link LabelTools} gives. Everything shared is shared
  * through code this class calls too — {@link Limits} for the {@code limit} rule,
  * {@link ToolResults} for the success and failure shapes, {@link GhCli} for the contract.
  *
- * <p>What is <em>not</em> shared, and must not be copied from the other two: this is the
- * first Tool that reaches GitHub over {@code gh api graphql} rather than porcelain
- * (ADR-0005), so the query document lives here, the fields are chosen by asking for them
- * rather than trimmed on arrival, and the Envelope carries two keys the others do not
- * (ADR-0006).
+ * <p>What is <em>not</em> shared, and must not be copied from the other two components:
+ * these are the Tools that reach GitHub over {@code gh api graphql} rather than porcelain
+ * (ADR-0005 for the read, ADR-0007 for the write), so the documents live here, the fields
+ * are chosen by asking for them rather than trimmed on arrival, and
+ * {@code list_issue_comments}' Envelope carries two keys the others do not (ADR-0006).
  *
- * <p>The shape is fixed by
- * {@code docs/adr/0006-list-issue-comments-parameters-and-return-shape.md}; the failure
- * shape by {@code docs/adr/0002-failure-contract-for-gh-calls.md}. The limitations recorded
- * in ADR-0006 are repeated in the descriptions below rather than left there, so a Client
+ * <p><strong>{@code add_issue_comment} is the first Tool in this Server that changes
+ * anything.</strong> Two things follow that a reader should not have to infer. Its second
+ * call goes through {@link GhCli#runWrite} rather than {@link GhCli#run}, which is what
+ * decides whether an abandoned call tells a Client to retry or to go and check (ADR-0008);
+ * and its {@code annotations} are the first here where {@code destructiveHint} and
+ * {@code idempotentHint} mean anything at all, because the spec makes both meaningful only
+ * when {@code readOnlyHint} is false.
+ *
+ * <p>The read's shape is fixed by
+ * {@code docs/adr/0006-list-issue-comments-parameters-and-return-shape.md} and the write's
+ * by {@code docs/adr/0007-add-issue-comment-parameters-return-and-annotations.md}; the
+ * failure shape by {@code docs/adr/0002-failure-contract-for-gh-calls.md} as amended for
+ * writes by {@code docs/adr/0008-failure-contract-for-writes.md}. The limitations recorded
+ * in those ADRs are repeated in the descriptions below rather than left there, so a Client
  * meets them in the schema instead of discovering them at runtime.
  */
 @Component
@@ -53,6 +64,40 @@ public class CommentTools {
                     nodes { author { login } authorAssociation createdAt body url }
                   }
                 }
+              }
+            }""";
+
+    /**
+     * The lookup {@code add_issue_comment} makes first, and the whole pull-request guard.
+     *
+     * <p>{@code addComment} takes a {@code subjectId}, not a number, so something has to
+     * turn one into the other. Doing it this way is what makes writing into a pull request
+     * impossible rather than merely unintended: {@code repository.issue(number:)} cannot
+     * resolve a pull request's id, and {@code gh} exits 1 with
+     * {@code Could not resolve to an Issue with the number of N} — a string
+     * {@link GhCli}'s {@code classify} already turns into {@code FIX_REQUEST}. Both
+     * {@code gh issue comment} and the REST endpoint resolve a number without caring which
+     * kind it is, and both were measured writing into a pull request. See ADR-0007.
+     */
+    private static final String ISSUE_ID = """
+            query($owner:String!, $name:String!, $number:Int!) {
+              repository(owner:$owner, name:$name) {
+                issue(number:$number) { id }
+              }
+            }""";
+
+    /**
+     * The mutation, selecting the one field {@link NewComment} keeps.
+     *
+     * <p>{@code clientMutationId} is not sent. It is the obvious candidate for an
+     * idempotency key and is not one: GitHub's schema describes it as identifying the client
+     * performing the mutation, and the same key with the same body twice was measured
+     * producing two distinct comments. See ADR-0008.
+     */
+    private static final String ADD_COMMENT = """
+            mutation($subjectId:ID!, $body:String!) {
+              addComment(input:{subjectId:$subjectId, body:$body}) {
+                commentEdge { node { url } }
               }
             }""";
 
@@ -131,5 +176,108 @@ public class CommentTools {
         } catch (ToolFailure e) {
             return ToolResults.failure(e);
         }
+    }
+    @McpTool(name = "add_issue_comment",
+            annotations = @McpTool.McpAnnotations(
+                    title = "Add a comment to an issue",
+                    // The first false in this Server, and the switch that gives the next two
+                    // any meaning at all: the spec says destructiveHint and idempotentHint
+                    // are meaningful only when readOnlyHint is false.
+                    readOnlyHint = false,
+                    // The spec's axis here is additive versus destructive, not reversible
+                    // versus irreversible. A comment overwrites nothing and removes nothing.
+                    // That this Server exposes no delete is true and is a different
+                    // question; answering with it would report something a Client did not
+                    // ask about.
+                    destructiveHint = false,
+                    // Not a judgement: two calls with the same four arguments produce two
+                    // comments, and no upsert is exposed. Written out although the spec's
+                    // default is also false and the wire bytes are identical either way,
+                    // because this is the one place in this Server where it means anything.
+                    idempotentHint = false,
+                    openWorldHint = true),
+            description = """
+            Add a comment to a GitHub issue. Returns {url}: the new comment's permalink, \
+            and nothing else — the rest is either what you sent or derivable from it. Two \
+            calls to GitHub that are not atomic: the issue is looked up, then written to. \
+            A pull request number is rejected, and a blank body is refused before GitHub \
+            is called.""")
+    public CallToolResult addIssueComment(
+
+            @McpToolParam(required = true,
+                    description = "Repository owner, e.g. \"DemianLi\".")
+            String owner,
+
+            @McpToolParam(required = true,
+                    description = "Repository name, e.g. \"project-mcp-sandbox\".")
+            String repo,
+
+            @McpToolParam(required = true, description = """
+                    Must be an issue number. GitHub numbers issues and pull requests from \
+                    one sequence; a pull request number is rejected rather than commented \
+                    on.""")
+            int number,
+
+            @McpToolParam(required = true, description = """
+                    The comment's Markdown. Must not be blank — whitespace alone counts as \
+                    blank, and is refused before GitHub is called.""")
+            String body) {
+
+        // Before the call, for the reason Cursors.unwrap is: a blank body has no possible
+        // success, so letting `gh` discover it spends a round trip held open by a 30-second
+        // timeout. GitHub's predicate is blankness rather than emptiness -- `--body " "`
+        // fails exactly as `--body ""` does -- so isBlank(), not isEmpty(). See ADR-0007.
+        if (body == null || body.isBlank()) {
+            return ToolResults.failure(blankBody());
+        }
+
+        try {
+            // Call one is a read, and takes the read route deliberately. A timeout here
+            // means nothing was written, so CHECK_BEFORE_RETRY would send a Client looking
+            // for a comment that cannot exist.
+            String subjectId = mapper.toIssueId(gh.run(List.of(
+                    "api", "graphql",
+                    "-f", "query=" + ISSUE_ID,
+                    "-f", "owner=" + owner,
+                    "-f", "name=" + repo,
+                    "-F", "number=" + number)));
+
+            // No check that subjectId is non-empty. `gh` exiting zero on that query without
+            // an id should be unreachable, and an empty one cannot address anything: GitHub
+            // answers `Could not resolve to a node with the global id of ''` and exits 1,
+            // which classify() floors at UNKNOWN with nothing written. A branch here would
+            // be an unreachable one wearing a Remedy that fits it badly.
+
+            // Call two writes. runWrite, not run -- they differ in nothing a happy-path test
+            // can see, and in everything a Client is told at the one moment a comment may
+            // already exist. See ADR-0008.
+            //
+            // -f throughout, never -F: -F coerces anything that looks numeric, and a body
+            // of "123" would arrive as a JSON number against `body:String!`.
+            return ToolResults.of(mapper.toNewComment(gh.runWrite(List.of(
+                    "api", "graphql",
+                    "-f", "query=" + ADD_COMMENT,
+                    "-f", "subjectId=" + subjectId,
+                    "-f", "body=" + body))));
+        } catch (ToolFailure e) {
+            // The Remedy is not rewritten here. GhCli is where the contract knows a write
+            // from a read; adjusting it in a Tool's catch would move half the contract into
+            // the Tools and every future write Tool would copy it. See ADR-0008.
+            return ToolResults.failure(e);
+        }
+    }
+
+    /**
+     * The failure for a body GitHub would reject, reported without asking it.
+     *
+     * <p>{@code stderr} is empty because there was none: {@code gh} did not run. This is the
+     * third failure this Server invents rather than inherits, after a pull request number
+     * reaching {@code get_issue} and a cursor from the wrong issue.
+     */
+    private static ToolFailure blankBody() {
+        return new ToolFailure(Remedy.FIX_REQUEST,
+                "`body` is blank, so there is nothing to post. GitHub rejects a blank "
+                        + "comment body, and counts whitespace alone as blank.",
+                "", null);
     }
 }

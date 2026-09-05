@@ -49,10 +49,12 @@ public class IssueTools {
     }
 
     @McpTool(name = "list_issues",
-            // Spring AI's defaults are readOnlyHint=false / destructiveHint=true, which
-            // would have this Tool advertise itself as a destructive write — the opposite
-            // of the map's read-only constraint, and enough to make a Client ask the user
-            // to confirm a listing.
+            // Left to default, this Tool would advertise itself as a destructive write:
+            // readOnlyHint=false / destructiveHint=true, which is enough to make a Client
+            // ask the user to confirm a listing. The defaults are the spec's own, not
+            // Spring AI's -- #26 found this comment attributing them to the wrong place.
+            // This Server does now have a Tool that writes (add_issue_comment), which is
+            // exactly why the reads have to say so rather than leaving it to be inferred.
             annotations = @McpTool.McpAnnotations(
                     title = "List issues",
                     readOnlyHint = true,
@@ -185,9 +187,9 @@ public class IssueTools {
      */
     private static ToolFailure notAnIssue(int number, String url) {
         return new ToolFailure(Remedy.FIX_REQUEST,
-                "#" + number + " is a pull request, not an issue. This Server reads issues "
-                        + "only; it has no Tool for pull requests. If that number is what "
-                        + "you wanted: " + url,
+                "#" + number + " is a pull request, not an issue. This Server's Tools "
+                        + "work on issues only; it has none for pull requests. If that "
+                        + "number is what you wanted: " + url,
                 "", null);
     }
 }

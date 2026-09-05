@@ -37,8 +37,10 @@ Maven, Java 25, Spring Boot 4.1.x, Spring AI 2.0.x
 Authentication is `gh`'s problem, not this Server's — it shells out to the `gh` binary
 and inherits whatever login that CLI resolves. The Server never holds a token.
 
-**Read-only for now.** Write and destructive operations are out of scope for the first
-milestone.
+**One write, and it is deliberate.** `add_issue_comment` is the only Tool that changes
+anything on GitHub; everything else reads. Deletion, editing an existing comment, creating
+issues and anything on the pull-request side are all out of scope — see
+[ADR-0007](./docs/adr/0007-add-issue-comment-parameters-return-and-annotations.md).
 
 ## Transport
 
@@ -62,14 +64,25 @@ Logs go to `logs/project-mcp.log`, never to the console — see `application.yml
 
 ## Status
 
-Four Tools, all read-only: **`list_issues`**, **`get_issue`**, **`list_labels`** and
-**`list_issue_comments`**. Each has been driven end to end against real GitHub.
+Five Tools. Four read — **`list_issues`**, **`get_issue`**, **`list_labels`** and
+**`list_issue_comments`** — and one writes: **`add_issue_comment`**. Each has been driven
+end to end against real GitHub; the write's side effects land in a sandbox repository kept
+for the purpose.
 
-The fourth is the first to reach GitHub over `gh api graphql` rather than porcelain, and the
-first whose Envelope carries more than `items` / `count` / `truncated` — it pages, because
-an issue's comments are the one list here with no narrowing parameter to fall back on. See
-[ADR-0005](./docs/adr/0005-comments-are-read-over-graphql.md) and
+`list_issue_comments` was the first to reach GitHub over `gh api graphql` rather than
+porcelain, and the first whose Envelope carries more than `items` / `count` / `truncated` —
+it pages, because an issue's comments are the one list here with no narrowing parameter to
+fall back on. See [ADR-0005](./docs/adr/0005-comments-are-read-over-graphql.md) and
 [ADR-0006](./docs/adr/0006-list-issue-comments-parameters-and-return-shape.md).
+
+`add_issue_comment` takes the same route, and not for consistency: resolving the issue with
+`repository.issue(number:)` is what makes writing into a pull request impossible, where both
+porcelain and REST were measured doing it happily. A write that cannot be confirmed —
+a timeout, an interrupt, an unreadable pipe — carries `CHECK_BEFORE_RETRY` rather than
+advice to call again, because GitHub offers no idempotency key and retrying is how the
+duplicate gets written. See
+[ADR-0007](./docs/adr/0007-add-issue-comment-parameters-return-and-annotations.md) and
+[ADR-0008](./docs/adr/0008-failure-contract-for-writes.md).
 
 **Zero Resources, and that is a result rather than a gap.** Fetching an MCP Resource has
 no way to report a failure — `ReadResourceResult` carries no `isError` — so a failure

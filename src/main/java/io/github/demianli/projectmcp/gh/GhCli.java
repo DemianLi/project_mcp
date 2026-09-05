@@ -284,6 +284,14 @@ public class GhCli {
         // would cost a second call on the failure path. ADR-0002 classifies by the action
         // available rather than by the cause, and the action here is identical: change
         // `number`. See ADR-0005.
+        //
+        // DO NOT tidy the pull-request half of that sentence away as read-specific wording.
+        // Since ADR-0007 this branch is also the whole pull-request guard on the write
+        // route: `add_issue_comment` looks an issue up with `repository.issue(number:)`,
+        // which cannot resolve a pull request's id, and this is where that refusal is
+        // turned into something a Client can act on. Both `gh issue comment` and the REST
+        // endpoint were measured writing a comment into a pull request; this branch is what
+        // stands between a Client's typo and that side effect.
         if (s.contains("could not resolve to an issue with the number of")) {
             return new ToolFailure(Remedy.FIX_REQUEST,
                     "That repository has no issue with that number. It may not exist at "

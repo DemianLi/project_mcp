@@ -214,6 +214,20 @@ stood on their unbounded size, which the measurements here still support, and th
 tap was a supporting observation rather than the argument. `get_issue` continues to read over
 porcelain; ADR-0005 explicitly declines to re-route it.
 
+**2026-09-06, during [#30](https://github.com/DemianLi/project_mcp/issues/30).** The
+sentence quoted above is reworded, because half of it stopped being true the moment this
+Server gained a Tool that writes: "This Server reads issues only" is now false, where "it
+has no Tool for pull requests" — the half a caller can act on — is not. What
+`IssueTools.notAnIssue` emits reads
+
+> `#14356 is a pull request, not an issue. This Server's Tools work on issues only; it has none for pull requests. If that number is what you wanted: https://github.com/cli/cli/pull/14356`
+
+**Nothing in this ADR's decision changes.** The refusal, the Remedy and the reason for
+building the sentence per call are all untouched; only a present-tense claim about the
+Server's surface is corrected. The three "the Server is read-only" lines in this ADR's
+Context stay as they are — they record a constraint carried in when it was written, which is
+the same treatment ADR-0005 gave this ADR's "no tap" sentence.
+
 One sentence here must **not** be carried onto the GraphQL route. This ADR tells a Client
 that a number `gh` cannot resolve "also means there is no pull request with it either" — true
 of porcelain's stderr, which names both. GraphQL's `issue(number:)` rejects a pull request

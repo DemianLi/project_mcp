@@ -273,4 +273,80 @@ class WireAcceptanceTest {
             assertThat(text(result)).contains("cursor");
         }
     }
+    @Test
+    void theFirstToolThatWritesCrossesTheWireWithItsHintsAndItsOneKey() throws Exception {
+        // Two things only this layer can see. The annotations: ADR-0007 is the first place
+        // in this Server where destructiveHint and idempotentHint mean anything, and #29
+        // established they reach the wire by reading Spring AI's provider -- this watches
+        // it happen instead. And the payload: one key, no Envelope, no structuredContent,
+        // which is what keeps ADR-0001's TEXT-only line unamended.
+        Path id = tmp.resolve("id.json");
+        Path added = tmp.resolve("added.json");
+        Files.writeString(id, Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
+        Files.writeString(added,
+                Files.readString(Path.of("src/test/resources/gh/add-comment.json")));
+
+        try (McpSyncClient client = serverWith(dirWithFakeGh(
+                "n=$(cat " + tmp.resolve("count.txt") + " 2>/dev/null || echo 0)\n"
+                        + "n=$((n+1)); echo $n > " + tmp.resolve("count.txt") + "\n"
+                        + "if [ $n -eq 1 ]; then cat " + id + "; else cat " + added + "; fi"))) {
+
+            var tool = client.listTools().tools().stream()
+                    .filter(t -> t.name().equals("add_issue_comment"))
+                    .findFirst()
+                    .orElseThrow();
+
+            assertThat(tool.annotations().readOnlyHint())
+                    .as("the first false in this Server, and what makes the next two mean "
+                            + "anything at all")
+                    .isFalse();
+            assertThat(tool.annotations().destructiveHint())
+                    .as("additive versus destructive is the spec's axis, not reversible "
+                            + "versus irreversible")
+                    .isFalse();
+            assertThat(tool.annotations().idempotentHint())
+                    .as("written out explicitly, and this is where that becomes observable")
+                    .isFalse();
+            assertThat(tool.annotations().openWorldHint()).isTrue();
+            assertThat(tool.annotations().title()).isEqualTo("Add a comment to an issue");
+
+            CallToolResult result = client.callTool(new CallToolRequest("add_issue_comment",
+                    Map.of("owner", "DemianLi", "repo", "project-mcp-sandbox",
+                            "number", 1, "body", "hello")));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(result.structuredContent()).isNull();
+            assertThat(text(result))
+                    .isEqualTo("{\"url\":\"https://github.com/DemianLi/project-mcp-sandbox/"
+                            + "issues/1#issuecomment-5553376090\"}");
+        }
+    }
+
+    @Test
+    void aBlankBodyIsRefusedAcrossTheWireBeforeAnythingCouldBeWritten() throws Exception {
+        // The third failure this Server invents rather than inherits, and the first on a
+        // write. The stand-in would succeed and answer with a node id, so if the check ran
+        // after the call this could not pass -- and on a write "after the call" is the
+        // difference between refusing and having already written.
+        Path id = tmp.resolve("id.json");
+        Files.writeString(id, Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
+
+        try (McpSyncClient client = serverWith(dirWithFakeGh(
+                "echo ran >> " + tmp.resolve("ran.txt") + "\ncat " + id))) {
+
+            CallToolResult result = client.callTool(new CallToolRequest("add_issue_comment",
+                    Map.of("owner", "DemianLi", "repo", "project-mcp-sandbox",
+                            "number", 1, "body", "   \n ")));
+
+            assertThat(result.isError()).isTrue();
+            assertThat(structured(result))
+                    .containsEntry("remedy", "FIX_REQUEST")
+                    .as("no gh ran, so there is no stderr to report")
+                    .containsEntry("stderr", "");
+            assertThat(text(result)).contains("blank");
+            assertThat(Files.exists(tmp.resolve("ran.txt")))
+                    .as("gh was never started")
+                    .isFalse();
+        }
+    }
 }

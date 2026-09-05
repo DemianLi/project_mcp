@@ -9,14 +9,17 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Turns what {@code gh api graphql} prints into the Envelope {@code list_issue_comments}
- * returns.
+ * Turns what {@code gh api graphql} prints into what the comment Tools return.
  *
  * <p>Its own class for the reason {@link LabelMapper} gives: a pure function of its
  * arguments, exercisable against a captured payload with no subprocess, no network call and
- * no GitHub account. The payload it reads is nested rather than a top-level array — this is
- * the first Tool that does not read porcelain, so the shape has nothing in common with the
- * other two mappers.
+ * no GitHub account. The payloads it reads are nested rather than top-level arrays — the
+ * comment Tools are the ones that do not read porcelain, so these shapes have nothing in
+ * common with the other two mappers.
+ *
+ * <p>Three methods for two Tools, because the write is two calls: {@link #toPage} for the
+ * read, and {@link #toIssueId} then {@link #toNewComment} for the lookup and the mutation
+ * that {@code add_issue_comment} is made of.
  */
 @Component
 public class CommentMapper {
@@ -62,5 +65,29 @@ public class CommentMapper {
 
         return new CommentPage(List.copyOf(items), items.size(), more,
                 comments.path("totalCount").asInt(0), nextCursor);
+    }
+
+    /**
+     * Reads the issue's node id out of the lookup {@code add_issue_comment} makes first.
+     *
+     * <p>Nothing is rejected here, and nothing needs to be: the pull-request guard is the
+     * query itself, and it lives with the query on {@code CommentTools.ISSUE_ID}. A pull
+     * request number never produces a payload for this method to read — {@code gh} exits 1
+     * on the call before it.
+     *
+     * @return the id, or the empty string if the payload somehow has none — which
+     *     {@code gh} exiting zero should make unreachable, and which
+     *     {@link CommentTools#addIssueComment} deliberately does not test for
+     */
+    public String toIssueId(String ghJson) {
+        return json.readTree(ghJson)
+                .path("data").path("repository").path("issue").path("id").asString("");
+    }
+
+    /** Reads the new comment's permalink out of what {@code addComment} answered. */
+    public NewComment toNewComment(String ghJson) {
+        return new NewComment(json.readTree(ghJson)
+                .path("data").path("addComment").path("commentEdge").path("node").path("url")
+                .asString(""));
     }
 }
