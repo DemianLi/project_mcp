@@ -32,6 +32,14 @@ them. The Server therefore reports a Label in two shapes depending on which role
 in; that asymmetry is deliberate, not an inconsistency to be tidied away. See ADR-0004.
 _Avoid_: tag, category, 分类
 
+**Comment**:
+A remark someone wrote on an issue. Three different things on GitHub answer to the word, and
+only this one is a Comment here. A **timeline event** — a label added, an assignee set, the
+issue closed — is not a remark and is not one. A **review comment** hangs off a line of a
+diff and belongs to the pull request side of GitHub, which this Server's read Tools do not
+cover. See ADR-0006.
+_Avoid_: event, activity, note, 留言
+
 ### Roles
 
 **Server**:
@@ -73,10 +81,12 @@ _Avoid_: document, file, context, asset
 ### Server design
 
 **Envelope**:
-The fixed outer structure every `list_*` Tool returns — `items`, `count`, `truncated`. A
-Client learns it once and it holds across Tools. It is this Server's own design, _not_ part
-of the MCP protocol, which is why it sits here rather than under Primitives. See
-`docs/adr/0001-list-issues-parameters-and-return-shape.md`.
+The outer structure every `list_*` Tool returns. `items`, `count` and `truncated` are on all
+of them, with fixed meanings; a Tool may add keys beside those three, but never remove or
+redefine one — so a Client learns the core once and it holds across Tools. It is this
+Server's own design, _not_ part of the MCP protocol, which is why it sits here rather than
+under Primitives. See `docs/adr/0001-list-issues-parameters-and-return-shape.md` and its
+amendment.
 _Avoid_: wrapper, response object, payload, 外层
 
 **Remedy**:

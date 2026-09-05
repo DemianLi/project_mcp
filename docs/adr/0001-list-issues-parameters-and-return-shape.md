@@ -195,3 +195,30 @@ Nothing about the decision above changes — TEXT was the right first choice and
 ships. What changes is its stated cost. Whoever picks STRUCTURED up is not flipping a
 boolean; they are deciding how a failure travels if a Tool method stops returning
 `CallToolResult`, which is ADR-0002's territory, not this one's.
+
+**2026-09-05, after [#22](https://github.com/DemianLi/project_mcp/issues/22).** The Envelope
+has grown, and the sentence this ADR rests on — a Client "learns it once and it holds
+everywhere" — needs restating rather than repeating. ADR-0006 gives
+`list_issue_comments` two keys the other `list_*` Tools do not have, `totalCount` and
+`nextCursor`.
+
+The rule that replaces it:
+
+> `items`, `count` and `truncated` are present on every `list_*` Tool, with the meanings
+> given above. A Tool may **add** keys alongside them. It may not remove one, and it may not
+> redefine one.
+
+That keeps the part of the promise that was doing work — a Client that learned `list_issues`
+reads `list_issue_comments` without being surprised, and the extra keys are capability it has
+not needed before, not a second shape it must first classify. Two alternatives were rejected:
+enumerating "basic" and "paginated" Envelopes as two shapes, which makes reading a response
+start with a classification and needs re-doing at the third shape; and abandoning the shared
+Envelope for per-Tool declarations, which discards this section entirely to pay for one
+addition.
+
+**Why the exception is here and not in `list_issues`.** ADR-0006's argument is that comments
+have **no narrowing parameter** — `list_issues` truncates and a Client asks again with a
+different `state` or label set, `list_labels` has `search`, an issue's comments have nothing —
+so `truncated: true` alone would leave the rest genuinely unreachable. Where that escape
+exists, as it does here, the three keys remain the whole story. Nothing about this ADR's
+decision changes.
