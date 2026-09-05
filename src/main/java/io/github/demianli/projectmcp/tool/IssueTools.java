@@ -24,9 +24,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class IssueTools {
 
-    static final int DEFAULT_LIMIT = 30;
-    static final int MAX_LIMIT = 100;
-
     /** The seven fields of {@link IssueSummary}, in the spelling {@code gh} expects. */
     private static final String FIELDS = "number,title,state,labels,assignees,url,updatedAt";
 
@@ -97,7 +94,7 @@ public class IssueTools {
                     100 yields 100 with truncated=true, and the cap cannot be raised.""")
             Integer limit) {
 
-        int effectiveLimit = clamp(limit);
+        int effectiveLimit = Limits.clamp(limit);
         IssueState effectiveState = state == null ? IssueState.OPEN : state;
 
         List<String> args = new ArrayList<>(List.of(
@@ -192,17 +189,5 @@ public class IssueTools {
                         + "only; it has no Tool for pull requests. If that number is what "
                         + "you wanted: " + url,
                 "", null);
-    }
-
-    /**
-     * Clamps at both ends. The ceiling protects the Client's context window; the floor
-     * exists because {@code gh} rejects {@code --limit 0} and negatives outright. One rule
-     * on one parameter is easier to predict than clamping above and throwing below.
-     */
-    private static int clamp(Integer limit) {
-        if (limit == null) {
-            return DEFAULT_LIMIT;
-        }
-        return Math.clamp(limit.intValue(), 1, MAX_LIMIT);
     }
 }

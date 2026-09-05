@@ -193,4 +193,31 @@ class WireAcceptanceTest {
                     .contains("\"count\":3", "\"truncated\":false");
         }
     }
+
+    @Test
+    void aToolOnASecondComponentIsDeclaredAndCallable() throws Exception {
+        // list_labels is the first Tool that is not a method on IssueTools, which makes it
+        // the first test of a claim ProjectMcpApplication has been making in prose since
+        // the Server was scaffolded: "adding a Tool means adding a component -- not editing
+        // this class". Discovery happens in the Spring context of a separate process, so
+        // this layer is the only one that can watch it happen.
+        String fixture = Files.readString(Path.of("src/test/resources/gh/label-list.json"));
+        Path payload = tmp.resolve("labels.json");
+        Files.writeString(payload, fixture);
+
+        try (McpSyncClient client = serverWith(dirWithFakeGh("cat " + payload))) {
+            assertThat(client.listTools().tools())
+                    .as("the annotation scanner found both components")
+                    .extracting(io.modelcontextprotocol.spec.McpSchema.Tool::name)
+                    .contains("list_issues", "get_issue", "list_labels");
+
+            CallToolResult result = client.callTool(new CallToolRequest("list_labels",
+                    Map.of("owner", "DemianLi", "repo", "project_mcp")));
+
+            assertThat(result.isError()).isFalse();
+            assertThat(text(result))
+                    .startsWith("{\"items\":[{\"name\":\"accessibility\"")
+                    .contains("\"count\":19", "\"truncated\":false");
+        }
+    }
 }
