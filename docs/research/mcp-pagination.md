@@ -185,6 +185,31 @@ export type Cursor = string;
 
 ---
 
+## 补记 2026-09-05：规范还有更新的一版，四个答案都不变
+
+初稿把 2025-11-25 当成规范最新版,**这是错的**——`modelcontextprotocol/modelcontextprotocol` 的
+`schema/` 下列着 `2024-11-05`、`2025-03-26`、`2025-06-18`、`2025-11-25`、`2026-07-28`、`draft`。
+2025-11-25 是 **SDK 2.0.0 认得的最新版**（`ProtocolVersions` 三个常量到此为止）,那才是绑住本 repo
+的东西,但它不是规范的最新版。
+
+拉了 `schema/2026-07-28/schema.ts`（98,426 B）逐条复核,**四个答案在新版里全部成立**：
+
+- `CallToolResult` 仍然 `extends Result`,仍然只有 `content` / `structuredContent` / `isError`,
+  **仍然没有 `nextCursor`**。
+- `PaginatedResult` 仍然是游标的唯一来源（`nextCursor?: Cursor`）,`extends PaginatedResult` 的
+  仍是那四个列表结果（现在同时 `extends CacheableResult`）。
+- `Result` 的 `[key: string]: unknown` **还在**——「规范不禁止多加顶层键」这条没有被收紧。
+
+新版里另有三处变动，与本票四问无关但下次引用时该知道：
+
+- `Result` 多了一个**必填**的 `resultType`（「Servers implementing this protocol version MUST
+  include this field」）。
+- `_meta` 的类型从裸 map 收成了 `ResultMetaObject`。
+- `structuredContent` 从 `{ [key: string]: unknown }` 放宽成 `unknown`（可以是数组、字符串、数字）。
+
+**顺带解掉初稿留的一个疑点**：2026-07-28 里搜不到 `ListTasksResult`,所以「五个 vs 四个」那个出入
+是 2025-11-25 独有的。是移除、改名还是重构,我没查。
+
 ## 尚未确证
 
 - **规范正文的分页名单与 schema.ts 对不上。** 正文列了四个操作，schema.ts 里 `extends PaginatedResult`
