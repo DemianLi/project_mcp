@@ -197,3 +197,25 @@ a measurement instead of the five-minute experiment ADR-0001 deferred.
   so this is in scope for the map and sits in its *Not yet specified* section — a known next
   question, deliberately unspecified until this Tool exists.
 - **STRUCTURED mode**, as in ADR-0001: an upgrade path, and now a cross-Tool one.
+
+## Amendments
+
+**2026-09-05, after [#21](https://github.com/DemianLi/project_mcp/issues/21).** The claim
+"There is no tap at the `gh` layer" is too broad, and ADR-0005 acts on the difference. It
+holds for `gh issue view` — the command this ADR measured, which still has no flag to limit
+comments. It does **not** hold for `gh` as a whole: `gh api` reaches both the REST endpoint
+(`per_page`, honoured at 1 / 5 / 30 / 100, clamped at 100) and GraphQL (`first:`, plus
+`totalCount`, `hasNextPage` and `endCursor`). So the sentence that follows it in this
+ADR — that any limit "would be applied by this Server *after* receiving all of them" — is
+true of the route `get_issue` takes and false of the route ADR-0005 chose for comments.
+
+**Nothing in this ADR's decision changes.** The exclusion of `comments` from `get_issue`
+stood on their unbounded size, which the measurements here still support, and the missing
+tap was a supporting observation rather than the argument. `get_issue` continues to read over
+porcelain; ADR-0005 explicitly declines to re-route it.
+
+One sentence here must **not** be carried onto the GraphQL route. This ADR tells a Client
+that a number `gh` cannot resolve "also means there is no pull request with it either" — true
+of porcelain's stderr, which names both. GraphQL's `issue(number:)` rejects a pull request
+number with the same words it uses for a number that does not exist, so on that route the
+sentence would be false. See ADR-0005.
