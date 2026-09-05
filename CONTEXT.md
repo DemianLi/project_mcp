@@ -121,6 +121,11 @@ _Avoid_: error code, error type, failure kind, 错误码
 A running Server from which no write reaches GitHub. The unit is the instance, not the
 Server: the Server can be running twice, one instance writing and one not.
 
+Neither promise is what a Tool's `readOnlyHint` declares. That is one Tool telling a
+Client it does not write; this is a claim about a whole instance, made to whoever deploys
+it. A deployer reading `readOnlyHint = true` has not been handed a weaker grade of either
+promise below — they have been handed a promise about a different thing. See Annotations.
+
 The word names **two different promises**, and which one is meant depends on where the
 constraint lives.
 
