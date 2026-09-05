@@ -39,7 +39,7 @@ as `isError` carrying a `Remedy` (ADR-0002); the Envelope belongs to `list_*` To
 the schema rather than at runtime — the same treatment ADR-0001 gives its three known
 limitations:
 
-> 必须是 issue 号。GitHub 的 issue 与 pull request 共用号段；传入 PR 号会被拒绝。
+> Must be an issue number. GitHub numbers issues and pull requests from one sequence; a pull request number is rejected.
 
 ### The payload is a flat object — no Envelope, no nesting
 
@@ -136,7 +136,9 @@ this is a `get_issue`-local decision.
 
 `get_issue` **rejects** such a call: `Remedy.FIX_REQUEST`, with the message
 
-> `#14356 是 pull request，不是 issue。这个 Server 只读 issue，没有读 pull request 的 Tool。如果你要的就是这个号：https://github.com/cli/cli/pull/14356`
+> `#14356 is a pull request, not an issue. This Server reads issues only; it has no Tool for pull requests. If that number is what you wanted: https://github.com/cli/cli/pull/14356`
+
+English, like every other failure sentence and parameter description this Server emits. The wording was drafted in Chinese during #13 and is corrected here rather than shipped inconsistent: the reader is a model, and one language across the surface beats a faithful transcription of the conversation that produced it. The sentence is built per call — the number is the one that was asked for and the URL comes from the payload just parsed, so it is not a constant like the sentences in `GhCli.classify()`.
 
 Returning the pull request with a marker was rejected as the worst option: seen through the
 issue lens a pull request is *half* a pull request — `isDraft`, `headRefName`, `mergeable`,

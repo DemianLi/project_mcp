@@ -26,18 +26,18 @@ class GhCliFailureTest {
         return new GhCli(executable, 30);
     }
 
-    private GhFailure failure(String stderr) throws IOException {
+    private ToolFailure failure(String stderr) throws IOException {
         try {
             pointingAt(FakeGh.failing(tmp, stderr)).run(List.of("issue", "list"));
-        } catch (GhFailure e) {
+        } catch (ToolFailure e) {
             return e;
         }
-        throw new AssertionError("expected a GhFailure");
+        throw new AssertionError("expected a ToolFailure");
     }
 
     @Test
     void networkUnreachableIsRetry() throws Exception {
-        GhFailure f = failure(
+        ToolFailure f = failure(
                 "Post \"https://api.github.com/graphql\": dial tcp: connect: connection refused");
         assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
         assertThat(f.retryAfterSeconds()).isNull();
@@ -49,7 +49,7 @@ class GhCliFailureTest {
         assertThat(failure("You have exceeded a secondary rate limit").remedy())
                 .isEqualTo(Remedy.RETRY);
 
-        GhFailure withWait = failure("API rate limit exceeded. Please retry after 60 seconds.");
+        ToolFailure withWait = failure("API rate limit exceeded. Please retry after 60 seconds.");
         assertThat(withWait.remedy()).isEqualTo(Remedy.RETRY);
         assertThat(withWait.retryAfterSeconds()).isEqualTo(60);
     }
@@ -71,7 +71,7 @@ class GhCliFailureTest {
         GhCli gh = new GhCli(FakeGh.writing(tmp, "sleep 30\nexit 0"), 1);
         long start = System.nanoTime();
         assertThatThrownBy(() -> gh.run(List.of("issue", "list")))
-                .asInstanceOf(type(GhFailure.class))
+                .asInstanceOf(type(ToolFailure.class))
                 .satisfies(f -> {
                     assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
                     assertThat(f.retryAfterSeconds()).isEqualTo(1);
@@ -80,6 +80,19 @@ class GhCliFailureTest {
         assertThat(Duration.ofNanos(System.nanoTime() - start).toMillis())
                 .as("it really waited, rather than reporting a timeout it never took")
                 .isBetween(900L, 5000L);
+    }
+
+    @Test
+    void noSuchIssueNumberIsFixRequest() throws Exception {
+        // Reachable only once a Tool takes a number, which get_issue is the first to do.
+        // Before it, this stderr fell through to UNKNOWN. Captured verbatim from
+        // `gh issue view 9999`.
+        ToolFailure f = failure("GraphQL: Could not resolve to an issue or pull request "
+                + "with the number of 9999. (repository.issue)");
+        assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
+        assertThat(f.getMessage())
+                .as("the caller is told which parameter to change")
+                .contains("number");
     }
 
     @Test
@@ -114,7 +127,7 @@ class GhCliFailureTest {
         // ProcessBuilder.start() rather than one a test invented.
         GhCli gh = pointingAt(tmp.resolve("no-such-gh").toString());
         assertThatThrownBy(() -> gh.run(List.of("issue", "list")))
-                .asInstanceOf(type(GhFailure.class))
+                .asInstanceOf(type(ToolFailure.class))
                 .satisfies(f -> {
                     assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
                     assertThat(f.stderr()).isEmpty();
@@ -129,7 +142,7 @@ class GhCliFailureTest {
         // its own, and this is where it lands instead.
         String blob = "unknown flag: --banana\n\nUsage:  gh issue list [flags]\n\nFlags:\n"
                 + "      --app string         Filter by GitHub App author";
-        GhFailure f = failure(blob);
+        ToolFailure f = failure(blob);
         assertThat(f.remedy()).isEqualTo(Remedy.UNKNOWN);
         assertThat(f.stderr()).isEqualTo(blob);
     }

@@ -3,7 +3,7 @@ package io.github.demianli.projectmcp.tool;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import io.github.demianli.projectmcp.gh.GhFailure;
+import io.github.demianli.projectmcp.gh.ToolFailure;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -40,7 +40,7 @@ final class ToolResults {
      * structuring the error safe here — a human reading a Client that renders only text
      * still sees a sentence.
      */
-    static CallToolResult failure(GhFailure failure) {
+    static CallToolResult failure(ToolFailure failure) {
         Map<String, Object> structured = new LinkedHashMap<>();
         structured.put("remedy", failure.remedy().name());
         if (failure.retryAfterSeconds() != null) {

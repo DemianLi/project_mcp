@@ -1,23 +1,32 @@
 package io.github.demianli.projectmcp.gh;
 
 /**
- * A {@code gh} invocation that did not produce usable output.
+ * A Tool call that could not do its job.
  *
  * <p>Carries everything the failure contract puts on the wire: the {@link Remedy}, {@code
- * gh}'s own stderr verbatim, and — for {@link Remedy#RETRY} — how long to wait first. The
+ * gh}'s stderr verbatim, and — for {@link Remedy#RETRY} — how long to wait first. The
  * message is the human-readable half.
+ *
+ * <p>Named for the Tool rather than for {@code gh} because not every failure comes from
+ * {@code gh}. {@code get_issue} handed a pull request number is the first that does not:
+ * {@code gh} succeeded and returned a pull request, and {@link
+ * io.github.demianli.projectmcp.tool.IssueTools} judged it unacceptable. On such a path
+ * {@link #stderr()} is empty, exactly as it is for a timeout or an absent binary. {@code
+ * GhCli} remains the only place that knows how {@code gh} itself fails; only this name is
+ * wider. See the 2026-09-05 amendment to
+ * {@code docs/adr/0002-failure-contract-for-gh-calls.md}.
  *
  * <p>The {@code gh} argv is deliberately <em>not</em> here. It says nothing a caller can act
  * on and would make this Server's internal construction part of its observable surface. It
  * is written to the log file instead, where it is still available for diagnosis.
  */
-public class GhFailure extends RuntimeException {
+public class ToolFailure extends RuntimeException {
 
     private final Remedy remedy;
     private final String stderr;
     private final Integer retryAfterSeconds;
 
-    public GhFailure(Remedy remedy, String sentence, String stderr, Integer retryAfterSeconds) {
+    public ToolFailure(Remedy remedy, String sentence, String stderr, Integer retryAfterSeconds) {
         super(sentence);
         this.remedy = remedy;
         this.stderr = stderr == null ? "" : stderr;

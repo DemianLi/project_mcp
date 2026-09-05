@@ -80,7 +80,7 @@ public class GhCli {
     /**
      * Runs {@code gh} with the given arguments and returns its stdout.
      *
-     * @throws GhFailure if {@code gh} is missing, exits non-zero, or outlives the timeout.
+     * @throws ToolFailure if {@code gh} is missing, exits non-zero, or outlives the timeout.
      *     The shape the Client sees is fixed by
      *     {@code docs/adr/0002-failure-contract-for-gh-calls.md}.
      */
@@ -95,7 +95,7 @@ public class GhCli {
         } catch (IOException e) {
             // Not a non-zero exit: the process never existed. This is the only failure that
             // arrives without any stderr to classify, so it is classified by its path here.
-            throw failure(command, new GhFailure(Remedy.ASK_OPERATOR,
+            throw failure(command, new ToolFailure(Remedy.ASK_OPERATOR,
                     "The GitHub CLI (`gh`) could not be started. It is probably not "
                             + "installed, or not on this Server's PATH.",
                     "", null));
@@ -114,7 +114,7 @@ public class GhCli {
                 // the timeout: see kill(Process).
                 stdout.cancel(true);
                 stderr.cancel(true);
-                throw failure(command, new GhFailure(Remedy.RETRY,
+                throw failure(command, new ToolFailure(Remedy.RETRY,
                         "The GitHub CLI did not answer within " + timeoutSeconds + " seconds.",
                         "", timeoutSeconds));
             }
@@ -129,11 +129,11 @@ public class GhCli {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             kill(process);
-            throw failure(command, new GhFailure(Remedy.RETRY,
+            throw failure(command, new ToolFailure(Remedy.RETRY,
                     "The GitHub CLI call was interrupted before it finished.", "", null));
         } catch (ExecutionException e) {
             kill(process);
-            throw failure(command, new GhFailure(Remedy.UNKNOWN,
+            throw failure(command, new ToolFailure(Remedy.UNKNOWN,
                     "The output of the GitHub CLI could not be read.",
                     String.valueOf(e.getCause()), null));
         }
@@ -166,13 +166,13 @@ public class GhCli {
      * verbatim stderr always travels alongside, so nothing is lost, and anything unmatched
      * becomes {@link Remedy#UNKNOWN} rather than a confident wrong answer.
      */
-    private static GhFailure classify(String stderr) {
+    private static ToolFailure classify(String stderr) {
         String s = stderr.toLowerCase(Locale.ROOT);
 
         if (s.contains("rate limit")) {
             Matcher m = RETRY_AFTER.matcher(stderr);
             Integer wait = m.find() ? Integer.valueOf(m.group(1)) : null;
-            return new GhFailure(Remedy.RETRY,
+            return new ToolFailure(Remedy.RETRY,
                     "GitHub is rate limiting this token."
                             + (wait == null ? "" : " Wait " + wait + " seconds before retrying."),
                     stderr, wait);
@@ -180,35 +180,47 @@ public class GhCli {
         if (s.contains("connection refused") || s.contains("no such host")
                 || s.contains("network is unreachable") || s.contains("i/o timeout")
                 || s.contains("tls handshake timeout") || s.contains("dial tcp")) {
-            return new GhFailure(Remedy.RETRY,
+            return new ToolFailure(Remedy.RETRY,
                     "GitHub could not be reached. The network looks unavailable.", stderr, null);
         }
         if (s.contains("http 401") || s.contains("bad credentials")
                 || s.contains("gh auth login")) {
-            return new GhFailure(Remedy.ASK_OPERATOR,
+            return new ToolFailure(Remedy.ASK_OPERATOR,
                     "The GitHub CLI is not authenticated, or its token is no longer valid. "
                             + "Someone with access to this Server has to run `gh auth login`.",
                     stderr, null);
         }
+        // Before the repository case on purpose. The two strings cannot both match, so
+        // the order is free — but the repository one reads as the more general of the
+        // two, and a later reader scanning this chain should not have to work out that
+        // first-match-wins does not matter here.
+        if (s.contains("could not resolve to an issue or pull request")) {
+            return new ToolFailure(Remedy.FIX_REQUEST,
+                    "That repository has no issue with that number. Check `number` — note "
+                            + "that `gh` says \"issue or pull request\" because GitHub "
+                            + "numbers both from one sequence, so this also means there is "
+                            + "no pull request with it either.",
+                    stderr, null);
+        }
         if (s.contains("could not resolve to a repository")) {
-            return new GhFailure(Remedy.FIX_REQUEST,
+            return new ToolFailure(Remedy.FIX_REQUEST,
                     "No such repository. Check `owner` and `repo` — note that a private "
                             + "repository this token cannot see looks the same as one that "
                             + "does not exist.",
                     stderr, null);
         }
         if (s.contains("owner/repo\" format") || s.contains("owner/repo' format")) {
-            return new GhFailure(Remedy.FIX_REQUEST,
+            return new ToolFailure(Remedy.FIX_REQUEST,
                     "`owner` and `repo` did not compose a usable repository name. Neither "
                             + "may be empty or contain a slash.",
                     stderr, null);
         }
         if (s.contains("disabled issues")) {
-            return new GhFailure(Remedy.FIX_REQUEST,
+            return new ToolFailure(Remedy.FIX_REQUEST,
                     "That repository has issues turned off, so it has none to list.",
                     stderr, null);
         }
-        return new GhFailure(Remedy.UNKNOWN,
+        return new ToolFailure(Remedy.UNKNOWN,
                 "The GitHub CLI failed in a way this Server does not recognise.", stderr, null);
     }
 
@@ -219,7 +231,7 @@ public class GhCli {
      * payload, so this is where it survives. It goes to the log file only — the console
      * appender is off, because stdout belongs to JSON-RPC.
      */
-    private static GhFailure failure(List<String> command, GhFailure failure) {
+    private static ToolFailure failure(List<String> command, ToolFailure failure) {
         log.warn("`{}` failed [{}]: {}", String.join(" ", command), failure.remedy(),
                 failure.stderr().isEmpty() ? failure.getMessage() : failure.stderr());
         return failure;

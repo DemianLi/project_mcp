@@ -149,6 +149,32 @@ class WireAcceptanceTest {
     }
 
     @Test
+    void aFailureThisServerInventedCrossesTheWireIdentically() throws Exception {
+        // The first failure whose origin is not GhCli: gh succeeded and returned a pull
+        // request, and IssueTools refused it. Worth a place in this thin layer precisely
+        // because the origin is new -- the question is whether a ToolFailure built above
+        // GhCli produces the same wire shape as one built inside it, and only this layer
+        // can see a wire shape at all.
+        String fixture = Files.readString(
+                Path.of("src/test/resources/gh/issue-view-pull-request.json"));
+        Path payload = tmp.resolve("pr.json");
+        Files.writeString(payload, fixture);
+
+        try (McpSyncClient client = serverWith(dirWithFakeGh("cat " + payload))) {
+            CallToolResult result = client.callTool(new CallToolRequest("get_issue",
+                    Map.of("owner", "cli", "repo", "cli", "number", 14356)));
+
+            assertThat(result.isError()).isTrue();
+            assertThat(structured(result))
+                    .containsEntry("remedy", "FIX_REQUEST")
+                    .containsEntry("stderr", "");
+            assertThat(text(result))
+                    .startsWith("#14356 is a pull request, not an issue")
+                    .doesNotContain("issue view", "--repo", "--json");
+        }
+    }
+
+    @Test
     void successCrossesTheWireInTheEnvelopeAndNothingElse() throws Exception {
         String fixture = Files.readString(Path.of("src/test/resources/gh/issue-list.json"));
         Path payload = tmp.resolve("payload.json");

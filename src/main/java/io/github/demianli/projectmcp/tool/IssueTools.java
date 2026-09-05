@@ -4,7 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.github.demianli.projectmcp.gh.GhCli;
-import io.github.demianli.projectmcp.gh.GhFailure;
+import io.github.demianli.projectmcp.gh.Remedy;
+import io.github.demianli.projectmcp.gh.ToolFailure;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -28,6 +29,19 @@ public class IssueTools {
 
     /** The seven fields of {@link IssueSummary}, in the spelling {@code gh} expects. */
     private static final String FIELDS = "number,title,state,labels,assignees,url,updatedAt";
+
+    /**
+     * The twelve fields of {@link IssueDetail}.
+     *
+     * <p>{@code projectCards} must never appear here or in any future field list: Projects
+     * (classic) is sunset, and asking for it fails the whole call with a GraphQL error
+     * rather than returning an empty value.
+     */
+    private static final String DETAIL_FIELDS =
+            FIELDS + ",body,author,createdAt,closedAt,stateReason";
+
+    /** What {@code gh} puts in the {@code url} of a pull request but never of an issue. */
+    private static final String PULL_REQUEST_PATH = "/pull/";
 
     private final GhCli gh;
     private final IssueMapper mapper;
@@ -104,9 +118,80 @@ public class IssueTools {
 
         try {
             return ToolResults.of(mapper.toEnvelope(gh.run(args), effectiveLimit));
-        } catch (GhFailure e) {
+        } catch (ToolFailure e) {
             return ToolResults.failure(e);
         }
+    }
+
+    @McpTool(name = "get_issue",
+            annotations = @McpTool.McpAnnotations(
+                    title = "Get issue",
+                    readOnlyHint = true,
+                    destructiveHint = false,
+                    openWorldHint = true),
+            description = """
+            Read one issue in full. Returns a flat object of twelve fields — the seven \
+            `list_issues` reports, plus body, author, createdAt, closedAt and stateReason. \
+            Comments are not included, and no Tool returns them yet.""")
+    public CallToolResult getIssue(
+
+            @McpToolParam(required = true,
+                    description = "Repository owner, e.g. \"DemianLi\".")
+            String owner,
+
+            @McpToolParam(required = true,
+                    description = "Repository name, e.g. \"project_mcp\".")
+            String repo,
+
+            @McpToolParam(required = true, description = """
+                    Must be an issue number. GitHub numbers issues and pull requests from \
+                    one sequence; a pull request number is rejected.""")
+            int number) {
+
+        List<String> args = List.of(
+                "issue", "view", Integer.toString(number),
+                "--repo", owner + "/" + repo,
+                "--json", DETAIL_FIELDS);
+
+        try {
+            // Mapped first, then judged. IssueMapper stays a pure function of a string and
+            // knows nothing about failure; the semantic check runs on the record it
+            // returns, so the payload is parsed exactly once. The next Tool that has to
+            // reject something it successfully fetched should split the same way.
+            IssueDetail issue = mapper.toDetail(gh.run(args));
+            if (issue.url().contains(PULL_REQUEST_PATH)) {
+                return ToolResults.failure(notAnIssue(number, issue.url()));
+            }
+            return ToolResults.of(issue);
+        } catch (ToolFailure e) {
+            return ToolResults.failure(e);
+        }
+    }
+
+    /**
+     * The one failure this Server reports that {@code gh} did not produce.
+     *
+     * <p>{@code gh issue view} accepts a pull request number and answers with pull request
+     * data, because GitHub's data model makes every pull request an issue — not the
+     * reverse. Returning it with a marker was rejected: seen through the issue lens a pull
+     * request is <em>half</em> a pull request, since {@code isDraft}, {@code headRefName},
+     * {@code mergeable}, reviews and the diff have no field on {@code gh issue view} at
+     * all, so the marker would certify a payload silently missing everything that makes a
+     * pull request one.
+     *
+     * <p>The sentence is built per call rather than being a constant: it names the number
+     * that was asked for and carries the URL out of the payload just parsed, which is the
+     * one thing a caller who genuinely wanted that pull request can still act on. That is
+     * also what keeps {@link Remedy#FIX_REQUEST} honest here — see ADR-0003.
+     *
+     * <p>{@code stderr} is empty because there was none: {@code gh} did not fail.
+     */
+    private static ToolFailure notAnIssue(int number, String url) {
+        return new ToolFailure(Remedy.FIX_REQUEST,
+                "#" + number + " is a pull request, not an issue. This Server reads issues "
+                        + "only; it has no Tool for pull requests. If that number is what "
+                        + "you wanted: " + url,
+                "", null);
     }
 
     /**
