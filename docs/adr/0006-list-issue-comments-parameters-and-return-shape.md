@@ -77,15 +77,27 @@ record CommentPage(List<Comment> items, int count, boolean truncated,
                    int totalCount, String nextCursor) {}
 ```
 
+**`ListResult<T>` does not grow to accommodate this.** The Envelope is a contract about JSON
+keys, which is where a Client meets it and where ADR-0001's amendment states the rule; the
+shared Java record is one way of honouring it, not the contract itself. Widening
+`ListResult` would put `totalCount` and a `nextCursor` of `null` on `list_issues` and
+`list_labels` — telling a Client "there is no next page" where the truth is that those Tools
+cannot page at all. So `ListResult` stays exactly three keys for the two Tools whose Envelope
+is exactly three keys, and this Tool returns its own record beside it.
+
 - **`totalCount`** — the true number of comments on the issue. It arrives in the same
   response at **zero extra calls**. ADR-0004 refused the equivalent field for `list_labels`,
   and half of that reasoning does not transfer: it argued that "`truncated: true` **plus the
   'use `search`' line** already carries the decision the Client has to make". There is no
   `search` line here. "You have 30 of 143" and "there is more" are not the same fact — only
   the first lets a Client judge whether walking the rest is worth the context.
-- **`nextCursor`** — `null` when nothing older remains. A zero-comment issue produces this
-  naturally rather than by special case: measured, `totalCount: 0`, `nodes: []`,
-  `hasPreviousPage: false`, `startCursor: null`.
+- **`nextCursor`** — `null` exactly when `pageInfo.hasPreviousPage` is `false`. That flag is
+  the **sole** discriminator, and reading it off `startCursor` instead would be a bug:
+  measured on the last page of `cli/cli#13840`, the response carries 43 comments,
+  `hasPreviousPage: false`, and a `startCursor` that is **not** null — it points at the
+  oldest comment, and a Client handed it would spend a call to be told nothing is there.
+  The zero-comment case is a corollary rather than the rule: `totalCount: 0`, `nodes: []`,
+  `hasPreviousPage: false`, `startCursor: null`, which needs no special handling either way.
 - **`truncated` stays**, although it is now derivable from either `nextCursor != null` or
   `count < totalCount`. ADR-0001 keeps the equally derivable `count` for a stated reason —
   "counting array elements is a step a model can get wrong, and one integer removes the
