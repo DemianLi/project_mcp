@@ -185,3 +185,14 @@ payload, because console logging is off, and that recovering it would need a fil
 `logging.file.name: logs/project-mcp.log` since the scaffold, and it was actively writing.
 The decision is unaffected — the argv still stays out of what the caller sees — but its
 stated cost was not real, so the implementation logs it rather than discarding it.
+
+**2026-09-05, during [#13](https://github.com/DemianLi/project_mcp/issues/13).** The failure
+type is renamed `GhFailure` → **`ToolFailure`**. `get_issue` rejecting a pull request number
+is the first failure this Server reports that `gh` did not produce — `gh` succeeded and
+returned a pull request; `IssueTools` judged it unacceptable — so a name asserting that `gh`
+failed became untrue. `CONTEXT.md`'s Remedy entry already read wider than the class name
+("every failure **this Server reports** carries one"). Nothing about the contract moves:
+`GhCli` is still the only place that knows how `gh` fails, `stderr` is still verbatim and
+still `""` where there was none, and the four keys of `structuredContent` are unchanged. The
+rename lands with [#17](https://github.com/DemianLi/project_mcp/issues/17); see ADR-0003 for
+the decision it came out of.
