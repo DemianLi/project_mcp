@@ -50,6 +50,14 @@ _Avoid_: function, endpoint, command, API
 **Resource**:
 Data the Server exposes for a Client to _read_. Contrast with Tool: a Resource is
 fetched, a Tool is called.
+
+This Server declares none, and that is a measured result rather than a gap yet to be
+filled. Read literally, the definition above fits several things here — a repository's
+label set most of all. What rules it out is that fetching a Resource has no way to
+report a failure: there is no equivalent of the Remedy every Tool call carries, so a
+failure would have to travel as a protocol error the model never sees, or be disguised
+as ordinary content. Every read operation here is therefore a Tool. See
+[#15](https://github.com/DemianLi/project_mcp/issues/15).
 _Avoid_: document, file, context, asset
 
 ### Server design
