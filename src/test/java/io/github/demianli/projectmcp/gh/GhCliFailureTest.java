@@ -262,6 +262,33 @@ class GhCliFailureTest {
     }
 
     @Test
+    void anAuthenticatedLoginWithoutThePermissionIsAskOperator() throws Exception {
+        // Captured verbatim in #33: a fine-grained PAT with Issues: Read-only, refused by
+        // `addComment` after the id lookup on the same token had already succeeded. The
+        // stderr `gh` renders from GitHub's 200-with-errors response, on gh 2.91.0.
+        ToolFailure f = failure("gh: Resource not accessible by personal access token");
+
+        assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
+        // The whole point of the branch, and the regression this test exists to catch:
+        // before it, this landed on UNKNOWN, and the nearest matching Remedy would have
+        // told an operator to log in again -- which does not change what a login may do.
+        assertThat(f.getMessage()).doesNotContain("gh auth login");
+        assertThat(f.getMessage()).contains("lacks permission");
+    }
+
+    @Test
+    void theSameRefusalWordedForAnAppTokenIsAskOperatorToo() throws Exception {
+        // Not measured -- matched on the family for the reason GhCli gives. This is the
+        // wording an installation token gets, which is what `gh` resolves inside GitHub
+        // Actions, so it is the member of the family a real deployment is most likely to
+        // meet. The message must stay free of anything true only of a PAT.
+        ToolFailure f = failure("gh: Resource not accessible by integration");
+
+        assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
+        assertThat(f.getMessage()).doesNotContain("personal access token");
+    }
+
+    @Test
     void anAbsentBinaryIsAskOperatorAndCarriesNoStderr() {
         // The asymmetry ADR-0002 names: this never reaches a non-zero exit. The path below
         // genuinely does not exist, so the IOException is the real one from the real

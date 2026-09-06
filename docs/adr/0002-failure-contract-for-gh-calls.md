@@ -203,3 +203,22 @@ failed became untrue. `CONTEXT.md`'s Remedy entry already read wider than the cl
 still `""` where there was none, and the four keys of `structuredContent` are unchanged. The
 rename lands with [#17](https://github.com/DemianLi/project_mcp/issues/17); see ADR-0003 for
 the decision it came out of.
+
+**2026-09-06, during [#36](https://github.com/DemianLi/project_mcp/issues/36).** The
+`ASK_OPERATOR` row above names two failures and both are authentication: not logged in, and
+`gh` not installed. It now also covers a third that is not — a login that is authenticated
+and simply not permitted to do what was asked.
+[#33](https://github.com/DemianLi/project_mcp/issues/33) measured it: a fine-grained PAT
+with Issues: Read-only, refused by `addComment` with `gh: Resource not accessible by
+personal access token`, after the same token's issue lookup had already succeeded. Before
+this it landed on `UNKNOWN`, beside a Remedy whose message told the reader to run
+`gh auth login` — which does not change what a login is allowed to do.
+
+The decision does not move. This is not a sixth constant: the action is the one
+`ASK_OPERATOR` already names — stop, and ask a human — and a constant for *why* the human is
+needed would name a cause, which is the axis this contract deliberately does not have. What
+the row understated is the reach of "the environment", which is not only whether a login
+exists but what that login may do. `GhCli` matches the family (`resource not accessible
+by`) rather than the one sentence measured, so an installation token — what `gh` resolves
+inside GitHub Actions — reaches the same Remedy; only the PAT wording is measured, and the
+message therefore carries nothing true of a PAT alone.

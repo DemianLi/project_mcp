@@ -260,6 +260,33 @@ public class GhCli {
                             + "Someone with access to this Server has to run `gh auth login`.",
                     stderr, null);
         }
+        // Authenticated, and not allowed. Deliberately not folded into the branch above:
+        // `gh auth login` is the wrong instruction for a login that is already valid, and
+        // giving it here is how an operator is sent to re-authenticate a token whose
+        // authentication was never the problem. Measured in #33 on a fine-grained PAT with
+        // Issues: Read-only -- exit 1, `gh: Resource not accessible by personal access
+        // token`, from `addComment` after the id lookup had already succeeded.
+        //
+        // Matched on the family, not on that one sentence. GitHub words this refusal by
+        // naming whatever it refused, and `by integration` is the same wall hit by a GitHub
+        // App installation token -- which is what `gh` resolves inside GitHub Actions, a
+        // deployment this Server can actually meet. Only the PAT wording is measured; the
+        // rest of the family is matched because ADR-0002 classifies by the action available
+        // and every member leaves exactly one. The message says nothing PAT-specific for
+        // that same reason.
+        //
+        // Order against the branch above is free -- the two strings cannot both match --
+        // but it reads second, so a later reader meets "not authenticated" before
+        // "authenticated and still refused".
+        if (s.contains("resource not accessible by")) {
+            return new ToolFailure(Remedy.ASK_OPERATOR,
+                    "The login the GitHub CLI resolves is authenticated but lacks "
+                            + "permission for this operation. Someone with access to this "
+                            + "Server has to give that login the permission, or point "
+                            + "`gh` at one that has it \u2014 logging in again does not "
+                            + "change what a login is allowed to do.",
+                    stderr, null);
+        }
         // Before the repository case on purpose. The two strings cannot both match, so
         // the order is free — but the repository one reads as the more general of the
         // two, and a later reader scanning this chain should not have to work out that

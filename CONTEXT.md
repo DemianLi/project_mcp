@@ -143,11 +143,13 @@ never this Server's to hand out; `Withheld` is this Server's to hand out but cov
 what travels through it.
 
 Today this Server hands out neither promise. `Ungranted` is reachable anyway — anyone
-deploying this Server can pick a login without the scope — but what comes back is this Server
-misdescribing it: the refusal matches nothing known and arrives with the `UNKNOWN` Remedy,
-while the nearest Remedy that would match tells the reader to log in again, which does not
-fix a scope. `Withheld` does not exist here at all. Which of the two, if either, this
-Server should offer is the question of
+deploying this Server can pick a login without the permission — and since
+[#36](https://github.com/DemianLi/project_mcp/issues/36) it is at least described
+truthfully: the refusal carries `ASK_OPERATOR` and says the login is authenticated and not
+permitted, rather than the `UNKNOWN` it used to land on beside advice to log in again.
+Reaching it still costs the deployer a login chosen outside this Server, which is what makes
+it a promise this Server does not itself hand out. `Withheld` does not exist here at all.
+Which of the two, if either, this Server should offer is the question of
 [#32](https://github.com/DemianLi/project_mcp/issues/32).
 _Avoid_: read-only mode, safe mode, sandboxed, 只读模式 — an instance's identity is fixed
 when it starts, not a mode it can be put into. Also avoid the bare "the Server is
