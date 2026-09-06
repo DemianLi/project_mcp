@@ -90,13 +90,15 @@ would have to travel as a protocol error the model never sees, or be disguised a
 content. Every read operation here is therefore a Tool. See
 [ADR-0004](./docs/adr/0004-list-labels-tool-shape-parameters-and-return.md).
 
-Work is charted on wayfinder maps in this repo's issues. Four are complete:
+Work is charted on wayfinder maps in this repo's issues. Five are complete:
 [#1](https://github.com/DemianLi/project_mcp/issues/1) — a working Stdio server and
 `list_issues`; [#7](https://github.com/DemianLi/project_mcp/issues/7) — the failure
 contract and an offline test suite that proves it;
 [#12](https://github.com/DemianLi/project_mcp/issues/12) — `get_issue` and `list_labels`;
 [#19](https://github.com/DemianLi/project_mcp/issues/19) — `list_issue_comments`, which
-settles the debt `get_issue` left when it excluded comments.
+settles the debt `get_issue` left when it excluded comments; and
+[#24](https://github.com/DemianLi/project_mcp/issues/24) — `add_issue_comment`, the first
+Tool here that changes anything.
 
 ## Documentation
 
