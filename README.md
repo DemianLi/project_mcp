@@ -37,6 +37,12 @@ Maven, Java 25, Spring Boot 4.1.x, Spring AI 2.0.x
 Authentication is `gh`'s problem, not this Server's — it shells out to the `gh` binary
 and inherits whatever login that CLI resolves. The Server never holds a token.
 
+Permission travels the same pipe, and stays there. There is no read-only switch to throw:
+what an instance can write is whatever that login can write, and this Server's part is to
+report clearly when GitHub refuses. Handing out a read-only instance therefore means
+pointing `gh` at a login without the permission — a choice made outside this Server. See
+[ADR-0009](./docs/adr/0009-writes-are-gated-outside-this-server.md).
+
 **One write, and it is deliberate.** `add_issue_comment` is the only Tool that changes
 anything on GitHub; everything else reads. Deletion, editing an existing comment, creating
 issues and anything on the pull-request side are all out of scope — see
@@ -90,15 +96,17 @@ would have to travel as a protocol error the model never sees, or be disguised a
 content. Every read operation here is therefore a Tool. See
 [ADR-0004](./docs/adr/0004-list-labels-tool-shape-parameters-and-return.md).
 
-Work is charted on wayfinder maps in this repo's issues. Five are complete:
+Work is charted on wayfinder maps in this repo's issues. Six are complete:
 [#1](https://github.com/DemianLi/project_mcp/issues/1) — a working Stdio server and
 `list_issues`; [#7](https://github.com/DemianLi/project_mcp/issues/7) — the failure
 contract and an offline test suite that proves it;
 [#12](https://github.com/DemianLi/project_mcp/issues/12) — `get_issue` and `list_labels`;
 [#19](https://github.com/DemianLi/project_mcp/issues/19) — `list_issue_comments`, which
-settles the debt `get_issue` left when it excluded comments; and
+settles the debt `get_issue` left when it excluded comments;
 [#24](https://github.com/DemianLi/project_mcp/issues/24) — `add_issue_comment`, the first
-Tool here that changes anything.
+Tool here that changes anything; and
+[#32](https://github.com/DemianLi/project_mcp/issues/32) — whether this Server should gate
+that write itself, which it decided against.
 
 ## Documentation
 

@@ -91,9 +91,10 @@ annotation, so a Client gating on one is gating on an assertion. See
 **declaration** it is what a Client is told about one Tool. As a **switch** it is what
 gives the other two hints meaning at all — `destructiveHint` and `idempotentHint` say
 nothing until it is false (see ADR-0007). And this Server reads its own **partition** off
-it: which Tools count as writes is that field, not a second list kept alongside. The first
-role is a claim about a Tool; a Read-only instance is a claim about something else
-entirely, so neither is a stronger grade of the other.
+it: which Tools count as writes is that field, not a second list kept alongside — a way of
+naming the writes, not a switch anything acts on (ADR-0009). The first role is a claim about
+a Tool; a Read-only instance is a claim about something else entirely, so neither is a
+stronger grade of the other.
 _Avoid_: guarantee, permission, enforcement, 保证
 
 ### Server design
@@ -142,15 +143,16 @@ The two are not grades of one promise. `Ungranted` covers every route to GitHub 
 never this Server's to hand out; `Withheld` is this Server's to hand out but covers only
 what travels through it.
 
-Today this Server hands out neither promise. `Ungranted` is reachable anyway — anyone
-deploying this Server can pick a login without the permission — and since
-[#36](https://github.com/DemianLi/project_mcp/issues/36) it is at least described
-truthfully: the refusal carries `ASK_OPERATOR` and says the login is authenticated and not
-permitted, rather than the `UNKNOWN` it used to land on beside advice to log in again.
-Reaching it still costs the deployer a login chosen outside this Server, which is what makes
-it a promise this Server does not itself hand out. `Withheld` does not exist here at all.
-Which of the two, if either, this Server should offer is the question of
-[#32](https://github.com/DemianLi/project_mcp/issues/32).
+This Server hands out neither promise, and since ADR-0009 that is a decision rather than a
+description of today. `Ungranted` is reachable through it anyway — anyone deploying this
+Server can pick a login without the permission — and since
+[#36](https://github.com/DemianLi/project_mcp/issues/36) it is described truthfully: the
+refusal carries `ASK_OPERATOR` and says the login is authenticated and not permitted, rather
+than the `UNKNOWN` it used to land on beside advice to log in again. Reaching it still costs
+the deployer a login chosen outside this Server, which is what makes it a promise this Server
+does not itself hand out. `Withheld` is not offered: it would have this Server hold a login
+that can write and decline to use it, which is a promise it cannot keep against anything that
+goes around its own check.
 _Avoid_: read-only mode, safe mode, sandboxed, 只读模式 — an instance's identity is fixed
 when it starts, not a mode it can be put into. Also avoid the bare "the Server is
 read-only" without saying which of the two is meant: it read as true while every Tool
