@@ -217,3 +217,24 @@ inside the same two calls. Choosing GraphQL costs #28 nothing.
   it and does not resolve it.
 - **A second write Tool, `create issue`, any write on the pull-request side, and deletion** —
   all ruled out on the map, unchanged here.
+
+## Amendments
+
+**2026-09-06, after [#35](https://github.com/DemianLi/project_mcp/issues/35).** Two sentences
+above point at a map that has since closed, and one of them is now answered.
+
+**"A global switch for write capability. Still fog on the map"** — that fog was charted as
+[#32](https://github.com/DemianLi/project_mcp/issues/32) and is settled: there is no switch,
+and there will not be one. The gate is the permissions of the login `gh` resolves, and this
+Server's part is to report its refusals well. Read the bullet as ruled out rather than
+deferred; see ADR-0009.
+
+**"Whether that is right for a write is flagged on the map as not yet specified"**, in Known
+limitations, about a successful write leaving nothing in the log. Still true that it is
+unsettled, no longer true that a map is carrying it: #32 ruled it out of its own scope as a
+different audience — a gate is for the deployer, a trace is for whoever asks afterwards — and
+left it to a future map that does not exist yet. Nothing about this ADR changes; the pointer
+does.
+
+Neither amendment touches the decision. The pull-request guard, the two calls, the
+annotations and the blank-`body` rule all stand exactly as written.

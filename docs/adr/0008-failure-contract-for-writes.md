@@ -182,3 +182,13 @@ unchanged.
   is this one — is the hard part, and it is the part this ADR hands to the Client.
 - **Retry policy inside the Server.** This Server still makes one attempt per Tool call.
 - **What a successful write leaves in this Server's log.** Still fog on the map.
+
+## Amendments
+
+**2026-09-06, after [#35](https://github.com/DemianLi/project_mcp/issues/35).** The last Out
+of scope bullet — "What a successful write leaves in this Server's log. Still fog on the
+map" — points at [#32](https://github.com/DemianLi/project_mcp/issues/32), which has closed
+without taking it up. It ruled the question out of its own scope on audience grounds: the
+gate that map was charting is for whoever deploys this Server, a trace is for whoever asks
+afterwards. The question is still open and still unspecified; it is simply not on a map any
+more. The contract this ADR sets is untouched.
