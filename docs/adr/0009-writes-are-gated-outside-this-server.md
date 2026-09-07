@@ -100,9 +100,9 @@ the other.
 **No repository setting produces read-works-write-doesn't.** Turning issues off takes the four
 read Tools down with the write — that condition already has its own branch and its own
 sentence, "that repository has issues turned off, so it has none to list"
-(`GhStderr`, row "issues disabled"). Locking a conversation is the nearest thing, and it stops human
-collaborators as well as this Server; see Known limitations, where it is also the one case
-this Server currently reports badly.
+(`GhStderr`, row "issues disabled"). Locking a conversation is the nearest thing, and it stops
+human collaborators as well as this Server — but only those without write access, which is why
+it does not gate an `Ungranted` login either; see Known limitations.
 
 ### The Server's obligation instead
 
@@ -126,13 +126,30 @@ Nothing further is owed and nothing further is built.
   #33 needed a two-sided cross-check because the obvious tests are all false negatives against
   a public repository, and even that cannot separate a genuinely read-only PAT from one built
   with `Issues: Read and write`. The map's Notes carry the procedure.
-- **A locked conversation is the one case that genuinely produces read-works-write-doesn't,
-  and this Server reports it as `UNKNOWN` today.** `classify()` has no branch for it. ADR-0007
-  flagged that an issue can be "closed, locked or deleted" between the lookup and the mutation
-  and handed the wording to #28, which was resolved without adding it. This matters more after
-  this ADR than before it: the decision above rests on refusals being reported well, and this
-  is a refusal that is not. GitHub's actual stderr for it has **not** been measured, so no
-  string is guessed here.
+- **A locked conversation is reported as `UNKNOWN`, and the band in which it can arise is
+  narrower than this ADR first claimed.** As written, this bullet called a lock "the one case
+  that genuinely produces read-works-write-doesn't". A lock is only operative on an identity
+  that would otherwise be permitted to comment, and both edges of that are measured. An
+  identity with the permission is unaffected: `addComment` against a **locked** sandbox issue,
+  as that repository's owner, exited 0 and posted the comment. An identity without it is
+  refused before the lock can matter:
+  [#33](https://github.com/DemianLi/project_mcp/issues/33)'s fine-grained PAT with
+  Issues: Read-only was refused with `gh: Resource not accessible by personal access token`,
+  exit 1, on an issue that was not locked at all. The band is therefore an identity that could
+  comment on an unlocked issue and not on a locked one — empty on a private repository, and on
+  a public one requiring a non-collaborator, which is a second GitHub account rather than a
+  second token. `Ungranted` as this ADR defines it — a login picked without the permission —
+  never reaches the lock.
+
+  That the band is empty on a private repository is an **argument** from those two
+  measurements plus GitHub's documented rule that a lock admits users with write access. It is
+  not a third measurement and is not written here as one.
+
+  What does not change: `GhStderr` has no branch for a locked conversation, so an identity
+  that does reach that band is told `UNKNOWN`. ADR-0007 flagged that an issue can be "closed,
+  locked or deleted" between the lookup and the mutation and handed the wording to
+  [#28](https://github.com/DemianLi/project_mcp/issues/28), which was resolved without adding
+  it. GitHub's stderr for it is still unmeasured, so no string is guessed here.
 - **A Client still cannot verify any of this.** `readOnlyHint` is the Server's own assertion
   about one Tool, and the protocol's single MUST is that a Client not trust it
   ([#26](https://github.com/DemianLi/project_mcp/issues/26)). Nothing decided here changes
@@ -153,3 +170,27 @@ Nothing further is owed and nothing further is built.
   doubtful.
 - **A session-level gate.** Under Stdio the Client that launches this process already controls
   its argv; negotiating the same thing again is the same party setting it twice.
+
+## Amendments
+
+**2026-09-07.** The Known limitation on locked conversations is rewritten. It stated as a
+finding something that was a deduction: that a lock is the one condition producing
+read-works-write-doesn't. Measured on the sandbox, a locked issue does not refuse the
+repository's owner — `addComment` exits 0 and the comment is posted. Set beside
+[#33](https://github.com/DemianLi/project_mcp/issues/33), which had already measured the other
+edge, the condition the bullet named is unreachable from any `Ungranted` login, and the bullet
+now says so and marks which half of it is argued rather than measured.
+
+The decision does not move, and the first bullet under it gets slightly firmer: `Ungranted`
+was said to work because #33 found the read Tools unaffected and the failure landing on the
+mutation, and it now also survives the one repository condition that was thought to undercut
+it. The gate still lives outside this Server, and what this Server
+owes a deployer is still one true and actionable Remedy when the gate refuses. What moves is a
+sentence of evidence, in the ADR family whose governing principle is "measured, not assumed".
+
+Worth recording as method, because it cost a real write. The measurement verified that the
+issue was locked. It did not verify that the lock bound the login doing the writing, and those
+are different checks; the probe comment landed on
+[sandbox #4](https://github.com/DemianLi/project-mcp-sandbox/issues/4#issuecomment-5570332356)
+and is still there. A precondition is not established by confirming the condition exists —
+only by confirming it binds the party it is meant to bind.
