@@ -11,6 +11,12 @@ import java.util.Map;
  * {@code FIX_REQUEST} having never reached the subprocess, and a test meaning to observe a
  * {@code gh} failure would observe nothing of the kind.
  *
+ * <p>The requirement is stronger for a write Tool, and both callers depend on it: an entry
+ * must reach {@code gh}, and for a Tool that writes it must reach the <em>write</em>. An entry
+ * that stopped at a check in between would make {@code WritePartitionAcceptanceTest} fail
+ * looking like a routing fault — {@code FIX_REQUEST} where it wanted
+ * {@code CHECK_BEFORE_RETRY} — when the fault was here.
+ *
  * <p>Not derivable from a Tool's {@code inputSchema}: the schema gives types, and what is
  * needed here is a value that passes a semantic check the schema does not express.
  *

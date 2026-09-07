@@ -46,6 +46,10 @@ final class ToolResults {
      * it by being thrown, whether they came from {@code GhCli}, from {@code Cursors}, or from
      * the Tool itself; there is no second way to report one.
      *
+     * <p>{@code body} must produce a value. A {@code null} would serialise as the literal
+     * {@code null} inside an otherwise successful result — every mapper here constructs a
+     * record and none can return one, so this is a contract stated rather than enforced.
+     *
      * @param body produces the value to return, or throws {@link ToolFailure}
      */
     static CallToolResult attempt(Supplier<?> body) {
