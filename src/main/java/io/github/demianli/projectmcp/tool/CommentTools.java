@@ -91,8 +91,9 @@ public class CommentTools {
      * turn one into the other. Doing it this way is what makes writing into a pull request
      * impossible rather than merely unintended: {@code repository.issue(number:)} cannot
      * resolve a pull request's id, and {@code gh} exits 1 with
-     * {@code Could not resolve to an Issue with the number of N} — a string
-     * {@link GhCli}'s {@code classify} already turns into {@code FIX_REQUEST}. Both
+     * {@code Could not resolve to an Issue with the number of N} — a string the stderr table
+     * in {@link GhCli}'s package already turns into {@code FIX_REQUEST} ({@code GhStderr},
+     * row "no such issue (graphql)"; not linked because it is package-private there). Both
      * {@code gh issue comment} and the REST endpoint resolve a number without caring which
      * kind it is, and both were measured writing into a pull request. See ADR-0007.
      */
