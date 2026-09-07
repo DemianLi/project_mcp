@@ -194,6 +194,27 @@ class ListIssueCommentsTest {
     }
 
     @Test
+    void aCursorStaysUsableWhenTheRepositoryIsSpelledInAnotherCase() throws Exception {
+        // Measured on GitHub: repository(owner:"cli", name:"cli"), owner:"CLI" name:"CLI"
+        // and owner:"cLi" name:"Cli" all answer nameWithOwner cli/cli. So CLI/cli#13840 and
+        // cli/cli#13840 are one issue, and a cursor issued for either is valid for the
+        // other. An exact comparison refused this one, telling a Client to fix a request
+        // that was correct -- in a sentence that named the same issue on both sides of the
+        // word "but".
+        String issued = Cursors.wrap("cli", "cli", 13840, startCursorIn("comments-page.json"));
+
+        CallToolResult result = toolsReturning("comments-page.json")
+                .listIssueComments("CLI", "cli", 13840, 3, issued);
+
+        assertThat(result.isError())
+                .as("the cursor names the issue this call asks about, spelled differently")
+                .isFalse();
+        assertThat(argv())
+                .as("and it was unwrapped, not merely tolerated")
+                .contains("before=" + startCursorIn("comments-page.json"));
+    }
+
+    @Test
     void aCursorThatIsNotBase64AndOneWithNoIssueInItAreBothFixRequest() throws Exception {
         CallToolResult garbage = toolsReturning("comments-page.json")
                 .listIssueComments("cli", "cli", 13840, 30, "!!! not base64 !!!");

@@ -82,7 +82,23 @@ final class Cursors {
 
         String from = decoded.substring(0, boundary);
         String here = issue(owner, repo, number);
-        if (!from.equals(here)) {
+
+        // Case-insensitively, because GitHub resolves an owner and a repository name that
+        // way and this comparison is asking whether two references name the same issue.
+        // Measured: repository(owner:"cli", name:"cli"), owner:"CLI" name:"CLI" and
+        // owner:"cLi" name:"Cli" all answer nameWithOwner cli/cli. An exact comparison
+        // refused a cursor that was never wrong, in a sentence that named the same issue
+        // twice -- "came from cli/cli#14361, but this call asks about CLI/cli#14361" --
+        // and told a Client to fix a request with nothing wrong in it.
+        //
+        // equalsIgnoreCase rather than lowercasing both: String.toLowerCase() without a
+        // Locale folds by the default one, and in a Turkish locale `I` does not become `i`.
+        // Only the half before the separator is compared, so GitHub's own cursor -- base64
+        // and case-sensitive -- is never touched by this.
+        //
+        // Not canonicalised at wrap() instead. Which case is canonical is GitHub's to say
+        // and it only says so in a response; this Server is in no position to declare one.
+        if (!from.equalsIgnoreCase(here)) {
             throw new ToolFailure(Remedy.FIX_REQUEST,
                     "That `cursor` came from " + from + ", but this call asks about " + here
                             + ". A cursor is only valid for the issue it was issued for. "
