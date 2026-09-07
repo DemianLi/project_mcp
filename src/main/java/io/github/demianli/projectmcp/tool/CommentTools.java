@@ -24,6 +24,23 @@ import org.springframework.stereotype.Component;
  * are chosen by asking for them rather than trimmed on arrival, and
  * {@code list_issue_comments}' Envelope carries two keys the others do not (ADR-0006).
  *
+ * <p><strong>Every GraphQL variable here is sent with {@code -f}, and none with
+ * {@code -F}.</strong> The two flags are not spellings of one thing. {@code -f} adds the
+ * value as a string, taken literally. {@code -F} has three magic readings of it, all three
+ * measured on this exact route: {@code 123} and {@code true} arrive as JSON scalars, which
+ * against a {@code String!} variable is a type error; {@code {owner}}, {@code {repo}} and
+ * {@code {branch}} are replaced by whatever repository this Server's working directory
+ * resolves to; and {@code @path} or {@code @-} reads the value out of a local file or out
+ * of stdin and sends <em>that</em>.
+ *
+ * <p>Which matters because the values below are a Client's strings. Under {@code -F} a
+ * {@code body} of {@code @} followed by a path would post a file off this machine to
+ * GitHub, over a Tool a Client was told writes a comment; a {@code cursor} of
+ * {@code {owner}} would ask for something nobody typed. The rule that holds is therefore
+ * not "avoid {@code -F}" — {@code -F number=} and {@code -F last=} below are correct, and
+ * are exactly the two whose values are Java {@code int}s and so can carry none of the
+ * three. It is that a value typed {@code String} here goes out with {@code -f}.
+ *
  * <p><strong>{@code add_issue_comment} is the first Tool in this Server that changes
  * anything.</strong> Two things follow that a reader should not have to infer. Its second
  * call goes through {@link GhCli#runWrite} rather than {@link GhCli#run}, which is what
@@ -167,8 +184,9 @@ public class CommentTools {
             // Before the call, so a cursor from the wrong issue costs nothing to reject.
             String before = Cursors.unwrap(owner, repo, number, cursor);
             if (before != null) {
-                // -f, not -F: -F coerces a value that looks numeric, and a cursor is a
-                // string whatever it happens to look like.
+                // -f, not -F, for the reason the class javadoc measures. A cursor is a
+                // Client's string whatever it happens to look like -- and under -F one
+                // beginning `@` would be read as a filename off this machine.
                 args.add("-f");
                 args.add("before=" + before);
             }
@@ -261,8 +279,10 @@ public class CommentTools {
             // half the contract into the Tools and every future write Tool would copy it.
             // There is no longer a catch to be tempted into doing it in.
             //
-            // -f throughout, never -F: -F coerces anything that looks numeric, and a body
-            // of "123" would arrive as a JSON number against `body:String!`.
+            // -f throughout, never -F, for the reason the class javadoc measures. A body of
+            // "123" arriving as a JSON number against `body:String!` is the mildest of the
+            // three readings -- a body beginning `@` would post a file off this machine to
+            // GitHub, over a Tool a Client is told writes a comment.
             return mapper.toNewComment(gh.runWrite(List.of(
                     "api", "graphql",
                     "-f", "query=" + ADD_COMMENT,
