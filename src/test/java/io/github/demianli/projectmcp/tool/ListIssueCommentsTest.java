@@ -163,7 +163,8 @@ class ListIssueCommentsTest {
         // returns totalCount 1 with an empty nodes and exits zero -- a Client reads that as
         // "one comment exists and I cannot see it". Rejecting it costs no call at all.
         CommentTools tools = toolsReturning("comments-page.json");
-        String elsewhere = Cursors.wrap("cli", "cli", 13840, startCursorIn("comments-page.json"));
+        String elsewhere = Cursors.wrap(new IssueRef("cli", "cli", 13840),
+                startCursorIn("comments-page.json"));
 
         CallToolResult result = tools.listIssueComments("cli", "cli", 14361, 30, elsewhere);
 
@@ -187,7 +188,8 @@ class ListIssueCommentsTest {
         // stand-in does not run. It is passed only because toolsReturning builds the Tool.
         CallToolResult result = toolsReturning("comments-page.json").listIssueComments(
                 "ollama", "ollama", 5000,
-                30, Cursors.wrap("cli", "cli", 13840, startCursorIn("comments-page.json")));
+                30, Cursors.wrap(new IssueRef("cli", "cli", 13840),
+                        startCursorIn("comments-page.json")));
 
         assertThat(structured(result)).containsEntry("remedy", "FIX_REQUEST");
         assertThat(ghWasCalled()).isFalse();
@@ -201,7 +203,8 @@ class ListIssueCommentsTest {
         // other. An exact comparison refused this one, telling a Client to fix a request
         // that was correct -- in a sentence that named the same issue on both sides of the
         // word "but".
-        String issued = Cursors.wrap("cli", "cli", 13840, startCursorIn("comments-page.json"));
+        String issued = Cursors.wrap(new IssueRef("cli", "cli", 13840),
+                startCursorIn("comments-page.json"));
 
         CallToolResult result = toolsReturning("comments-page.json")
                 .listIssueComments("CLI", "cli", 13840, 3, issued);

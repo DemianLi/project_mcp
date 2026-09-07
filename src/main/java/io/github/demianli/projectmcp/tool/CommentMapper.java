@@ -28,15 +28,14 @@ public class CommentMapper {
 
     /**
      * @param ghJson what {@code gh api graphql} printed, rooted at {@code data}
-     * @param owner the repository owner this response is about
-     * @param repo the repository name this response is about
-     * @param number the issue this response is about
+     * @param issue the issue this response is about
      *
-     * <p>The last three are here only so {@link Cursors} can name the issue inside the
-     * cursor this method emits. They keep it a pure function — three more arguments, no
-     * more I/O.
+     * <p>{@code issue} is here only so {@link Cursors} can name the issue inside the cursor
+     * this method emits; nothing is read off it here. It keeps this a pure function — one
+     * more argument, no more I/O — and it is one argument rather than the three it used to
+     * be, which is the whole of what {@link IssueRef} is for.
      */
-    public CommentPage toPage(String ghJson, String owner, String repo, int number) {
+    public CommentPage toPage(String ghJson, IssueRef issue) {
         JsonNode comments = json.readTree(ghJson)
                 .path("data").path("repository").path("issue").path("comments");
 
@@ -60,7 +59,7 @@ public class CommentMapper {
         JsonNode pageInfo = comments.path("pageInfo");
         boolean more = pageInfo.path("hasPreviousPage").asBoolean(false);
         String nextCursor = more
-                ? Cursors.wrap(owner, repo, number, pageInfo.path("startCursor").asString(null))
+                ? Cursors.wrap(issue, pageInfo.path("startCursor").asString(null))
                 : null;
 
         return new CommentPage(List.copyOf(items), items.size(), more,

@@ -166,6 +166,7 @@ public class CommentTools {
             String cursor) {
 
         int effectiveLimit = Limits.clamp(limit);
+        IssueRef issue = new IssueRef(owner, repo, number);
 
         List<String> args = new ArrayList<>(List.of(
                 "api", "graphql",
@@ -182,7 +183,7 @@ public class CommentTools {
 
         return ToolResults.attempt(() -> {
             // Before the call, so a cursor from the wrong issue costs nothing to reject.
-            String before = Cursors.unwrap(owner, repo, number, cursor);
+            String before = Cursors.unwrap(issue, cursor);
             if (before != null) {
                 // -f, not -F, for the reason the class javadoc measures. A cursor is a
                 // Client's string whatever it happens to look like -- and under -F one
@@ -190,7 +191,7 @@ public class CommentTools {
                 args.add("-f");
                 args.add("before=" + before);
             }
-            return mapper.toPage(gh.run(args), owner, repo, number);
+            return mapper.toPage(gh.run(args), issue);
         });
     }
     @McpTool(name = "add_issue_comment",
