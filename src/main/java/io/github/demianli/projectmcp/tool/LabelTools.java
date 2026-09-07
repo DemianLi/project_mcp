@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import io.github.demianli.projectmcp.gh.GhCli;
-import io.github.demianli.projectmcp.gh.ToolFailure;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
@@ -104,10 +103,6 @@ public class LabelTools {
             args.add("asc");
         }
 
-        try {
-            return ToolResults.of(mapper.toEnvelope(gh.run(args), effectiveLimit));
-        } catch (ToolFailure e) {
-            return ToolResults.failure(e);
-        }
+        return ToolResults.attempt(() -> mapper.toEnvelope(gh.run(args), effectiveLimit));
     }
 }

@@ -163,7 +163,7 @@ public class CommentTools {
                 // the response volunteers. See ADR-0006.
                 "-F", "last=" + effectiveLimit));
 
-        try {
+        return ToolResults.attempt(() -> {
             // Before the call, so a cursor from the wrong issue costs nothing to reject.
             String before = Cursors.unwrap(owner, repo, number, cursor);
             if (before != null) {
@@ -172,10 +172,8 @@ public class CommentTools {
                 args.add("-f");
                 args.add("before=" + before);
             }
-            return ToolResults.of(mapper.toPage(gh.run(args), owner, repo, number));
-        } catch (ToolFailure e) {
-            return ToolResults.failure(e);
-        }
+            return mapper.toPage(gh.run(args), owner, repo, number);
+        });
     }
     @McpTool(name = "add_issue_comment",
             annotations = @McpTool.McpAnnotations(
@@ -223,15 +221,21 @@ public class CommentTools {
                     blank, and is refused before GitHub is called.""")
             String body) {
 
-        // Before the call, for the reason Cursors.unwrap is: a blank body has no possible
-        // success, so letting `gh` discover it spends a round trip held open by a 30-second
-        // timeout. GitHub's predicate is blankness rather than emptiness -- `--body " "`
-        // fails exactly as `--body ""` does -- so isBlank(), not isEmpty(). See ADR-0007.
-        if (body == null || body.isBlank()) {
-            return ToolResults.failure(blankBody());
-        }
+        return ToolResults.attempt(() -> {
+            // Before the call, for the reason Cursors.unwrap is: a blank body has no possible
+            // success, so letting `gh` discover it spends a round trip held open by a
+            // 30-second timeout. GitHub's predicate is blankness rather than emptiness --
+            // `--body " "` fails exactly as `--body ""` does -- so isBlank(), not isEmpty().
+            // See ADR-0007.
+            //
+            // Inside the lambda, not before it. Thrown out of this method the failure would
+            // be caught by Spring AI instead, which answers isError with no
+            // structuredContent -- the Remedy would be gone and the refusal would still
+            // look right. See ToolResults.
+            if (body == null || body.isBlank()) {
+                throw blankBody();
+            }
 
-        try {
             // Call one is a read, and takes the read route deliberately. A timeout here
             // means nothing was written, so CHECK_BEFORE_RETRY would send a Client looking
             // for a comment that cannot exist.
@@ -252,19 +256,19 @@ public class CommentTools {
             // can see, and in everything a Client is told at the one moment a comment may
             // already exist. See ADR-0008.
             //
+            // The Remedy that comes back is not rewritten anywhere in this class. GhCli is
+            // where the contract knows a write from a read; adjusting it here would move
+            // half the contract into the Tools and every future write Tool would copy it.
+            // There is no longer a catch to be tempted into doing it in.
+            //
             // -f throughout, never -F: -F coerces anything that looks numeric, and a body
             // of "123" would arrive as a JSON number against `body:String!`.
-            return ToolResults.of(mapper.toNewComment(gh.runWrite(List.of(
+            return mapper.toNewComment(gh.runWrite(List.of(
                     "api", "graphql",
                     "-f", "query=" + ADD_COMMENT,
                     "-f", "subjectId=" + subjectId,
-                    "-f", "body=" + body))));
-        } catch (ToolFailure e) {
-            // The Remedy is not rewritten here. GhCli is where the contract knows a write
-            // from a read; adjusting it in a Tool's catch would move half the contract into
-            // the Tools and every future write Tool would copy it. See ADR-0008.
-            return ToolResults.failure(e);
-        }
+                    "-f", "body=" + body)));
+        });
     }
 
     /**

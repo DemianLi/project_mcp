@@ -115,11 +115,7 @@ public class IssueTools {
             }
         }
 
-        try {
-            return ToolResults.of(mapper.toEnvelope(gh.run(args), effectiveLimit));
-        } catch (ToolFailure e) {
-            return ToolResults.failure(e);
-        }
+        return ToolResults.attempt(() -> mapper.toEnvelope(gh.run(args), effectiveLimit));
     }
 
     @McpTool(name = "get_issue",
@@ -152,19 +148,17 @@ public class IssueTools {
                 "--repo", owner + "/" + repo,
                 "--json", DETAIL_FIELDS);
 
-        try {
+        return ToolResults.attempt(() -> {
             // Mapped first, then judged. IssueMapper stays a pure function of a string and
             // knows nothing about failure; the semantic check runs on the record it
             // returns, so the payload is parsed exactly once. The next Tool that has to
             // reject something it successfully fetched should split the same way.
             IssueDetail issue = mapper.toDetail(gh.run(args));
             if (issue.url().contains(PULL_REQUEST_PATH)) {
-                return ToolResults.failure(notAnIssue(number, issue.url()));
+                throw notAnIssue(number, issue.url());
             }
-            return ToolResults.of(issue);
-        } catch (ToolFailure e) {
-            return ToolResults.failure(e);
-        }
+            return issue;
+        });
     }
 
     /**
