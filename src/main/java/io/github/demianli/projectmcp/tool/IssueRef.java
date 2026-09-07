@@ -4,12 +4,17 @@ package io.github.demianli.projectmcp.tool;
  * Which issue, in which repository — the three values a Client sends together and this
  * Server passes around together.
  *
- * <p>It exists for {@link Cursors} and the one Tool that feeds it. A cursor this Server
- * issues names the issue it came from, and that name is checked on the way back; the name
- * and the check are what this record holds. Before it, {@code CommentMapper.toPage} took
+ * <p><strong>It exists to end a pass-through.</strong> {@code CommentMapper.toPage} took
  * {@code owner}, {@code repo} and {@code number} and read none of them — its javadoc said
- * outright that they were there only so {@code Cursors} could name the issue — and a pure
- * function of a JSON string carried three arguments that were not about the JSON.
+ * outright that they were there only so {@code Cursors} could name the issue — so a pure
+ * function of a JSON string carried three arguments that were not about the JSON, and
+ * {@code Cursors} took the same three twice more. What the record holds is what was
+ * actually being done with them: the name a cursor carries, and the check that a name
+ * coming back is the same issue.
+ *
+ * <p>{@link Cursors} and the one Tool that feeds it are today's only consumers. That is a
+ * fact about now rather than the reason for the record — a single consumer would be a
+ * hypothetical seam, and the pass-through is what makes this one earn its keep either way.
  *
  * <p><strong>Not a domain term.</strong> Deliberately absent from `CONTEXT.md`: the glossary
  * names things that carry a decision, and this carries one rule and no choice. If a decision

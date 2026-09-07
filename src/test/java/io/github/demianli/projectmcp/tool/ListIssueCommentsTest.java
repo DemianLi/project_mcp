@@ -192,6 +192,10 @@ class ListIssueCommentsTest {
                         startCursorIn("comments-page.json")));
 
         assertThat(structured(result)).containsEntry("remedy", "FIX_REQUEST");
+        assertThat(text(result))
+                .as("refused for the reason it looks like -- an unreadable cursor is "
+                        + "FIX_REQUEST too, and names neither issue")
+                .contains("cli/cli#13840", "ollama/ollama#5000");
         assertThat(ghWasCalled()).isFalse();
     }
 
