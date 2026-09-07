@@ -40,7 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
  * test keeps no list of write Tools. It asks the Server, and treats anything that does not
  * explicitly declare {@code readOnlyHint = true} as a write — the spec's own default, and
  * the direction that fails safe: a Tool added with no annotations at all lands in the
- * partition and demands a fixture rather than slipping past.
+ * partition and demands an entry in the tables below rather than slipping past.
  *
  * <p>What the reading cannot catch on its own is the partition being silently emptied —
  * {@code add_issue_comment} mislabelled {@code readOnlyHint = true} would simply be skipped.
@@ -72,32 +72,19 @@ class WritePartitionAcceptanceTest {
     private static final Duration OUTWAITS_THE_GH_TIMEOUT = Duration.ofSeconds(60);
 
     /**
-     * What it takes to drive one Tool into an abandoned write.
+     * The stand-in table: how to make each write Tool's write, and only its write, hang.
      *
-     * @param ghBody a stand-in {@code gh} that answers normally until the call that writes,
-     *     and then hangs past the timeout
-     * @param arguments a call that reaches that write — it must survive every check the Tool
-     *     makes before {@code gh} runs
+     * <p>Per-Tool by necessity, not by preference — a stand-in has to know how many calls the
+     * Tool makes and which of them is the write. The arguments that go with it live in
+     * {@link ToolCalls}, which the failure-contract tests need too; this half is the one only
+     * a write test wants.
+     *
+     * <p>Neither table is the partition. The partition comes off the wire; these say how to
+     * drive each of its members, and a member missing from either fails the test rather than
+     * being skipped. That is the whole mechanism: a write Tool added without
+     * {@code runWrite} goes red without anyone having to remember this file exists.
      */
-    private record Fixture(String ghBody, Map<String, Object> arguments) {
-    }
-
-    /**
-     * The fixture table.
-     *
-     * <p>Per-Tool by necessity, not by preference: a stand-in has to know how many calls the
-     * Tool makes and which of them is the write, and the arguments have to get past whatever
-     * the Tool refuses before reaching {@code gh}. Neither is derivable from the schema — an
-     * argument generated for {@code body} would be blank, and {@code add_issue_comment}
-     * refuses a blank body before {@code gh} is started, so the call would end in
-     * {@code FIX_REQUEST} having proved nothing.
-     *
-     * <p>This is not the partition. The partition comes off the wire; this says how to drive
-     * each of its members, and a member with no entry here fails the test rather than being
-     * skipped. That is the whole mechanism: a write Tool added without {@code runWrite} goes
-     * red without anyone having to remember this file exists.
-     */
-    private Fixture fixtureFor(String tool, Path dir) throws IOException {
+    private String standInFor(String tool, Path dir) throws IOException {
         return switch (tool) {
             case "add_issue_comment" -> {
                 Path id = dir.resolve("id.json");
@@ -108,12 +95,9 @@ class WritePartitionAcceptanceTest {
                 // Call one is the id lookup and goes through `run`; hanging it would produce
                 // RETRY and fail this test for entirely the wrong reason. Only call two is
                 // the write, so only call two hangs.
-                yield new Fixture(
-                        "n=$(cat " + count + " 2>/dev/null || echo 0)\n"
-                                + "n=$((n+1)); echo $n > " + count + "\n"
-                                + "if [ $n -eq 1 ]; then cat " + id + "; else sleep 35; fi",
-                        Map.of("owner", "DemianLi", "repo", "project-mcp-sandbox",
-                                "number", 1, "body", "hello"));
+                yield "n=$(cat " + count + " 2>/dev/null || echo 0)\n"
+                        + "n=$((n+1)); echo $n > " + count + "\n"
+                        + "if [ $n -eq 1 ]; then cat " + id + "; else sleep 35; fi";
             }
             default -> null;
         };
@@ -158,18 +142,23 @@ class WritePartitionAcceptanceTest {
 
         for (String tool : partition) {
             Path dir = Files.createDirectory(tmp.resolve(tool));
-            Fixture fixture = fixtureFor(tool, dir);
+            String standIn = standInFor(tool, dir);
+            Map<String, Object> arguments = ToolCalls.forTool(tool);
 
-            assertThat(fixture)
-                    .as("`%s` declares that it writes, so this test needs to know how to "
-                            + "drive it into an abandoned write -- add it to fixtureFor", tool)
+            assertThat(standIn)
+                    .as("`%s` declares that it writes, so this test needs to know which of "
+                            + "its calls to hang -- add it to standInFor", tool)
+                    .isNotNull();
+            assertThat(arguments)
+                    .as("`%s` declares that it writes, so this test needs a call that "
+                            + "reaches that write -- add it to ToolCalls", tool)
                     .isNotNull();
 
             try (McpSyncClient client =
-                         LaunchedServer.withGh(dir, fixture.ghBody(), OUTWAITS_THE_GH_TIMEOUT)) {
+                         LaunchedServer.withGh(dir, standIn, OUTWAITS_THE_GH_TIMEOUT)) {
 
                 CallToolResult result =
-                        client.callTool(new CallToolRequest(tool, fixture.arguments()));
+                        client.callTool(new CallToolRequest(tool, arguments));
 
                 assertThat(result.isError())
                         .as("`%s` was abandoned before its result could be read", tool)
