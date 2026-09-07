@@ -170,10 +170,14 @@ day.
 
 **Acceptance layer**:
 The thin outer layer of the test suite, which drives the Server across its wire boundary
-as a real Client would. It exists because the shape of a result — whether it is an error,
-and what the Client actually receives — has no existence below that boundary, so no
-test beneath it can observe the shape. It proves the shape; it is not where coverage
-lives.
+as a real Client would. It exists for two reasons, and only the first is about shape. The
+shape of a result — whether it is an error, and what the Client actually receives — has no
+existence below that boundary, so no test beneath it can observe the shape. Neither does
+the **set of Tools**: a test that has to cover *every* Tool has nowhere else to stand, and
+that holds even when its subject does exist further down. An argv is invisible to a Client
+and `ArgvFlagAcceptanceTest` is up here regardless, because `listTools()` is the only place
+the Server says what its Tools are — placement follows the enumeration, not the visibility.
+Either way it proves that a rule holds; it is not where coverage lives.
 _Avoid_: end-to-end test, integration test, e2e
 
 **Coverage layer**:

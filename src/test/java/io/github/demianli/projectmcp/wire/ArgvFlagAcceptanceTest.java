@@ -60,6 +60,10 @@ import org.junit.jupiter.api.io.TempDir;
  * write Tools: a variable added to a document with the wrong flag goes red without anyone
  * touching this file.
  *
+ * <p>A typed argv would make the mistake unrepresentable rather than merely un-shippable, and
+ * that is the better answer at two adapters. ADR-0010 records why it waits for one: today
+ * {@code gh api graphql} is three call sites in a single class.
+ *
  * <p>Declarations are checked against the pairs that appear, never the reverse. {@code $before}
  * is legitimately absent on a first call, and demanding every declared variable be sent would
  * fail the ordinary case.
