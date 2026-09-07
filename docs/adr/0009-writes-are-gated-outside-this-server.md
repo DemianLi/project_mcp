@@ -44,7 +44,7 @@ Three ground facts were on the table when the route was judged:
   arrived as `UNKNOWN`; the nearest branch that should have caught it says `gh auth login`,
   which is the wrong instruction for a login whose authentication was never the problem. #36
   gave the family `resource not accessible by` its own `ASK_OPERATOR` branch and its own
-  wording (`GhCli.java:281`).
+  wording (`GhStderr`, row "not permitted").
 - **A Server-side gate is self-disciplinary.** The process still holds a token that can
   write; the gate stops misuse, not bypass.
 
@@ -82,7 +82,7 @@ request number, and it does so with no check: `repository.issue(number:)` cannot
 pull request's id, so the operation is not expressible rather than forbidden (ADR-0007). That
 is an `Ungranted`-shaped gate, and this repo chose it once already. Its price is recorded too
 — a `classify()` branch now load-bearing for an irreversible side effect, carrying a
-capitalised DO NOT (`GhCli.java:315`). Moving a constraint outside the Server does not make it
+capitalised DO NOT (`GhStderr`, row "no such issue (graphql)"). Moving a constraint outside the Server does not make it
 free; it moves where the cost lives.
 
 ### Why a repository's own settings are not this gate
@@ -100,7 +100,7 @@ the other.
 **No repository setting produces read-works-write-doesn't.** Turning issues off takes the four
 read Tools down with the write — that condition already has its own branch and its own
 sentence, "that repository has issues turned off, so it has none to list"
-(`GhCli.java:354`). Locking a conversation is the nearest thing, and it stops human
+(`GhStderr`, row "issues disabled"). Locking a conversation is the nearest thing, and it stops human
 collaborators as well as this Server; see Known limitations, where it is also the one case
 this Server currently reports badly.
 

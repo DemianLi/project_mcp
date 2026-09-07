@@ -4,13 +4,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,13 +23,17 @@ import org.springframework.stereotype.Component;
  * <p>Arguments are passed as separate argv elements and no shell is involved, so a
  * repository name containing shell metacharacters is inert.
  *
- * <p>It is also the only place that knows how {@code gh} fails, which is why classification
- * lives here rather than in the Tools. Recognising {@code gh}'s stderr wording, knowing
- * that a missing binary arrives as an {@link IOException} rather than a non-zero exit,
- * knowing the timeout budget — all of it is already this class's and nothing else's. Every
- * Tool inherits the contract by calling {@link #run}, with no per-Tool code. It also puts
- * every string comparison in one file, which is the only place that needs changing when
- * {@code gh}'s wording drifts.
+ * <p>How {@code gh} fails is this package's knowledge and no Tool's. Knowing that a missing
+ * binary arrives as an {@link IOException} rather than a non-zero exit, and knowing the
+ * timeout budget, are this class's; recognising {@code gh}'s stderr wording is
+ * {@link GhStderr}'s, one call away at the single point where there is stderr to read. Every
+ * Tool inherits the whole contract by calling {@link #run}, with no per-Tool code.
+ *
+ * <p>That split is an internal seam and not a change of interface. It exists because the two
+ * halves are worked on at different rates — the stderr table has gained branches in three
+ * separate commits since it was written, the process machinery has changed twice — and
+ * because the table has an invariant that an {@code if} chain inside this class could only
+ * assert in prose. {@link GhStderr} carries the argument.
  *
  * <p>Since ADR-0008 it also knows which calls <em>change something</em>. Three of the exits
  * below kill the process without learning what it did, and that means "nothing happened,
@@ -105,10 +106,6 @@ public class GhCli {
                     + "writing it again, check with `list_issue_comments` whether a comment "
                     + "of yours with this body is already on the issue.";
 
-    /** {@code gh} sometimes names a wait; the wording is unverified, so this is best-effort. */
-    private static final Pattern RETRY_AFTER =
-            Pattern.compile("retry after (\\d+)", Pattern.CASE_INSENSITIVE);
-
     /**
      * Runs a {@code gh} call that only reads, and returns its stdout.
      *
@@ -123,7 +120,7 @@ public class GhCli {
     /**
      * Runs a {@code gh} call that changes something, and returns its stdout.
      *
-     * <p>The same spawn, the same draining, the same {@link #classify}. The one difference
+     * <p>The same spawn, the same draining, the same {@link GhStderr#classify}. The one difference
      * is what the caller is told when the call is abandoned before its result could be read:
      * those three exits carry {@link Remedy#CHECK_BEFORE_RETRY} instead of advice to call
      * again. See ADR-0008.
@@ -184,7 +181,7 @@ public class GhCli {
             String err = new String(stderr.get(), StandardCharsets.UTF_8).strip();
 
             if (process.exitValue() != 0) {
-                throw failure(command, classify(err));
+                throw failure(command, GhStderr.classify(err));
             }
             return out;
         } catch (InterruptedException e) {
@@ -226,138 +223,6 @@ public class GhCli {
     private static void kill(Process process) {
         process.descendants().forEach(ProcessHandle::destroyForcibly);
         process.destroyForcibly();
-    }
-
-    /**
-     * Reads {@code gh}'s stderr and decides what the caller should do about it.
-     *
-     * <p>Best-effort by construction: these are substrings of messages {@code gh} chooses,
-     * not an API. Two things bound the damage when a match is wrong or missing — the
-     * verbatim stderr always travels alongside, so nothing is lost, and anything unmatched
-     * becomes {@link Remedy#UNKNOWN} rather than a confident wrong answer.
-     */
-    private static ToolFailure classify(String stderr) {
-        String s = stderr.toLowerCase(Locale.ROOT);
-
-        if (s.contains("rate limit")) {
-            Matcher m = RETRY_AFTER.matcher(stderr);
-            Integer wait = m.find() ? Integer.valueOf(m.group(1)) : null;
-            return new ToolFailure(Remedy.RETRY,
-                    "GitHub is rate limiting this token."
-                            + (wait == null ? "" : " Wait " + wait + " seconds before retrying."),
-                    stderr, wait);
-        }
-        if (s.contains("connection refused") || s.contains("no such host")
-                || s.contains("network is unreachable") || s.contains("i/o timeout")
-                || s.contains("tls handshake timeout") || s.contains("dial tcp")) {
-            return new ToolFailure(Remedy.RETRY,
-                    "GitHub could not be reached. The network looks unavailable.", stderr, null);
-        }
-        if (s.contains("http 401") || s.contains("bad credentials")
-                || s.contains("gh auth login")) {
-            return new ToolFailure(Remedy.ASK_OPERATOR,
-                    "The GitHub CLI is not authenticated, or its token is no longer valid. "
-                            + "Someone with access to this Server has to run `gh auth login`.",
-                    stderr, null);
-        }
-        // Authenticated, and not allowed. Deliberately not folded into the branch above:
-        // `gh auth login` is the wrong instruction for a login that is already valid, and
-        // giving it here is how an operator is sent to re-authenticate a token whose
-        // authentication was never the problem. Measured in #33 on a fine-grained PAT with
-        // Issues: Read-only -- exit 1, `gh: Resource not accessible by personal access
-        // token`, from `addComment` after the id lookup had already succeeded.
-        //
-        // Matched on the family, not on that one sentence. GitHub words this refusal by
-        // naming whatever it refused, and `by integration` is the same wall hit by a GitHub
-        // App installation token -- which is what `gh` resolves inside GitHub Actions, a
-        // deployment this Server can actually meet. Only the PAT wording is measured; the
-        // rest of the family is matched because ADR-0002 classifies by the action available
-        // and every member leaves exactly one. The message says nothing PAT-specific for
-        // that same reason.
-        //
-        // Order against the branch above is free -- the two strings cannot both match --
-        // but it reads second, so a later reader meets "not authenticated" before
-        // "authenticated and still refused".
-        if (s.contains("resource not accessible by")) {
-            return new ToolFailure(Remedy.ASK_OPERATOR,
-                    "The login the GitHub CLI resolves is authenticated but lacks "
-                            + "permission for this operation. Someone with access to this "
-                            + "Server has to give that login the permission, or point "
-                            + "`gh` at one that has it \u2014 logging in again does not "
-                            + "change what a login is allowed to do.",
-                    stderr, null);
-        }
-        // Before the repository case on purpose. The two strings cannot both match, so
-        // the order is free — but the repository one reads as the more general of the
-        // two, and a later reader scanning this chain should not have to work out that
-        // first-match-wins does not matter here.
-        if (s.contains("could not resolve to an issue or pull request")) {
-            return new ToolFailure(Remedy.FIX_REQUEST,
-                    "That repository has no issue with that number. Check `number` — note "
-                            + "that `gh` says \"issue or pull request\" because GitHub "
-                            + "numbers both from one sequence, so this also means there is "
-                            + "no pull request with it either.",
-                    stderr, null);
-        }
-        // The same condition, worded differently because it arrives from a different
-        // route. `gh api graphql` says "an Issue with the number of", singular and without
-        // the "or pull request" clause the porcelain commands use, so it misses the branch
-        // above and would otherwise land on UNKNOWN. The two strings cannot both match, so
-        // neither branch disturbs the other -- which matters, because get_issue and
-        // list_issues depend on the wording above.
-        //
-        // One sentence covers a number that does not exist and a number that is a pull
-        // request, because GraphQL reports both with these same words and separating them
-        // would cost a second call on the failure path. ADR-0002 classifies by the action
-        // available rather than by the cause, and the action here is identical: change
-        // `number`. See ADR-0005.
-        //
-        // DO NOT tidy the pull-request half of that sentence away as read-specific wording.
-        // Since ADR-0007 this branch is also the whole pull-request guard on the write
-        // route: `add_issue_comment` looks an issue up with `repository.issue(number:)`,
-        // which cannot resolve a pull request's id, and this is where that refusal is
-        // turned into something a Client can act on. Both `gh issue comment` and the REST
-        // endpoint were measured writing a comment into a pull request; this branch is what
-        // stands between a Client's typo and that side effect.
-        if (s.contains("could not resolve to an issue with the number of")) {
-            return new ToolFailure(Remedy.FIX_REQUEST,
-                    "That repository has no issue with that number. It may not exist at "
-                            + "all, or it may be a pull request \u2014 GitHub numbers both "
-                            + "from one sequence, and this Server's issue Tools take issues "
-                            + "only.",
-                    stderr, null);
-        }
-        // A cursor that is not a cursor. The wrapper Cursors puts around one catches a
-        // cursor belonging to a different issue before the call is made; it cannot catch a
-        // correctly-addressed wrapper whose inner half is corrupt, which reaches GitHub and
-        // fails here. See ADR-0006.
-        if (s.contains("does not appear to be a valid cursor")) {
-            return new ToolFailure(Remedy.FIX_REQUEST,
-                    "That `cursor` is not one GitHub recognises. Pass back the "
-                            + "`nextCursor` from a previous response unchanged, or omit it "
-                            + "to start from the newest comments.",
-                    stderr, null);
-        }
-        if (s.contains("could not resolve to a repository")) {
-            return new ToolFailure(Remedy.FIX_REQUEST,
-                    "No such repository. Check `owner` and `repo` — note that a private "
-                            + "repository this token cannot see looks the same as one that "
-                            + "does not exist.",
-                    stderr, null);
-        }
-        if (s.contains("owner/repo\" format") || s.contains("owner/repo' format")) {
-            return new ToolFailure(Remedy.FIX_REQUEST,
-                    "`owner` and `repo` did not compose a usable repository name. Neither "
-                            + "may be empty or contain a slash.",
-                    stderr, null);
-        }
-        if (s.contains("disabled issues")) {
-            return new ToolFailure(Remedy.FIX_REQUEST,
-                    "That repository has issues turned off, so it has none to list.",
-                    stderr, null);
-        }
-        return new ToolFailure(Remedy.UNKNOWN,
-                "The GitHub CLI failed in a way this Server does not recognise.", stderr, null);
     }
 
     /**
