@@ -2,19 +2,12 @@ package io.github.demianli.projectmcp.wire;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.demianli.projectmcp.gh.FakeGh;
-import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
-import io.modelcontextprotocol.client.transport.ServerParameters;
-import io.modelcontextprotocol.client.transport.StdioClientTransport;
-import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.spec.McpSchema.CallToolRequest;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,44 +31,6 @@ class WireAcceptanceTest {
 
     @TempDir Path tmp;
 
-    /**
-     * Launches the Server the way a Client would.
-     *
-     * <p>Started from the test's own classpath rather than the packaged jar: {@code mvn test}
-     * runs before {@code package}, so requiring the jar would make the suite depend on a
-     * build step that has not happened yet. Everything that matters here is identical —
-     * same main class, same Spring context, same Stdio transport, a genuinely separate
-     * process, and a real JSON-RPC conversation across a pipe.
-     */
-    private McpSyncClient serverWithPath(String path) {
-        var params = ServerParameters.builder(
-                        Path.of(System.getProperty("java.home"), "bin", "java").toString())
-                .args("-cp", System.getProperty("java.class.path"),
-                        "io.github.demianli.projectmcp.ProjectMcpApplication")
-                .env(Map.of("PATH", path))
-                .build();
-
-        var client = McpClient.sync(new StdioClientTransport(params, McpJsonDefaults.getMapper()))
-                .requestTimeout(Duration.ofSeconds(30))
-                .build();
-        client.initialize();
-        return client;
-    }
-
-    /**
-     * A Server that finds the stand-in {@code gh} and nothing else worth finding.
-     *
-     * <p>The stand-in comes <em>first</em>, and that — not the absence of a real {@code gh}
-     * — is the guarantee. GitHub-hosted Ubuntu runners ship the GitHub CLI at
-     * {@code /usr/bin/gh}, so assuming the trailing directories are empty of it would be
-     * true on a laptop and false in CI. Shadowing holds either way. The trailing
-     * {@code /usr/bin:/bin} is there for the shell utilities the stand-in script itself
-     * uses, nothing more.
-     */
-    private McpSyncClient serverWith(String ghScriptDir) {
-        return serverWithPath(ghScriptDir + ":/usr/bin:/bin");
-    }
-
     private static CallToolResult listIssues(McpSyncClient client) {
         return client.callTool(new CallToolRequest("list_issues",
                 Map.of("owner", "DemianLi", "repo", "project_mcp")));
@@ -90,16 +45,12 @@ class WireAcceptanceTest {
         return ((TextContent) result.content().get(0)).text();
     }
 
-    private String dirWithFakeGh(String body) throws IOException {
-        FakeGh.writing(tmp, body);
-        return tmp.toString();
-    }
 
     @Test
     void aFailureCrossesTheWireAsAnErrorResultWithBothHalves() throws Exception {
         String stderr = "GraphQL: Could not resolve to a Repository with the name "
                 + "'DemianLi/project_mcp'. (repository)";
-        try (McpSyncClient client = serverWith(dirWithFakeGh(
+        try (McpSyncClient client = LaunchedServer.withGh(tmp, (
                 "cat >&2 <<'STDERR'\n" + stderr + "\nSTDERR\nexit 1"))) {
 
             CallToolResult result = listIssues(client);
@@ -138,7 +89,7 @@ class WireAcceptanceTest {
         // would turn an offline test into a live call to api.github.com. The Server needs
         // no PATH of its own, since java is launched by absolute path.
         Path empty = Files.createDirectory(tmp.resolve("empty"));
-        try (McpSyncClient client = serverWithPath(empty.toString())) {
+        try (McpSyncClient client = LaunchedServer.onPath(empty.toString())) {
             CallToolResult result = listIssues(client);
 
             assertThat(result.isError()).isTrue();
@@ -160,7 +111,7 @@ class WireAcceptanceTest {
         Path payload = tmp.resolve("pr.json");
         Files.writeString(payload, fixture);
 
-        try (McpSyncClient client = serverWith(dirWithFakeGh("cat " + payload))) {
+        try (McpSyncClient client = LaunchedServer.withGh(tmp, "cat " + payload)) {
             CallToolResult result = client.callTool(new CallToolRequest("get_issue",
                     Map.of("owner", "cli", "repo", "cli", "number", 14356)));
 
@@ -180,7 +131,7 @@ class WireAcceptanceTest {
         Path payload = tmp.resolve("payload.json");
         Files.writeString(payload, fixture);
 
-        try (McpSyncClient client = serverWith(dirWithFakeGh("cat " + payload))) {
+        try (McpSyncClient client = LaunchedServer.withGh(tmp, "cat " + payload)) {
             CallToolResult result = listIssues(client);
 
             assertThat(result.isError()).isFalse();
@@ -205,7 +156,7 @@ class WireAcceptanceTest {
         Path payload = tmp.resolve("labels.json");
         Files.writeString(payload, fixture);
 
-        try (McpSyncClient client = serverWith(dirWithFakeGh("cat " + payload))) {
+        try (McpSyncClient client = LaunchedServer.withGh(tmp, "cat " + payload)) {
             assertThat(client.listTools().tools())
                     .as("the annotation scanner found both components")
                     .extracting(io.modelcontextprotocol.spec.McpSchema.Tool::name)
@@ -234,7 +185,7 @@ class WireAcceptanceTest {
         Path payload = tmp.resolve("comments.json");
         Files.writeString(payload, fixture);
 
-        try (McpSyncClient client = serverWith(dirWithFakeGh("cat " + payload))) {
+        try (McpSyncClient client = LaunchedServer.withGh(tmp, "cat " + payload)) {
             assertThat(client.listTools().tools())
                     .as("the annotation scanner found the third component too")
                     .extracting(io.modelcontextprotocol.spec.McpSchema.Tool::name)
@@ -258,7 +209,7 @@ class WireAcceptanceTest {
         // is refused before `gh` runs at all. The stand-in here exits non-zero with a
         // stderr that would classify as something else entirely, so if the check were
         // happening after the call this assertion could not pass.
-        try (McpSyncClient client = serverWith(dirWithFakeGh(
+        try (McpSyncClient client = LaunchedServer.withGh(tmp, (
                 "echo 'GraphQL: Could not resolve to a Repository' >&2\nexit 1"))) {
 
             CallToolResult result = client.callTool(new CallToolRequest("list_issue_comments",
@@ -286,7 +237,7 @@ class WireAcceptanceTest {
         Files.writeString(added,
                 Files.readString(Path.of("src/test/resources/gh/add-comment.json")));
 
-        try (McpSyncClient client = serverWith(dirWithFakeGh(
+        try (McpSyncClient client = LaunchedServer.withGh(tmp, (
                 "n=$(cat " + tmp.resolve("count.txt") + " 2>/dev/null || echo 0)\n"
                         + "n=$((n+1)); echo $n > " + tmp.resolve("count.txt") + "\n"
                         + "if [ $n -eq 1 ]; then cat " + id + "; else cat " + added + "; fi"))) {
@@ -331,7 +282,7 @@ class WireAcceptanceTest {
         Path id = tmp.resolve("id.json");
         Files.writeString(id, Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
 
-        try (McpSyncClient client = serverWith(dirWithFakeGh(
+        try (McpSyncClient client = LaunchedServer.withGh(tmp, (
                 "echo ran >> " + tmp.resolve("ran.txt") + "\ncat " + id))) {
 
             CallToolResult result = client.callTool(new CallToolRequest("add_issue_comment",

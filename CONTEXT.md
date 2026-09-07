@@ -95,6 +95,13 @@ it: which Tools count as writes is that field, not a second list kept alongside 
 naming the writes, not a switch anything acts on (ADR-0009). The first role is a claim about
 a Tool; a Read-only instance is a claim about something else entirely, so neither is a
 stronger grade of the other.
+
+That third role is checked rather than merely stated: the Acceptance layer reads the
+partition off this field and drives every Tool in it into an abandoned call, so a Tool that
+declares a write here and then takes the read route through `GhCli` goes red
+(`WritePartitionAcceptanceTest`). It is a test reading the partition, not the Server acting
+on it — nothing in the Server's own behaviour turns on this field, and the check keeps no
+list of its own.
 _Avoid_: guarantee, permission, enforcement, 保证
 
 ### Server design
