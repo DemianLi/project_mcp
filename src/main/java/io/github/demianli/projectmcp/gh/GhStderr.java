@@ -123,26 +123,30 @@ final class GhStderr {
                             new Sample("You have exceeded a secondary rate limit",
                                     Provenance.UNMEASURED))),
 
-            // #6 measured the refused connection, eliding the middle of the line; the sample
-            // below fills that back in and so is not verbatim. The other five markers are Go's
-            // net package wording, which is what `gh` surfaces, and are matched for the same
-            // reason the permission family below is: ADR-0002 classifies by the action
-            // available, and every network failure leaves exactly one.
+            // Two markers, both off the one line #6 measured. It elided the middle of that
+            // line and the sample below fills it back in, which is why the sample is
+            // UNMEASURED although the failure it describes was seen.
+            //
+            // It used to carry four more -- `no such host`, `network is unreachable`,
+            // `i/o timeout`, `tls handshake timeout` -- Go net package wording, plausible and
+            // never seen from `gh`. They were dropped rather than kept, because the coverage
+            // property below wants a sample per marker and the only samples available were
+            // ones written here: a guess would have been pinned in place by a test, which is
+            // the reverse of what ADR-0002 means by "measured, not assumed".
+            //
+            // The cost is real, and how large it is cannot be stated here without measuring
+            // the thing that was never measured: a network failure whose stderr happens to
+            // carry `dial tcp` still lands on RETRY, and one that does not now reaches the
+            // Client as UNKNOWN with `gh`'s stderr verbatim. Which failures fall on which
+            // side is a fact about Go's wording that this repo does not have. To widen this
+            // row again, provoke the failure and paste what came back; the sample is the
+            // evidence, not a formality.
             new Branch("network",
-                    List.of("connection refused", "no such host", "network is unreachable",
-                            "i/o timeout", "tls handshake timeout", "dial tcp"),
+                    List.of("connection refused", "dial tcp"),
                     Remedy.RETRY,
                     "GitHub could not be reached. The network looks unavailable.",
                     List.of(new Sample("Post \"https://api.github.com/graphql\": dial tcp: "
-                                    + "connect: connection refused", Provenance.UNMEASURED),
-                            new Sample("Get \"https://api.github.com/\": dial tcp: lookup "
-                                    + "api.github.com: no such host", Provenance.UNMEASURED),
-                            new Sample("dial tcp 140.82.121.6:443: connect: network is "
-                                    + "unreachable", Provenance.UNMEASURED),
-                            new Sample("Post \"https://api.github.com/graphql\": read tcp: "
-                                    + "i/o timeout", Provenance.UNMEASURED),
-                            new Sample("Post \"https://api.github.com/graphql\": net/http: "
-                                    + "TLS handshake timeout", Provenance.UNMEASURED))),
+                            + "connect: connection refused", Provenance.UNMEASURED))),
 
             // Measured in #6. One stderr carries all three markers, which is why they are one
             // row: `gh` prints the status, the reason and the instruction together.
