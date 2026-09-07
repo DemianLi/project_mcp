@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -12,12 +11,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Coverage layer: every Remedy, walked without crossing the wire — the four of ADR-0002 and
- * the fifth ADR-0008 added for writes.
+ * Coverage layer: the process machinery, exercised for real.
  *
  * <p>No network and no real {@code gh}. What is <em>not</em> substituted is the point — the
  * spawn, the pipes, the exit code and the timeout stay real, so these exercise
- * {@link GhCli}'s machinery rather than a description of it.
+ * {@link GhCli}'s machinery rather than a description of it. Every test below needs a
+ * subprocess, and that is now the entry condition for being in this file: which sentence
+ * {@code gh}'s stderr turns into is {@link GhStderr}'s and is tested next door as strings,
+ * where it costs no process at all.
+ *
+ * <p>One test here is about stderr and still belongs: the write route reclassifies three
+ * exits and nothing else, so a non-zero exit must be classified exactly as a read's would
+ * be — a claim about which route was taken, which needs a route.
  *
  * <p>One branch has no test and cannot get one here: the {@code ExecutionException} arm,
  * which ADR-0008 also reclassifies on a write. It fires when {@code readAllBytes} throws,
@@ -33,42 +38,6 @@ class GhCliFailureTest {
 
     private static GhCli pointingAt(String executable) {
         return new GhCli(executable, 30);
-    }
-
-    private ToolFailure failure(String stderr) throws IOException {
-        try {
-            pointingAt(FakeGh.failing(tmp, stderr)).run(List.of("issue", "list"));
-        } catch (ToolFailure e) {
-            return e;
-        }
-        throw new AssertionError("expected a ToolFailure");
-    }
-
-    @Test
-    void networkUnreachableIsRetry() throws Exception {
-        ToolFailure f = failure(
-                "Post \"https://api.github.com/graphql\": dial tcp: connect: connection refused");
-        assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
-        assertThat(f.retryAfterSeconds()).isNull();
-        assertThat(f.stderr()).contains("connection refused");
-    }
-
-    @Test
-    void rateLimitIsRetryAndKeepsTheWaitWhenGhNamesOne() throws Exception {
-        assertThat(failure("You have exceeded a secondary rate limit").remedy())
-                .isEqualTo(Remedy.RETRY);
-
-        ToolFailure withWait = failure("API rate limit exceeded. Please retry after 60 seconds.");
-        assertThat(withWait.remedy()).isEqualTo(Remedy.RETRY);
-        assertThat(withWait.retryAfterSeconds()).isEqualTo(60);
-    }
-
-    @Test
-    void rateLimitWithoutAStatedWaitLeavesItUnset() throws Exception {
-        // gh's rate-limit wording is unverified: it could not be provoked against the real
-        // API. The contract is built so that not knowing it costs the wait, not the
-        // classification.
-        assertThat(failure("API rate limit exceeded").retryAfterSeconds()).isNull();
     }
 
     @Test
@@ -182,113 +151,6 @@ class GhCliFailureTest {
     }
 
     @Test
-    void noSuchIssueNumberIsFixRequest() throws Exception {
-        // Reachable only once a Tool takes a number, which get_issue is the first to do.
-        // Before it, this stderr fell through to UNKNOWN. Captured verbatim from
-        // `gh issue view 9999`.
-        ToolFailure f = failure("GraphQL: Could not resolve to an issue or pull request "
-                + "with the number of 9999. (repository.issue)");
-        assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
-        assertThat(f.getMessage())
-                .as("the caller is told which parameter to change")
-                .contains("number");
-    }
-
-    @Test
-    void theGraphqlWordingForTheSameThingIsAlsoFixRequest() throws Exception {
-        // The same condition down the other route, and it does not match the branch above:
-        // `gh api graphql` says "an Issue with the number of", singular and without the
-        // "or pull request" clause. Captured verbatim; before ADR-0005 this fell through
-        // to UNKNOWN. It is the whole reason list_issue_comments could not simply inherit
-        // the failure contract unchanged.
-        ToolFailure f = failure("gh: Could not resolve to an Issue with the number of 14362.");
-        assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
-        assertThat(f.getMessage())
-                .as("one sentence covers both causes, because the action is the same")
-                .contains("pull request");
-    }
-
-    @Test
-    void theTwoIssueWordingsDoNotDisturbEachOther() throws Exception {
-        // get_issue and list_issues depend on the porcelain wording, so the branch added
-        // for GraphQL must not swallow it. Neither string contains the other, and this
-        // pins that rather than leaving it to a reading of the chain.
-        String porcelain = "GraphQL: Could not resolve to an issue or pull request with the "
-                + "number of 9999. (repository.issue)";
-        String graphql = "gh: Could not resolve to an Issue with the number of 14362.";
-
-        assertThat(failure(porcelain).getMessage())
-                .as("porcelain still gets the sentence that can promise there is no pull "
-                        + "request with that number either -- true there, false on GraphQL")
-                .contains("no pull request with it either");
-        assertThat(failure(graphql).getMessage())
-                .doesNotContain("no pull request with it either");
-    }
-
-    @Test
-    void anUnusableCursorIsFixRequest() throws Exception {
-        // Cursors wraps the cursor a Client is given and refuses one from the wrong issue
-        // before `gh` is called. It cannot refuse a correctly-addressed wrapper whose
-        // inner half is corrupt: that reaches GitHub, and this is what comes back.
-        // Captured verbatim.
-        ToolFailure f = failure("gh: `not-a-cursor` does not appear to be a valid cursor.");
-        assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
-        assertThat(f.getMessage()).contains("cursor");
-    }
-
-    @Test
-    void repoNotFoundIsFixRequest() throws Exception {
-        assertThat(failure("GraphQL: Could not resolve to a Repository with the name 'a/b'. "
-                + "(repository)").remedy()).isEqualTo(Remedy.FIX_REQUEST);
-    }
-
-    @Test
-    void malformedRepoSlugIsFixRequest() throws Exception {
-        assertThat(failure("expected the \"[HOST/]OWNER/REPO\" format, got \"notavalidthing\"")
-                .remedy()).isEqualTo(Remedy.FIX_REQUEST);
-    }
-
-    @Test
-    void issuesDisabledIsFixRequest() throws Exception {
-        assertThat(failure("the 'torvalds/linux' repository has disabled issues").remedy())
-                .isEqualTo(Remedy.FIX_REQUEST);
-    }
-
-    @Test
-    void badCredentialsIsAskOperator() throws Exception {
-        assertThat(failure("HTTP 401: Bad credentials (https://api.github.com/graphql)\n"
-                + "Try authenticating with:  gh auth login").remedy())
-                .isEqualTo(Remedy.ASK_OPERATOR);
-    }
-
-    @Test
-    void anAuthenticatedLoginWithoutThePermissionIsAskOperator() throws Exception {
-        // Captured verbatim in #33: a fine-grained PAT with Issues: Read-only, refused by
-        // `addComment` after the id lookup on the same token had already succeeded. The
-        // stderr `gh` renders from GitHub's 200-with-errors response, on gh 2.91.0.
-        ToolFailure f = failure("gh: Resource not accessible by personal access token");
-
-        assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
-        // The whole point of the branch, and the regression this test exists to catch:
-        // before it, this landed on UNKNOWN, and the nearest matching Remedy would have
-        // told an operator to log in again -- which does not change what a login may do.
-        assertThat(f.getMessage()).doesNotContain("gh auth login");
-        assertThat(f.getMessage()).contains("lacks permission");
-    }
-
-    @Test
-    void theSameRefusalWordedForAnAppTokenIsAskOperatorToo() throws Exception {
-        // Not measured -- matched on the family for the reason GhCli gives. This is the
-        // wording an installation token gets, which is what `gh` resolves inside GitHub
-        // Actions, so it is the member of the family a real deployment is most likely to
-        // meet. The message must stay free of anything true only of a PAT.
-        ToolFailure f = failure("gh: Resource not accessible by integration");
-
-        assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
-        assertThat(f.getMessage()).doesNotContain("personal access token");
-    }
-
-    @Test
     void anAbsentBinaryIsAskOperatorAndCarriesNoStderr() {
         // The asymmetry ADR-0002 names: this never reaches a non-zero exit. The path below
         // genuinely does not exist, so the IOException is the real one from the real
@@ -301,18 +163,6 @@ class GhCliFailureTest {
                     assertThat(f.stderr()).isEmpty();
                     assertThat(f.getMessage()).contains("not installed");
                 });
-    }
-
-    @Test
-    void unrecognisedStderrIsUnknownAndSurvivesVerbatim() throws Exception {
-        // The usage blob gh prints for a bad flag. Unreachable through the Tool's typed
-        // surface, so it can only mean a bug in this Server — ADR-0002 gives it no Remedy of
-        // its own, and this is where it lands instead.
-        String blob = "unknown flag: --banana\n\nUsage:  gh issue list [flags]\n\nFlags:\n"
-                + "      --app string         Filter by GitHub App author";
-        ToolFailure f = failure(blob);
-        assertThat(f.remedy()).isEqualTo(Remedy.UNKNOWN);
-        assertThat(f.stderr()).isEqualTo(blob);
     }
 
     @Test
