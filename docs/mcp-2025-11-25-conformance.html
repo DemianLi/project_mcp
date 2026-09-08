@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MCP 2025-11-25 開發注意事項與現行架構 · project_mcp</title>
+<style>
+:root{
+  --bg:#fbfaf8; --panel:#ffffff; --ink:#16181d; --ink-soft:#5b6270; --line:#e2e0dc;
+  --pipe:#1f3a5f; --pipe-wash:#dbe6f2; --warn:#a8541b; --warn-wash:#fcefe2;
+  --ok:#1f6b47; --ok-wash:#e0f0e7; --bad:#a3232c; --bad-wash:#fbe6e6;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14161a; --panel:#1c1f25; --ink:#e9eaec; --ink-soft:#9aa2b1; --line:#2c313a;
+  --pipe:#8fb6e3; --pipe-wash:#22303f; --warn:#e0a06a; --warn-wash:#33261a;
+  --ok:#7fc9a3; --ok-wash:#1a2c23; --bad:#e58b90; --bad-wash:#301b1d;
+}}
+:root[data-theme="dark"]{
+  --bg:#14161a; --panel:#1c1f25; --ink:#e9eaec; --ink-soft:#9aa2b1; --line:#2c313a;
+  --pipe:#8fb6e3; --pipe-wash:#22303f; --warn:#e0a06a; --warn-wash:#33261a;
+  --ok:#7fc9a3; --ok-wash:#1a2c23; --bad:#e58b90; --bad-wash:#301b1d;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Noto Sans TC",sans-serif;}
+.wrap{max-width:960px;margin:0 auto;padding:48px 24px 80px}
+header{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:34px}
+h1{font-size:27px;line-height:1.3;margin:0 0 8px;letter-spacing:-.01em}
+.meta{color:var(--ink-soft);font-size:13px}
+.note{background:var(--warn-wash);border-left:3px solid var(--warn);padding:12px 16px;
+  margin:24px 0;font-size:14px;border-radius:0 4px 4px 0}
+h2{font-size:20px;margin:46px 0 6px;padding-top:22px;border-top:1px solid var(--line)}
+h2 .n{color:var(--ink-soft);font-weight:400;margin-right:8px}
+h3{font-size:15px;margin:28px 0 8px}
+p{margin:10px 0;max-width:46em}
+.sub{color:var(--ink-soft);font-size:14px;margin-top:0}
+code,kbd{font-family:var(--mono);font-size:.9em;background:var(--pipe-wash);
+  color:var(--pipe);padding:1px 5px;border-radius:3px}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+th{background:var(--pipe-wash);color:var(--pipe);font-weight:600;white-space:nowrap}
+td code{background:none;padding:0}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:3px;
+  white-space:nowrap;letter-spacing:.03em}
+.must{background:var(--bad-wash);color:var(--bad)}
+.should{background:var(--warn-wash);color:var(--warn)}
+.may{background:var(--pipe-wash);color:var(--pipe)}
+.v-ok{color:var(--ok);font-weight:700}
+.v-gap{color:var(--bad);font-weight:700}
+.v-na{color:var(--ink-soft);font-weight:700}
+.v-note{color:var(--warn);font-weight:700}
+figure{margin:26px 0;background:var(--panel);border:1px solid var(--line);
+  border-radius:6px;padding:22px 18px}
+figcaption{color:var(--ink-soft);font-size:12.5px;margin-top:14px;text-align:center}
+svg{display:block;width:100%;height:auto}
+.src{font-size:12.5px;color:var(--ink-soft);border-left:2px solid var(--line);
+  padding-left:12px;margin:10px 0}
+.src a{color:var(--pipe)}
+ul{padding-left:20px;max-width:46em}li{margin:6px 0}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
+  color:var(--ink-soft);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>MCP 2025-11-25：開發注意事項與現行架構</h1>
+  <div class="meta">project_mcp · develop · 2026-09-08 · 對照 commit <code>99ba0b3</code></div>
+</header>
+
+<div class="note">
+  <strong>關於形式：</strong>這份要的是「規格要求」與「現況架構圖」，屬於參考文件，不是
+  prototype。prototype 的定義是「用丟棄式程式碼回答一個設計問題」，而這裡沒有待決的設計問題要試——
+  硬包成可互動的假原型只會得到一份比較差的文件。所以直接做文件。
+</div>
+
+<p class="sub">
+  基準是 <strong>2025-11-25</strong> 修訂版——這正是本專案相依的 MCP Java SDK 2.0.0 所支援的上限
+  （<code>ProtocolVersions</code> 常數止於 <code>MCP_2025_11_25</code>）。最新的 2026-07-28
+  修訂版另見 <code>docs/reviews/commercial-readiness.md</code>。
+</p>
+
+<h2><span class="n">1</span>現行架構</h2>
+
+<p>
+  <code>docs/architecture-tour.html</code> 已經畫過「五個工具、一根管子」那一層。這張圖補的是它上面那一層：
+  <strong>wire layer</strong>——Spring AI 與 MCP SDK 把 <code>@McpTool</code> 方法翻成
+  <code>tools/list</code> 與 <code>tools/call</code> 的地方。2025-11-25 的要求幾乎全部落在這一層，
+  所以清單與圖是同一件事的兩種畫法，不是兩份東西釘在一起。
+</p>
+
+<figure>
+<svg viewBox="0 0 900 620" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="架構分層圖：Client 經 stdio 到 wire layer，再到 Tool layer，再到 gh package，最後到 gh 子進程與 GitHub">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+    </marker>
+  </defs>
+  <style>
+    .bx{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
+    .bxd{fill:var(--pipe);stroke:var(--pipe);stroke-width:2}
+    .bxw{fill:var(--pipe-wash);stroke:var(--pipe);stroke-width:1.5}
+    .bxf{fill:var(--warn-wash);stroke:var(--warn);stroke-width:1.5}
+    .t{fill:var(--ink);font:600 13px -apple-system,"PingFang TC",sans-serif}
+    .ti{fill:var(--bg);font:600 13px -apple-system,"PingFang TC",sans-serif}
+    .s{fill:var(--ink-soft);font:11.5px -apple-system,"PingFang TC",sans-serif}
+    .si{fill:var(--pipe-wash);font:11.5px -apple-system,"PingFang TC",sans-serif}
+    .m{fill:var(--pipe);font:11.5px ui-monospace,Menlo,monospace}
+    .lbl{fill:var(--ink-soft);font:11px -apple-system,"PingFang TC",sans-serif}
+    .ln{stroke:var(--ink-soft);stroke-width:1.5;fill:none;color:var(--ink-soft)}
+    .lnp{stroke:var(--pipe);stroke-width:2;fill:none;color:var(--pipe)}
+    .lnf{stroke:var(--warn);stroke-width:1.5;stroke-dasharray:4 3;fill:none;color:var(--warn)}
+    .band{fill:none;stroke:var(--line);stroke-width:1;stroke-dasharray:3 4}
+  </style>
+
+  <!-- Client -->
+  <rect class="bx" x="330" y="10" width="240" height="42" rx="5"/>
+  <text class="t" x="450" y="30" text-anchor="middle">Client（AI 模型）</text>
+  <text class="s" x="450" y="45" text-anchor="middle">啟動本 Server 為子進程</text>
+
+  <path class="lnp" d="M450,52 L450,86" marker-end="url(#ar)"/>
+  <text class="m" x="462" y="72">stdio · JSON-RPC · 換行分隔</text>
+
+  <!-- wire layer -->
+  <rect class="bxw" x="60" y="88" width="780" height="96" rx="6"/>
+  <text class="t" x="80" y="110">wire layer — Spring AI 2.0.1 ＋ MCP Java SDK 2.0.0</text>
+  <text class="s" x="80" y="128">本專案沒有一行程式碼在這裡。以下四件事由 SDK 代做：</text>
+  <text class="m" x="86" y="149">initialize / 版本協商</text>
+  <text class="m" x="278" y="149">tools/list · tools/call</text>
+  <text class="m" x="490" y="149">inputSchema 由方法簽章推導</text>
+  <text class="m" x="742" y="149">逾時</text>
+  <text class="s" x="80" y="170">協議版本上限 2025-11-25 ← 這是「符不符合 2026-07-28」的天花板所在</text>
+
+  <path class="lnp" d="M450,184 L450,214" marker-end="url(#ar)"/>
+  <text class="lbl" x="462" y="203">方法呼叫</text>
+
+  <!-- tool layer -->
+  <rect class="bx" x="60" y="216" width="780" height="150" rx="6"/>
+  <text class="t" x="80" y="238">tool package — 五個 @McpTool，三個 @Component</text>
+
+  <rect class="bxw" x="80" y="250" width="180" height="52" rx="4"/>
+  <text class="t" x="170" y="269" text-anchor="middle">IssueTools</text>
+  <text class="m" x="170" y="286" text-anchor="middle">list_issues · get_issue</text>
+
+  <rect class="bxw" x="272" y="250" width="150" height="52" rx="4"/>
+  <text class="t" x="347" y="269" text-anchor="middle">LabelTools</text>
+  <text class="m" x="347" y="286" text-anchor="middle">list_labels</text>
+
+  <rect class="bxw" x="434" y="250" width="230" height="52" rx="4"/>
+  <text class="t" x="549" y="269" text-anchor="middle">CommentTools</text>
+  <text class="m" x="549" y="286" text-anchor="middle">list_issue_comments · add_issue_comment</text>
+
+  <rect class="bx" x="676" y="250" width="144" height="52" rx="4"/>
+  <text class="s" x="748" y="268" text-anchor="middle">Limits · Cursors</text>
+  <text class="s" x="748" y="284" text-anchor="middle">IssueRef · *Mapper</text>
+
+  <rect class="bxd" x="80" y="314" width="740" height="40" rx="4"/>
+  <text class="ti" x="100" y="333">ToolResults.attempt(Supplier)</text>
+  <text class="si" x="100" y="348">成功形狀、失敗形狀、ToolFailure 的唯一出口——五個 Tool 都只能從這裡回話</text>
+
+  <path class="lnp" d="M450,366 L450,396" marker-end="url(#ar)"/>
+  <text class="m" x="462" y="385">gh.run(...) / gh.runWrite(...)</text>
+
+  <!-- gh package -->
+  <rect class="bx" x="60" y="398" width="780" height="140" rx="6"/>
+  <text class="t" x="80" y="420">gh package — 「gh 會怎麼壞」這件知識只住在這裡</text>
+
+  <rect class="bxw" x="80" y="432" width="280" height="88" rx="4"/>
+  <text class="t" x="220" y="452" text-anchor="middle">GhCli</text>
+  <text class="s" x="220" y="470" text-anchor="middle">ProcessBuilder · 兩條管道並發抽乾</text>
+  <text class="s" x="220" y="486" text-anchor="middle">TIMEOUT_SECONDS = 30 · 退出碼</text>
+  <text class="s" x="220" y="506" text-anchor="middle">失敗 → classify(stderr)</text>
+
+  <path class="lnf" d="M360,476 L392,476" marker-end="url(#ar)"/>
+
+  <rect class="bxf" x="394" y="432" width="200" height="88" rx="4"/>
+  <text class="t" x="494" y="452" text-anchor="middle">GhStderr</text>
+  <text class="s" x="494" y="470" text-anchor="middle">Branch 資料列：markers → Remedy</text>
+  <text class="s" x="494" y="486" text-anchor="middle">每列附一則實測 stderr 為證</text>
+  <text class="s" x="494" y="506" text-anchor="middle">沒見過的措辭 → UNKNOWN</text>
+
+  <path class="lnf" d="M594,476 L626,476" marker-end="url(#ar)"/>
+
+  <rect class="bxf" x="628" y="432" width="192" height="88" rx="4"/>
+  <text class="t" x="724" y="452" text-anchor="middle">Remedy ＋ ToolFailure</text>
+  <text class="s" x="724" y="472" text-anchor="middle">RETRY · CHECK_BEFORE_RETRY</text>
+  <text class="s" x="724" y="488" text-anchor="middle">FIX_REQUEST · ASK_OPERATOR</text>
+  <text class="s" x="724" y="504" text-anchor="middle">UNKNOWN</text>
+
+  <path class="lnp" d="M220,538 L220,566" marker-end="url(#ar)"/>
+  <path class="lnf" d="M724,432 L724,360" marker-end="url(#ar)"/>
+  <text class="lbl" x="734" y="398">擲回，由 attempt 接住</text>
+
+  <!-- outside -->
+  <rect class="bx" x="60" y="568" width="330" height="42" rx="5"/>
+  <text class="t" x="225" y="588" text-anchor="middle">gh 子進程</text>
+  <text class="s" x="225" y="603" text-anchor="middle">憑證、登入、網路全在它那邊</text>
+
+  <path class="ln" d="M390,589 L424,589" marker-end="url(#ar)"/>
+  <rect class="bx" x="426" y="568" width="180" height="42" rx="5"/>
+  <text class="t" x="516" y="594" text-anchor="middle">GitHub</text>
+
+  <!-- stdout guard -->
+  <rect class="band" x="626" y="568" width="214" height="42" rx="5"/>
+  <text class="s" x="733" y="586" text-anchor="middle">log → logs/project-mcp.log</text>
+  <text class="s" x="733" y="601" text-anchor="middle">console appender OFF</text>
+</svg>
+<figcaption>實線＝正常路徑，虛線＝失敗路徑。右下角那一格是為了守住 stdio 的 <code>MUST NOT</code> 而存在的。</figcaption>
+</figure>
+
+<p>
+  兩件圖上看得出、但值得講白的事：
+</p>
+<ul>
+  <li><strong>本專案在 wire layer 沒有程式碼。</strong>2025-11-25 的生命週期要求（<code>initialize</code>
+      必須是第一次互動、版本協商、<code>initialized</code> 通知）全部由 SDK 履行。這是好事，也是限制——
+      規格要求做對不代表這個 repo 做對了什麼，規格版本要往前也不是這個 repo 能決定的。</li>
+  <li><strong>失敗路徑比成功路徑長。</strong>成功是 Tool → GhCli → gh；失敗多繞
+      <code>classify</code> → <code>GhStderr</code> → <code>Remedy</code>，再擲回
+      <code>ToolResults.attempt</code>。規格允許把錯誤丟成 JSON-RPC protocol error，本專案刻意不那樣做，
+      理由見下一節。</li>
+</ul>
+
+<h2><span class="n">2</span>2025-11-25 開發注意事項</h2>
+
+<p class="sub">
+  每一列的規格文字都取自官方 repo 的 <code>docs/specification/2025-11-25/</code>，
+  已於 2026-09-08 逐條打開核對。<span class="v-ok">✓ 符合</span>　<span class="v-note">△ 有意偏離／需留意</span>　<span class="v-gap">✗ 缺口</span>　<span class="v-na">— 不適用</span>
+</p>
+
+<h3>2.1 stdio 傳輸</h3>
+<div class="scroll">
+<table>
+<tr><th>規格</th><th>強度</th><th>本專案</th></tr>
+<tr>
+  <td>Server <strong>MUST NOT</strong> write anything to its <code>stdout</code> that is not a valid MCP message</td>
+  <td><span class="tag must">MUST NOT</span></td>
+  <td><span class="v-ok">✓</span> <code>application.yml</code> 把 console appender 設為 <code>OFF</code>、
+      banner 關掉、<code>web-application-type: none</code>，log 全部導向檔案。
+      <strong>這是整個設定檔存在的唯一理由</strong>，改動時要知道自己在拆什麼。</td>
+</tr>
+<tr>
+  <td>Messages <strong>MUST NOT</strong> contain embedded newlines（訊息以換行分隔）</td>
+  <td><span class="tag must">MUST NOT</span></td>
+  <td><span class="v-na">—</span> 由 SDK 的序列化負責。本專案不自行寫入 stdout。</td>
+</tr>
+<tr>
+  <td>Server <strong>MAY</strong> write UTF-8 to <code>stderr</code> for any logging purposes</td>
+  <td><span class="tag may">MAY</span></td>
+  <td><span class="v-note">△</span> 本專案寫檔案而非 stderr——<strong>比規格要求更嚴，不是不合規</strong>。
+      規格明說 client <strong>SHOULD NOT</strong> 把 stderr 當成錯誤徵兆，所以寫 stderr 也是允許的。
+      值得知道的是：2026-07-28 棄用了 MCP Logging 功能，官方建議的替代路徑正是 stdio 下寫 stderr。</td>
+</tr>
+</table>
+</div>
+<div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/transports.mdx">basic/transports.mdx</a> §stdio</div>
+
+<h3>2.2 生命週期</h3>
+<div class="scroll">
+<table>
+<tr><th>規格</th><th>強度</th><th>本專案</th></tr>
+<tr><td>初始化階段 <strong>MUST</strong> 是 client 與 server 的第一次互動</td><td><span class="tag must">MUST</span></td><td><span class="v-na">—</span> SDK 負責</td></tr>
+<tr><td>Server <strong>MUST</strong> 以自己的 capabilities 與 information 回應</td><td><span class="tag must">MUST</span></td><td><span class="v-na">—</span> SDK 負責；名稱與版本取自 <code>application.yml</code> 的 <code>spring.ai.mcp.server</code></td></tr>
+<tr><td>Server 支援請求的版本則 <strong>MUST</strong> 回同一版本，否則 <strong>MUST</strong> 回自己支援的版本</td><td><span class="tag must">MUST</span></td><td><span class="v-na">—</span> SDK 負責，上限 <code>2025-11-25</code></td></tr>
+<tr><td>實作 <strong>SHOULD</strong> 為所有送出的請求設逾時</td><td><span class="tag should">SHOULD</span></td><td><span class="v-ok">✓</span> 這條談的是 MCP 請求（SDK 負責），但本專案另外替子進程設了 <code>GhCli.TIMEOUT_SECONDS = 30</code>——那是規格沒管、但同樣會吊死的另一段</td></tr>
+</table>
+</div>
+<div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx</a></div>
+
+<h3>2.3 Tool 定義</h3>
+<div class="scroll">
+<table>
+<tr><th>規格</th><th>強度</th><th>本專案</th></tr>
+<tr>
+  <td>Tool 名稱 <strong>SHOULD</strong> 為 1–128 字元、只用大小寫字母／數字／<code>_</code>／<code>-</code>／<code>.</code>、不含空白、在 server 內唯一</td>
+  <td><span class="tag should">SHOULD</span></td>
+  <td><span class="v-ok">✓</span> 五個名稱全部通過：<code>list_issues</code>、<code>get_issue</code>、
+      <code>list_labels</code>、<code>list_issue_comments</code>、<code>add_issue_comment</code></td>
+</tr>
+<tr>
+  <td><code>inputSchema</code> <strong>MUST</strong> 是合法的 JSON Schema object（不得為 <code>null</code>）</td>
+  <td><span class="tag must">MUST</span></td>
+  <td><span class="v-ok">✓</span> 由 Spring AI 從方法簽章推導。
+      <strong>開發時要記住的約束：Tool 方法簽章必須保持扁平</strong>——所以
+      <code>IssueRef</code> 這類值物件是在方法體內構造的，不能出現在參數列上，否則 schema 會跟著變形。</td>
+</tr>
+<tr>
+  <td>若提供 <code>outputSchema</code>，Server <strong>MUST</strong> 讓 structured 結果符合它</td>
+  <td><span class="tag must">MUST</span></td>
+  <td><span class="v-na">—</span> 本專案不宣告 <code>outputSchema</code>，此條不生效。
+      <code>ToolResults</code> 的註解記著另一件相關事實：一旦 <code>isError</code> 為真，
+      <code>McpAsyncServer</code> 會跳過 output-schema 驗證。</td>
+</tr>
+<tr>
+  <td>Clients <strong>MUST</strong> consider tool annotations to be untrusted unless they come from trusted servers</td>
+  <td><span class="tag must">MUST</span></td>
+  <td><span class="v-ok">✓</span> 受詞是 <strong>client</strong>。本專案讀的是自己宣告的
+      <code>readOnlyHint</code>，用來命名寫入分區，不是拿遠端宣告當權限依據——不觸犯這條。
+      要留意的是別讓後人把它當成授權判斷往上疊。</td>
+</tr>
+</table>
+</div>
+<div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx</a> L201, L213, L219-224, L340</div>
+
+<h3>2.4 錯誤與結果形狀</h3>
+<div class="scroll">
+<table>
+<tr><th>規格</th><th>強度</th><th>本專案</th></tr>
+<tr>
+  <td>兩種錯誤機制：<strong>Protocol Errors</strong>（未知 tool、格式錯誤、server 錯誤）走 JSON-RPC error；
+      <strong>Tool Execution Errors</strong>（API 失敗、輸入驗證、業務邏輯）走結果裡的 <code>isError: true</code></td>
+  <td><span class="tag should">分類</span></td>
+  <td><span class="v-ok">✓</span> ADR-0002 把<strong>所有</strong>失敗歸到後者。理由寫在
+      <code>ToolResults</code> 的註解裡：protocol error 代表「這通呼叫沒發生」，永遠到不了模型手上，
+      而 Remedy 的預期讀者正是模型。「<code>gh</code> 沒裝」仍然是一個跑過、但做不到的 Tool。</td>
+</tr>
+<tr>
+  <td>回傳 structured content 的 tool <strong>SHOULD</strong> 同時在 TextContent block 裡放序列化後的 JSON（為了向後相容）</td>
+  <td><span class="tag should">SHOULD</span></td>
+  <td><span class="v-note">△ <strong>有意偏離，且已記載</strong></span>
+      失敗路徑的 <code>content</code> 放的是「一句人話 ＋ 逐字 stderr」，不是
+      <code>structuredContent</code> 的 JSON 序列化。ADR-0002「The payload」一節寫明了理由：
+      <code>content</code> 是必填欄位，讓只渲染文字的 Client 也一定看得到一句話。
+      <strong>代價要知道</strong>：一個想從 text block 反向解析 JSON 來取得 Remedy 的 Client 會落空。</td>
+</tr>
+<tr>
+  <td>Clients <strong>SHOULD</strong> 把 tool execution error 交給模型以利自我修正</td>
+  <td><span class="tag should">SHOULD</span></td>
+  <td><span class="v-ok">✓</span> 這是 client 端要求，但本專案整套 Remedy 設計（按「你現在該做什麼」分類、
+      而非按「錯在哪」分類）正是為了讓這條 SHOULD 有東西可用</td>
+</tr>
+</table>
+</div>
+<div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx</a> §Error Handling、§Structured Content</div>
+
+<h3>2.5 安全</h3>
+<p>規格這一節是四條並列的 <strong>MUST</strong>，也是本文件唯一找到真正缺口的地方。</p>
+<div class="scroll">
+<table>
+<tr><th>Servers <strong>MUST</strong></th><th>本專案</th></tr>
+<tr><td>Validate all tool inputs</td>
+    <td><span class="v-ok">✓</span> <code>Limits</code> 夾住 <code>limit</code>、<code>Cursors</code> 驗證游標、
+        <code>get_issue</code> 擋掉 pull request 號碼</td></tr>
+<tr><td>Implement proper access controls</td>
+    <td><span class="v-note">△</span> 外包給 <code>gh</code> 解析出的登入身分。ADR-0009 明確決定不在 Server 端建門禁。
+        單租戶成立；多租戶不成立（見 commercial-readiness §7.1）</td></tr>
+<tr><td><strong>Rate limit tool invocations</strong></td>
+    <td><span class="v-gap">✗ 缺口</span> 本專案沒有任何節流。<code>gh</code> 撞到 GitHub 限流時會回
+        <code>RETRY</code>，但那是<strong>下游</strong>的限流被動反映，不是這個 Server 自己在限流。
+        規格這條是 MUST。教材情境無妨，商用要補。</td></tr>
+<tr><td>Sanitize tool outputs</td>
+    <td><span class="v-note">△</span> Envelope 只挑選欄位、不做轉義。issue 內文與留言是原樣帶回的
+        ——這是刻意的（模型需要原文），但代表 <strong>prompt injection 的入口是開的</strong>，
+        且渲染責任落在 Client。目前 README 與 ADR 都沒有把這件事寫成一句警語。</td></tr>
+</table>
+</div>
+<div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx</a> §Security Considerations L512-518</div>
+
+<h2><span class="n">3</span>動手前該知道的三件事</h2>
+
+<h3>1 · 動 <code>application.yml</code> 之前先讀那三行註解</h3>
+<p>
+  裡面每一項設定都只為一個目的存在：不讓任何東西寫進 stdout。這是 stdio 傳輸唯一的
+  <strong>MUST NOT</strong>，違反了不會有編譯錯誤，也不會有測試紅燈——只會讓 Client 那端的
+  JSON-RPC 解析莫名其妙壞掉。
+</p>
+
+<h3>2 · Tool 方法簽章要保持扁平</h3>
+<p>
+  Spring AI 從簽章推導 <code>inputSchema</code>，而規格要求它是合法的 JSON Schema object。
+  把 <code>IssueRef</code> 這類值物件搬到參數列上會直接改動對外的 schema。想收攏概念，在方法體內構造。
+</p>
+
+<h3>3 · 失敗只有一條出口</h3>
+<p>
+  所有會失敗的工作都要放進 <code>ToolResults.attempt(...)</code> 的 lambda 裡。
+  在 lambda <em>外面</em> 擲出的 <code>ToolFailure</code> 會被 Spring AI 自己的 callback 接走，
+  回一個 <code>isError: true</code> 但<strong>沒有 <code>structuredContent</code></strong> 的結果——
+  Remedy 與 stderr 就這樣消失，而 <code>isError</code> 看起來還是對的。
+  這是實測出來的，不是推論；<code>FailureContractAcceptanceTest</code> 就是為了抓這個而存在。
+</p>
+
+<footer>
+  規格條文於 2026-09-08 自 <code>modelcontextprotocol/modelcontextprotocol</code> 的
+  <code>main</code> 分支逐條核對；本文所有外部連結均已驗證可取得。<br>
+  程式碼觀察對照 <code>99ba0b3</code>。基準為 2025-11-25——本專案相依的 MCP Java SDK 2.0.0 的協議上限。
+</footer>
+
+</div>
+</body>
+</html>

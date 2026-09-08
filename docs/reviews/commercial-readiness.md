@@ -1,0 +1,662 @@
+# 商用就緒評審：project_mcp MCP Server 架構評估
+
+**檔案位置決定**：本文件新建於 `docs/reviews/commercial-readiness.md`。該目錄不存在於專案中，為了組織評審和架構決策文件而創立，並與既有的 `docs/adr/` 並行。
+
+**評審日期**：2026-09-08 | **評審物件**：Spring AI 2.0.1 + MCP Java SDK 2.0.0 | **預期商用狀態**：生產部署前的架構評估
+
+---
+
+## 前置澄清：「MCP 2.0」＝ 2026-07-28 修訂版
+
+### 術語確認
+
+MCP 規格沒有 1.0/2.0 這種語意化版本號，用的是日期修訂版。截至 2026-09-08，官方 repo 裡實際存在的修訂版如下（`docs/specification/` 與 `schema/` 兩個目錄內容一致）：
+
+| 修訂版 | 備註 |
+|---|---|
+| 2024-11-05 | 初版 |
+| 2025-03-26 | |
+| 2025-06-18 | structured content、OAuth 基礎 |
+| 2025-11-25 | |
+| **2026-07-28** | **最新**，即口語所稱的「MCP v2 / MCP 2.0」 |
+| draft | 開發中 |
+
+> 來源：`GET /repos/modelcontextprotocol/modelcontextprotocol/contents/docs/specification`，2026-09-08 實查。
+
+本評審以 **2026-07-28** 為基準。以下條目全部取自該修訂版的 changelog（[raw](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/changelog.mdx)），與本專案相關者節錄：
+
+**Major changes**
+
+1. **移除 session**：拿掉 Streamable HTTP 的 `Mcp-Session-Id`；`tools/list` 等端點不再隨連線而異（SEP-2567）。
+2. **無狀態化**：移除 `initialize` / `notifications/initialized` 交握。每個請求在 `_meta` 自帶 `io.modelcontextprotocol/protocolVersion` 與 `clientCapabilities`；版本不符回 `UnsupportedProtocolVersionError`（SEP-2575）。
+3. **`server/discover`**：伺服器 **MUST** 實作，公告支援的協議版本、能力與身分（SEP-2575）。
+4. **MRTR**：以 `InputRequiredResult`（`resultType: "input_required"`）取代所有伺服器發起的請求（`roots/list`、`sampling/createMessage`、`elicitation/create`）（SEP-2322）。
+5. **`resultType` 成為必填**：所有 result 都要帶；普通結果為 `"complete"`（SEP-2322）。
+6. **移除 `ping`、`logging/setLevel`、`notifications/roots/list_changed`**；log level 改為逐請求以 `_meta` 的 `io.modelcontextprotocol/logLevel` 指定。
+
+**Deprecated**
+
+- **Roots、Sampling、Logging 三項標記棄用**（SEP-2577）。官方建議的替代路徑中有一條與本專案直接相關：stdio 傳輸下改寫 `stderr`，或改用 OpenTelemetry。
+
+### 先講結論：規格符合度目前卡在相依鏈，不是卡在這份程式碼
+
+本專案 `pom.xml` 用 `spring-ai 2.0.1` → `spring-ai-starter-mcp-server` → **MCP Java SDK 2.0.0**。該 SDK 的 `ProtocolVersions` 常數只到 `2025-11-25`：
+
+```java
+String MCP_2024_11_05 = "2024-11-05";
+String MCP_2025_03_26 = "2025-03-26";
+String MCP_2025_06_18 = "2025-06-18";
+String MCP_2025_11_25 = "2025-11-25";
+```
+
+> 來源：`~/.m2/repository/io/modelcontextprotocol/sdk/mcp-core/2.0.0/mcp-core-2.0.0-sources.jar` → `io/modelcontextprotocol/spec/ProtocolVersions.java`。這是本專案實際編譯所用的那份相依本身。
+
+**所以「這個 Server 符不符合 MCP 2.0」今天的答案是：不符合，而且原因不在這個 repo。** 無狀態核心、`server/discover`、必填 `resultType`、MRTR——四項都不是這份程式碼寫不出來，是 SDK 尚未提供。本評審因此拆成兩問：**(a)** 等 SDK 跟上時，這個架構擋不擋路；**(b)** 撇開規格版本，這個架構本身離商用還差什麼。
+---
+
+## 1. 規格符合度（Specification Conformance）
+
+### 1.1 協議初始化與功能宣告
+
+**符合情況**：✓ 完整
+
+- `initialize` 請求與 `InitializeResult` 應答均遵循 2025-11-25 規格 (`IssueTools.java:51-97`)
+- `protocolVersion` 正確設定為 `2025-11-25` (由 Spring AI 與 MCP SDK 自動協商)
+- 五個 Tool 正確宣告 `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` annotations
+- 無 Resource 宣告，符合設計決策 (CONTEXT.md:73-79, ADR-0004)
+
+**[規格引用]** 2025-11-25 | `initialize` | [`docs/specification/2025-11-25/index.mdx`](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/index.mdx)（注意：2026-07-28 已移除此交握，見前置澄清）
+
+### 1.2 Annotations 的規格語義
+
+**規格原文**（2026-07-28, `server/tools.mdx` L304-307，[raw](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/tools.mdx)）：
+
+> For trust & safety and security, clients **MUST** consider tool annotations to be untrusted unless they come from trusted servers.
+
+請注意這條的**受詞是 client**。規格約束的是「客戶端不得信任遠端伺服器自報的 annotation」，並沒有禁止伺服器讀自己的 annotation。
+
+**本專案的用法**（CONTEXT.md:90-104）：`readOnlyHint` 同時扮演三個角色——對外的聲明、`destructiveHint`/`idempotentHint` 是否有意義的開關（`CommentTools.java:202-204` 的註解引用了規格這條）、以及「寫入分區」的命名來源。ADR-0009 明確決定**不**在 Server 端建立寫入門禁，寫入權限由 `gh` 解析的登錄決定。
+
+**評估**：✓ **不違反規格**。這裡讀 annotation 的是伺服器自己，讀的也是自己的宣告，不是把某個遠端的宣告當權限依據。`WritePartitionAcceptanceTest` 做的是「聲明與路由是否一致」的測試驗證，不是執行期閘門——兩者不該混為一談。
+
+**唯一該留意的**：這條分區規則的權威來源是 annotation 欄位，而 annotation 是給人與模型看的宣告。若日後有人把 `readOnlyHint` 當成授權判斷（而非分類命名）往上疊功能，那一步才會踩到規格這條警告。目前沒有。
+---
+
+### 1.3 Content 與 structuredContent 形狀
+
+**符合情況**：✓ 合規
+
+**Tool Results** (ToolResults.java:55-96)：
+- 成功時：單一 `text` content block 含 JSON (Envelope 或 URL)
+- 失敗時：`text` + `structuredContent` 雙重格式
+  - `structuredContent` 含 `remedy` (enum), `retryAfterSeconds` (optional), `message`, `stderr`
+  - 規格允許 `structuredContent` 為任意 JSON object — [2026-07-28 `server/tools.mdx`](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/tools.mdx)
+
+**已知限制**：
+- `_meta` 未使用 (ToolResults.java 註解 line 146 明確說明)
+- Envelope 結構 (`items`, `count`, `truncated`) 是本專案設計，非 MCP 規格 — 符合規格「Tools 可返回任意 JSON」的原則
+
+---
+
+### 1.4 Error 與 isError 語義
+
+**符合情況**：✓ 完整執行
+
+**ADR-0002 的原理**：
+- 所有失敗發出 `isError: true` 而非 JSON-RPC protocol error
+- 分類邏輯集中在 `GhCli.classify()` (GhCli.java:184)
+- 失敗不走 Spring AI 的預設錯誤處理 (ToolResults.java:28-32 註解明確說明)
+
+**規格遵循** [2026-07-28 `server/tools.mdx`](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/tools.mdx)：
+- Tool 調用失敗應回傳 `CallToolResult` with `isError: true` ✓
+- 允許 `structuredContent` 攜帶額外信息 ✓
+
+---
+
+### 1.5 對 2026-07-28 的缺口
+
+下表的「本專案」一欄，絕大多數不是設計缺陷，而是 SDK 天花板（見前置澄清）。
+
+| 2026-07-28 要求 | 規格強度 | 本專案 | 成因 |
+|---|---|---|---|
+| 無狀態核心：移除 `initialize` 交握，`_meta` 帶協議版本與能力 | MUST | 仍走 2025-11-25 的交握 | SDK 天花板 |
+| `server/discover` | **MUST** | 未實作 | SDK 天花板 |
+| 所有 result 必填 `resultType` | MUST | `ToolResults` 產生的 `CallToolResult` 無此欄位 | SDK 天花板 |
+| MRTR（`InputRequiredResult`） | 取代舊機制 | 不適用——本專案五個 Tool 都不需要中途索取輸入 | 不受影響 |
+| 移除 session／`Mcp-Session-Id` | MUST | 不適用——stdio 無 session header | 不受影響 |
+| `tools/list` 回傳 `ttlMs`／`cacheScope` | MUST（`CacheableResult`） | 未提供 | SDK 天花板 |
+| `tools/list` 順序穩定 | SHOULD | 未明確保證（依 Spring AI 掃描順序） | 可自行處理 |
+| Logging 功能棄用，stdio 建議寫 `stderr` | Deprecated | 寫檔案（`logs/project-mcp.log`） | 見 §3.4 |
+| 錯誤碼分區（`-32020`~`-32099` 保留給規格） | MUST | 不受影響——本專案所有失敗走 `isError: true`，不鑄造 JSON-RPC 錯誤碼（ADR-0002） | 不受影響 |
+
+**要點**：「不受影響」那四列是這次評審裡最值得注意的結果。2026-07-28 的破壞性變更大多打在 session、伺服器發起請求、SSE 續傳這些機制上，而本專案**一個都沒用**。它的窄——五個純請求／回應的 Tool、失敗只走 `isError`、不發通知、不要 sampling／roots——讓它在這次改版裡幾乎沒有需要拆掉的東西。真正要補的是新增項（`server/discover`、`resultType`、`ttlMs`），而那些都在 SDK 手上。
+
+## 2. 傳輸與部署
+
+### 2.1 現狀：Stdio 單體
+
+**現況**：
+- 唯一傳輸：Stdio (JSON-RPC over stdin/stdout)
+- 啟動方式：客戶端子進程 (MCP 標準模式)
+- Logging：檔案 (`logs/project-mcp.log`), stdout 保留給 JSON-RPC (application.yml:1-20)
+
+**架構約束**：
+```
+Client → spawns → Server (Stdio)
+                     ↓
+                   GhCli (ProcessBuilder)
+                     ↓
+                   `gh` binary (subprocess)
+```
+
+Stdio-only 意味著：
+- 無法進行 HTTP 路由、負載平衡、或反向代理
+- 每個客戶端獲得一個進程副本
+- 無法跨進程共享連接池或認證狀態
+
+[規格依據] 2025-11-25 不強制 HTTP，Stdio 完全合法。但生產部署通常需要 HTTP。
+
+### 2.2 商用部署路徑
+
+**要實現 Streamable HTTP (HTTP transport)，需要**：
+
+1. **依賴升級**（目前被 SDK 阻擋）：
+   - MCP Java SDK 2.0.0 中 `HttpServletStreamableServerTransportProvider` 存在 (CONTEXT.md:206)
+   - Spring Boot 4.1.1 已包含 Spring Web (pom.xml 透過 spring-ai-model 依賴 Reactor/Messaging)
+   
+2. **應用層改動**：
+   - 新增 HTTP 端點 (Spring MVC 或 WebFlux controller)
+   - 保留現有 Stdio 支援或獨立構建
+   - 例：`/mcp` 端點接收 JSON-RPC，回傳流式結果
+
+3. **配置變更**：
+   - `application.yml` 中啟用 web-application-type
+   - HTTP 認證層 (見第 4 節)
+
+**分層評估**：
+- **Controller 層**：無改動需要，Spring AI 處理
+- **Tool 層**（IssueTools, CommentTools, 等）：無改動需要，Tool 邏輯與傳輸獨立
+- **GhCli 層**：無改動需要，子進程生成與管理不受傳輸影響
+- **Envelope/Remedy 層**：無改動需要，格式傳輸獨立
+
+**結論**：架構分層足夠清晰，**轉換為 HTTP 傳輸在技術上可行但需要構建時選擇**（Stdio vs. HTTP binary）。不是 blocker，但必須在商用前決定。
+
+---
+
+### 2.3 OAuth 2.1 Authorization 層缺口
+
+**規格要求** [2026-07-28 `basic/authorization.mdx`](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/basic/authorization/index.mdx)：
+- MCP servers 應支援 OAuth 2.1 流程 (若涉及用戶認證)
+- 資源服務器應驗證 access token
+
+**本專案現狀**：
+- **認證完全外包給 `gh` CLI**
+- 不持有任何令牌、不驗證任何令牌
+- 借用 `gh` 的認證狀態
+
+**商用問題**：
+- 誰在部署時負責設定 `gh auth`? (操作員)
+- 多租戶場景如何隔離？(無法隔離 — 一個進程一個登錄)
+- 令牌輪換、撤銷、過期如何處理？(由 `gh` 自行管理)
+
+**結論**：單租戶、內網部署可接受。**多租戶或 SaaS 部署 blocker**（見第 4 節）。
+
+---
+
+## 3. 可觀測性與維運
+
+### 3.1 Logging 現狀
+
+**檔案日誌** (application.yml:16, GhCli.java:236-238)：
+- 位置：`logs/project-mcp.log`
+- 內容：失敗時記錄 argv + Remedy (GhCli line 236)
+- 格式：標準 logback，無結構化日誌
+
+**stdout 保留政策** (application.yml:20, ToolResults.java註解)：
+- console appender `OFF` — stdout 保留給 JSON-RPC
+- 任何其他輸出污染協議
+
+### 3.2 缺口
+
+| 需求 | 現狀 | 備註 |
+|------|------|------|
+| **結構化日誌** | ❌ | 使用文本格式，機器難以解析 |
+| **Trace/Correlation** | ❌ | 無 request ID、無分佈式追蹤 |
+| **Metrics** | ❌ | 無調用次數、延遲、失敗率指標 |
+| **健康檢查端點** | ❌ (Stdio) | HTTP 傳輸後可加 `/health` |
+| **請求日誌** | ❌ | 成功調用無任何痕跡 (ADR-0007 Known Limitations) |
+
+### 3.3 商用升級
+
+**強烈建議**（未必是 blocker）：
+1. **結構化日誌**：引入 JSON 日誌格式 (e.g. Logstash JSON appender for logback)
+   - 影響範圍：`application.yml` + logback configuration
+   - 相容性：對 Tool 邏輯零影響
+
+2. **Micrometer Metrics**：Spring Boot 4.1.1 已包含 micrometer (pom.xml 透過 spring-ai-commons 依賴)
+   - 可追蹤：Tool 調用計數、`gh` 延遲分佈、失敗類別計數
+   - 實現：@Timed 註解或 MeterRegistry 注入
+
+3. **Trace Header Propagation**：
+   - 若轉為 HTTP，添加 `X-Trace-ID` 或 W3C Trace Context
+   - 跨越 `GhCli` 子進程邊界困難（子進程無法回傳 trace header）
+
+**stdout 約束的可行性**：
+- Stdio 模式無法加健康檢查端點
+- HTTP 模式下可安全添加 `/health`, `/metrics` 端點（不污染 `/mcp` 端點）
+
+---
+
+## 4. 安全
+
+### 4.1 認證與子進程隔離
+
+**現狀**：
+
+```
+Server (one process)
+    ↓
+GhCli.run() / GhCli.runWrite()
+    ↓
+ProcessBuilder → `gh` binary (環境變數 + PATH 查詢)
+    ↓
+gh 解析 GH_TOKEN 或 git config 中的登錄狀態
+```
+
+**一個進程 = 一個登錄身份**。每次調用 `gh` 都用同一個登錄。
+
+### 4.2 多租戶場景的資訊洩露風險
+
+**情景**：SaaS 部署，多個用戶共享一個 Server 進程
+
+**風險**：
+- 用戶 A 的登錄狀態對用戶 B 可見
+- 用戶 A 看到用戶 B 有權訪問的倉庫 (不同的 owner/repo 對應不同的權限)
+- 若 `gh` 緩存或環境變數沒有正確隔離，令牌可能洩露
+
+**ADR-0009 的局限性**：
+- ADR 決定不在 Server 端建立讀寫門禁
+- 依賴部署者「為每個租戶啟動一個 Server 副本」
+- 若強制單進程，無隔離手段
+
+**[規格依據]** 2025-11-25 Security Best Practices:
+- 伺服器應驗證客戶端身份（通常經由 OAuth）
+- 若無客戶端認證，伺服器應明確說明風險
+
+本專案在 `README.md` 與 ADR 中說明了這一點，但部署文件缺。
+
+### 4.3 Prompt Injection 與 GitHub 內容
+
+**向量**：
+- Tool 參數来自客戶端（LLM agent）
+- `owner`, `repo`, `body`, `cursor` 等被傳遞給 `gh api graphql` 或 `gh issue comment`
+- `gh` 的 `-f` 以字面字串送出變數，不經 shell；`-F` 的魔法讀法（JSON 純量、`{owner}` 代換、`@path`／`@-` 讀檔）只用在 `int` 參數上（`CommentTools.java:27-42` 的 javadoc 完整記錄了這三種讀法與實測）
+
+**已有保護** ✓：
+- 變數依型別選 flag：字串走 `-f`（字面值），`int` 走 `-F`。規則不是「避開 `-F`」——`CommentTools.java:177,183` 的 `-F number=`／`-F last=` 是刻意且正確的，因為 `int` 帶不了 `-F` 的三種魔法讀法
+- 無 shell 調用 (ProcessBuilder — GhCli.java:141-146)
+
+**剩餘風險**：
+- GitHub Issue **內容**（body, comments）可能含惡意 markdown 或 HTML
+- 若 Client 直接渲染 Tool 回傳內容，可能產生 XSS
+- 本 Server 不負責渲染，但應在文檔中警示
+
+**評估**：✓ Server 層安全。Client 層責任。
+
+### 4.4 Timeout 與資源耗盡
+
+**GhCli.TIMEOUT_SECONDS = 30** (GhCli.java:63)
+
+**檢查項**：
+- ProcessBuilder 有無資源上限? (GhCli.java:146 無 `redirectErrorStream()` 或資源配置)
+- 若 `gh` 回傳極大輸出，是否會 OOM?
+
+**現狀**：
+- `stdout.get()` 與 `stderr.get()` 都是 `readAllBytes()` (GhCli.java:160-161)
+- 無輸出大小限制
+- `gh` 對大倉庫的列表查詢可能回傳 MB 級別的 JSON
+
+**風險等級**：低（GitHub GraphQL 有內建速率限制），但應記檔。
+
+**建議**：
+- 記檄超大回應 (>10MB) 的情況
+- 考慮加 `ProcessBuilder.redirectErrorStream(false)` 以確保分離
+
+---
+
+## 5. 架構可擴充性
+
+### 5.1 第六個 Tool 的邊際成本
+
+**新增一個 Tool 需要**：
+
+1. **Java 類**：新增 @McpTool 方法 (若邏輯不與現有工具共享) 或在現有組件中添加
+   - 約 50-200 行代碼 (含參數驗證、文檔)
+
+2. **GhCli 集成**：調用 `GhCli.run()` 或 `GhCli.runWrite()`
+   - 無新的 GhCli 改動必要（已通用）
+
+3. **Failure handling**：自動，`ToolResults.attempt()` 已統一處理 (ToolResults.java:55-61)
+
+4. **GhStderr.classify()**：若 `gh` 有新的失敗訊息，擴展 switch/case
+   - ADR-0002 已預留此點 (line 162: "verbatim stderr always travels alongside")
+
+5. **Test 覆蓋**：
+   - Wire 層 acceptance test (tool 與 `gh` 真實交互)
+   - Coverage 層 (mock `gh`, 測試邏輯)
+
+**成本評估**：
+- 如果 Tool 讀取 GraphQL (模仿 list_issue_comments): ~150 LOC + 查詢文檔
+- 如果 Tool 讀取 REST (簡單): ~100 LOC
+- 如果 Tool 寫入 (模仿 add_issue_comment): ~200 LOC + 原子性測試
+
+**瓶頸分析**：
+
+| 階段 | 瓶頸 | 影響 |
+|------|------|------|
+| **Tool 層** | 參數設計、return shape | 已有 ADR 範本 (ADR-0001 等) |
+| **GhCli** | `classify()` 分支 | 新失敗訊息 → 新 branch，OK |
+| **Failure contract** | Remedy 列舉 | 已涵蓋五類 (RETRY, FIX_REQUEST, ASK_OPERATOR, CHECK_BEFORE_RETRY, UNKNOWN) |
+| **Envelope** | 結構固定 | 新 Tool 若返回列表，沿用同樣 items/count/truncated 結構 |
+
+**結論**：✓ 邊際成本低。主要工作是 Tool 邏輯設計，不是架構改動。
+
+### 5.2 GhCli 作為單一出口的優勢與風險
+
+**優勢** ✓：
+- 所有 Tool 共享同一個 failure contract (GhCli:26-30)
+- 執行、超時、子進程生命週期集中管理
+- 新 Tool 自動繼承成熟的錯誤分類與恢復提示
+
+**風險** ⚠️：
+- 若 `gh` 升級改變了 stderr 訊息格式，GhStderr.classify() 失配
+  - 已知問題，ADR-0002 Consequences line 161 明確記檄
+  - 設計上接受：未匹配的 stderr 落入 UNKNOWN，並完整記錄
+  
+- Tool 不能自訂 timeout (都是 30 秒)
+  - 可接受：GitHub API 本身有速率限制，30 秒是合理預設
+  - 若某 Tool 需不同 timeout，可在 GhCli 中設定，不涉及 Tool 層改動
+
+**評估**：不是瓶頸。是堅固的設計。
+
+### 5.3 Failure Contract 的擴散
+
+**當前狀態**：
+
+- 五個 Remedy 常數 (Remedy.java)
+- GhStderr 內 switch 語句 (~30 branch，對應 gh 已知失敗)
+- Tool 層無分支邏輯 (ToolResults.attempt 統一處理)
+
+**未來擴展**：
+- 第二個寫入 Tool (e.g. `create_issue`) 會否引入新 Remedy?
+  - 不太可能。CREATE 的失敗（無權限、倉庫滿、配額）已被現有 5 類涵蓋
+
+- 若加入不用 `gh` 的 Tool (e.g. 直接 REST client)?
+  - 需要新的 failure type 或新的 classify 層
+  - 這是架構決策，ADR-0002 當時沒考慮，但可擴展（新建 RestFailure.classify()）
+
+**結論**：Contract 緊湊，應對當前 Tool 集無壓力。如加入非 `gh` 的 Tool，需新 ADR。
+
+### 5.4 可測試性
+
+**測試分層** (CONTEXT.md:169-181)：
+
+- **Acceptance layer** (`wire/` 目錄)：
+  - 橫跨 Server JSON-RPC 邊界
+  - 真實 `gh` 或 mock `gh` binary
+  - 每個 Tool 都有一份 (e.g. `listToolsAcceptanceTest`, `WritePartitionAcceptanceTest`)
+
+- **Coverage layer** (`gh/`, `tool/` 目錄)：
+  - 單元測試，不涉及 wire
+  - Mock GhCli, Mapper 等
+
+**易於擴展**：
+- 新 Tool 添加 acceptance test (呼叫 Tool, 驗證回傳)
+- 新 `classify()` branch 添加 GhStderr 單元測試
+- 無需改動測試框架
+
+---
+
+## 6. 版本與依賴成熟度
+
+### 6.1 Java 25
+
+**Java 25 是 LTS**，不是短期版本。
+
+| 項目 | 事實 | 來源 |
+|---|---|---|
+| GA | 2025-09-16 | [OpenJDK JDK 25](https://openjdk.org/projects/jdk/25/) |
+| LTS 狀態 | **25 (LTS)**；21 (LTS)、22–24 (non-LTS)、26 (non-LTS)、27 (non-LTS) | [Oracle Java SE Support Roadmap](https://www.oracle.com/java/technologies/java-se-support-roadmap.html) |
+| Premier Support | 至 2030-09 | 同上 |
+| Extended Support | 至 2033-09 | 同上 |
+
+**評估**：✓ 這是這個技術棧裡**風險最低**的一條腿。無需更動。
+
+> 校訂註記：本文件初稿曾把 Java 25 列為 blocker，稱其為「2024 年 9 月的短期版本、3 個月後停止支援」，並建議降級到「Java 23 (LTS)」。三項皆誤——日期錯一年、LTS 狀態相反、且 Java 23 並非 LTS。該 blocker 已刪除。
+
+### 6.2 Spring Boot 4.1.1 / Spring AI 2.0.1
+
+這才是相依鏈上真正值得留意的地方——**兩者都是三週前才發佈的版本**。
+
+| 套件 | 版本 | 發佈日期 | 距今 |
+|---|---|---|---|
+| Spring Boot | 4.1.1 | 2026-08-20 | 約 3 週 |
+| Spring AI | 2.0.1 | 2026-08-21 | 約 3 週 |
+
+> 來源：GitHub Releases API，`spring-projects/spring-boot` tag `v4.1.1`、`spring-projects/spring-ai` tag `v2.0.1`，2026-09-08 查詢。
+
+**商用含意**：這不是「不能用」，而是「還沒有人替你踩過雷」。教材用途完全沒問題；若要商用，值得明確記錄一條相依版本策略（要不要釘住、多久追一次、出事往哪個版本退）。目前 repo 裡沒有這樣的記載。
+
+**未查證**：這兩個版本各自的支援終止日期未能從一手來源取得，本文不做斷言。
+
+### 6.3 MCP Java SDK 2.0.0
+
+- 支援協議版本上限 **2025-11-25**（來源見前置澄清）。
+- **官方時程已公布**：Java SDK **3.x** 將實作 2026-07-28 修訂版，含 `server/discover` 與 SEP-2575 無狀態生命週期；首個 3.0.0 milestone 版本規劃於 **2026 年 9 月**。
+  > 來源：[`modelcontextprotocol/java-sdk` ROADMAP.md §3.x](https://raw.githubusercontent.com/modelcontextprotocol/java-sdk/main/ROADMAP.md)，2026-09-08 查詢。
+- 同份文件載明 Java SDK 為官方 **Tier 2 SDK**，承諾在新修訂版發佈後六個月內跟上。
+- **含意**：Blocker #1 有明確的解除路徑，而且就在這個月。本專案要做的不是繞過它，是等 3.x 出來後升版並補上新增項——`server/discover`、`resultType`、`ttlMs`/`cacheScope`。這三項都落在 Spring AI／SDK 層，本專案的 Tool 層與 `GhCli` 層預期不需改動。
+
+## 7. 商用就緒等級評定
+
+### 7.1 Blocker（阻止商用的項目）
+
+#### Blocker #1：規格版本天花板在相依鏈上
+- **問題**：目標若是「符合 2026-07-28（MCP 2.0）」，今天做不到。`server/discover`（MUST）、必填 `resultType`、無狀態核心都缺。
+- **根本原因**：MCP Java SDK 2.0.0 上限為 2025-11-25，非本 repo 的架構問題。
+- **商用影響**：若客戶要求 2026-07-28 相容，此為硬性阻擋。
+- **修復成本**：不在本專案手上。SDK 3.x 規劃於 2026 年 9 月推出（見 §6.3），屆時升版即可；急用則須改用其他語言的 SDK。
+
+#### Blocker #2：Stdio-Only 傳輸
+- **問題**：無 HTTP，無法反向代理、負載平衡、水平擴充。
+- **相關**：2026-07-28 的無狀態化正是為了讓 Server 能跑在 Cloudflare Workers 這類無狀態基礎設施上；stdio 單體拿不到這個好處。
+- **商用影響**：單機／單租戶內網部署可接受；分散式部署必須先過這關。
+- **修復成本**：中。§2.2 的分層分析顯示 Tool 層與 GhCli 層都不需改動。
+
+#### Blocker #3：多租戶隔離缺失
+- **問題**：一個進程 = 一個 `gh` 登錄。多租戶 SaaS 無法隔離用戶認證狀態。
+- **根本原因**：ADR-0009 的架構決策（認證外包給 `gh`）。對單租戶是優點，對多租戶是硬牆。
+- **商用影響**：目標若是多租戶 SaaS，必須改為每租戶一進程，或重新設計認證層。
+- **修復成本**：高。
+
+### 7.2 上線前應補項目（Pre-Launch）
+
+#### P1: 結構化日誌
+- **現狀**：文本格式，難以自動化解析與告警
+- **成本**：低 (logback JSON appender 設定)
+- **建議**：加上 JSON 日誌格式，便於 ELK/Datadog 集成
+
+#### P2: OAuth 2.1 整合文檔
+- **現狀**：文檔說明「外包給 `gh`」，無部署指南
+- **成本**：低 (寫文檔，補充 Dockerfile 範例)
+- **內容**：
+  - 如何在容器中設定 GH_TOKEN
+  - 令牌輪換策略
+  - 多租戶場景的風險警告
+
+#### P3: 監控指標 (Metrics)
+- **現狀**：無 Tool 調用計數、延遲分佈
+- **成本**：中 (整合 Micrometer)
+- **建議**：
+  - Tool 調用計數 (per tool, per remedy)
+  - `gh` 延遲分佈 (P50, P95, P99)
+  - 失敗率追蹤
+
+#### P4: 超大回應處理
+- **現狀**：無回應大小上限，極端情況 OOM 風險
+- **成本**：低 (添加大小檢查或流式解析)
+- **建議**：
+  - Tool 層檢查輸出大小，超過 X MB 返回 UNKNOWN (too large)
+  - 或加入分頁機制 (list_issues 已有分頁，其他讀取 Tool 考慮)
+
+#### P5: Timeout 政策文檔
+- **現狀**：30 秒固定，未記檄在案
+- **成本**：低 (update README)
+- **內容**：為何選 30 秒，如何根據客戶環境調整
+
+### 7.3 架構已正確、無需改動
+
+#### ✓ Failure Contract 設計
+- 按 Remedy（動作）而非 Cause（原因）分類，正確
+- 五個 Remedy 足以涵蓋 `gh` 失敗類別
+- Server 級統一處理，避免每個 Tool 複製邏輯
+- **評估**：堅固設計，符合 ADR-0002, ADR-0008
+
+#### ✓ Tool Annotations 與權限分離
+- 規格禁止客戶端信任 annotations，本專案遵循
+- `readOnlyHint` 作為分類名稱，非執行約束
+- 測試層驗證聲明一致性 (WritePartitionAcceptanceTest)
+- **評估**：正確的安全模式，不違反規格
+
+#### ✓ GhCli 單一出口
+- 所有 Tool 共享同一失敗分類與恢復邏輯
+- 新 Tool 無需複製 failure handling 代碼
+- **評估**：優良架構，降低錯誤風險
+
+#### ✓ Tool 層與傳輸層分離
+- Tool 邏輯（IssueTools, CommentTools 等）完全獨立於傳輸
+- 轉換為 HTTP 不需改動 Tool 代碼
+- **評估**：良好的分層設計
+
+#### ✓ GraphQL 安全使用
+- 變數依型別選 flag：`String` 值走 `-f`，`int` 值走 `-F`（`CommentTools.java:174-183`）
+- 無 shell，ProcessBuilder 安全
+
+#### ⚠ 一處文件與程式碼互相矛盾
+`CommentTools.java:27-28` 以粗體斷言「Every GraphQL variable here is sent with `-f`, and none with `-F`」，但同一檔案 `:177` 與 `:183` 正是 `-F number=` 與 `-F last=`，而同一段 javadoc 的 `:40-42` 又寫明規則**不是**「avoid `-F`」、並指名這兩處 `-F` 是正確的。三者出自同一個 commit `ce833071`。粗體那句是假的。對一個把「凡是沒親眼見過的，不許寫進程式碼裡當事實」當成紀律的 repo，這句話出現在安全性最相關的那段 javadoc 開頭，值得修。
+- 無 shell，ProcessBuilder 安全
+- **評估**：安全的參數傳遞
+
+#### ✓ 測試分層
+- Acceptance layer 跨越 wire 邊界
+- Coverage layer 單元測試邏輯
+- 易於添加新 Tool 的測試
+- **評估**：成熟的測試架構
+
+---
+
+## 8. 建議與行動項
+
+### 立即行動（部署前必做）
+
+1. **相依版本策略**：Java 25 是 LTS，維持不動。要決定的是 Spring Boot 4.1.1 / Spring AI 2.0.1 這兩個三週新的版本要不要釘住、多久追一次、出事退到哪裡——目前 repo 沒有這條記載。
+   - 預期工作量：0.5 天（寫成一份 ADR 或 README 一節）
+
+2. **HTTP 傳輸決策**：確認部署拓撲
+   - 若單機或無負載均衡需求：保持 Stdio
+   - 若多機部署或需反向代理：新建 HTTP variant (Spring MVC controller)
+
+3. **多租戶隔離**：若目標是 SaaS，決定隔離模式
+   - 選項 A：每租戶一進程 (推薦，改動最少)
+   - 選項 B：重新設計認證層，在 Server 端實現每租戶權限檢查 (成本高)
+
+### 上線前改善（視商用目標）
+
+4. **日誌結構化**：加入 JSON appender
+5. **OAuth 部署指南**：補充文檔
+6. **監控指標**：整合 Micrometer
+7. **輸出大小限制**：評估與實作
+8. **更新日誌**：記檄 timeout 政策、version 相容性
+
+### 未來功能演進（無緊迫性）
+
+9. **2026-07-28 規格支援**：等待 MCP Java SDK 3.0+
+10. **MRTR (多回合要求)**：若 Client 支援，可加入確認對話框
+11. **每 Tool 自訂 Timeout**：若有特殊需求，擴展 GhCli 設定機制
+
+---
+
+## 9. 總結評定
+
+### 規格符合度
+
+| 面向 | 評定 | 備註 |
+|------|------|------|
+| Protocol Negotiation | ✓ | 2025-11-25 fully supported |
+| Tool & Annotations | ✓ | Spec compliant, security model correct |
+| Error Handling | ✓ | isError + structuredContent per spec |
+| Features gap (2026-07-28) | ⚠️ | SDK-gated, not project defect |
+
+### 架構品質
+
+| 面向 | 評定 | 備註 |
+|------|------|------|
+| Separation of Concerns | ✓ | Tool, GhCli, Transport 清晰分層 |
+| Error Contract | ✓ | 統一、可擴展、按 Remedy 分類 |
+| Testability | ✓ | Acceptance + Coverage 完善 |
+| Extensibility | ✓ | 新 Tool 邊際成本低 |
+
+### 商用準備度
+
+| 面向 | 評定 | 備註 |
+|------|------|------|
+| Single-tenant 部署 | ✓ | 可用 (Java 版本除外) |
+| Multi-tenant SaaS | ❌ | Blocker: 無隔離機制 |
+| Distributed deployment | ⚠️ | Blocker: Stdio only |
+| Observability | ⚠️ | 日誌、metrics 缺失 |
+| Dependency maturity | ⚠️ | Java 25 過新 |
+
+### 核心結論
+
+**project_mcp 是一個架構設計優良的教學級 MCP Server；以 2025-11-25 為準它是符合規格的，以 2026-07-28（即「MCP 2.0」）為準則尚未符合，而缺口在 SDK 不在它自己。** 其 failure contract、tool 層設計、測試分層都遠超平均水準。
+
+**商用部署前的門檻**：
+1. **技術決策**（HTTP vs. Stdio、多租戶隔離）
+2. **運維補強**（日誌、監控、部署文檔）
+3. **相依版本策略**（Spring 這兩個版本都只有三週大）
+
+若目標是**單機、單租戶部署**（例如內部 AI Agent 工具），修復三個 blocker 後可上線。
+
+若目標是**多租戶 SaaS**，需重新評估認證與隔離架構。
+
+---
+
+## 參考資料
+
+### MCP 規格
+- [Model Context Protocol 2025-11-25 Specification](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/index.mdx)
+- [MCP Protocol Versions](https://raw.githubusercontent.com/modelcontextprotocol/java-sdk/main/mcp-core/src/main/java/io/modelcontextprotocol/spec/ProtocolVersions.java) (MCP Java SDK)
+
+### 專案文檔
+- `CONTEXT.md` — 域詞表與設計原理
+- `docs/adr/0001` 至 `docs/adr/0010` — 架構決策記錄
+- `README.md` — 概述與啟動指南
+
+### 依賴版本查詢
+- [Spring Boot 4.1.x Support](https://spring.io/projects/spring-boot#support)
+- [Java 25 Release Notes](https://www.oracle.com/java/technologies/javase-jdk25-relnotes.html)
+- [Java SE Support Roadmap](https://www.oracle.com/java/technologies/java-se-support-roadmap.html)
+
+### 原始碼檔案 (本評審引用)
+- `src/main/java/io/github/demianli/projectmcp/tool/IssueTools.java` — Tool 宣告
+- `src/main/java/io/github/demianli/projectmcp/tool/ToolResults.java` — 成功/失敗格式
+- `src/main/java/io/github/demianli/projectmcp/gh/GhCli.java` — 子進程管理、超時、failure path
+- `src/main/resources/application.yml` — 日誌與 web 配置
+
+---
+
+**評審完成日期**：2026-09-08
+
+**評審員**：Claude Code (Haiku 4.5)
+
+**下一步**：提交本評審至 ADR-0011（若專案繼續演進）或商用部署決策會議。
