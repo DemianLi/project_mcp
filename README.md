@@ -110,6 +110,10 @@ that write itself, which it decided against.
 
 ## Documentation
 
+- [docs/architecture-tour.html](./docs/architecture-tour.html) — a plain-language tour of
+  the whole Server on one page: what it sits between, the five Tools, the single pipe out,
+  the five things it says when it breaks, and where it is actually wrong. A snapshot — its
+  line counts are measured, and pinned to the commit named in its footer
 - [CONTEXT.md](./CONTEXT.md) — domain glossary: the precise meaning of Server, Client,
   Inspector, Tool, Resource and the transports
 - [AGENTS.md](./AGENTS.md) — branch strategy and the configuration AI agents read

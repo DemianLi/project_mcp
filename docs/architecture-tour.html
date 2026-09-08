@@ -1,0 +1,627 @@
+<title>五个工具，一根管子</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+
+<style>
+:root{
+  --paper:#F1F3EE;
+  --panel:#FBFCFA;
+  --ink:#171C19;
+  --ink-soft:#5A6359;
+  --ink-faint:#8B948A;
+  --rule:#C9CFC5;
+  --rule-soft:#DFE3DB;
+  --pipe:#2A3BA0;
+  --pipe-wash:#E4E7F5;
+  --warn:#A76B08;
+  --warn-wash:#F6EDDC;
+  --alert:#96331F;
+  --alert-wash:#F6E5E0;
+  --ok:#2F6B45;
+
+  --font-display:"Archivo","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --font-body:"Newsreader","Songti SC","Noto Serif SC",Georgia,serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+
+  --maxw:940px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#141712;
+    --panel:#1C201A;
+    --ink:#E7EAE2;
+    --ink-soft:#A3AC9F;
+    --ink-faint:#727B70;
+    --rule:#39412F;
+    --rule-soft:#2A3025;
+    --pipe:#94A3EE;
+    --pipe-wash:#232842;
+    --warn:#DFA741;
+    --warn-wash:#332815;
+    --alert:#E08A72;
+    --alert-wash:#341E17;
+    --ok:#7FBF95;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141712;
+  --panel:#1C201A;
+  --ink:#E7EAE2;
+  --ink-soft:#A3AC9F;
+  --ink-faint:#727B70;
+  --rule:#39412F;
+  --rule-soft:#2A3025;
+  --pipe:#94A3EE;
+  --pipe-wash:#232842;
+  --warn:#DFA741;
+  --warn-wash:#332815;
+  --alert:#E08A72;
+  --alert-wash:#341E17;
+  --ok:#7FBF95;
+}
+
+*{box-sizing:border-box;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--font-display);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px 96px;}
+
+/* ---------- masthead ---------- */
+.mast{padding:72px 0 40px;}
+.eyebrow{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ink-faint);margin:0 0 20px;
+}
+h1{
+  font-family:var(--font-display);font-weight:800;
+  font-size:clamp(40px,7.5vw,72px);line-height:1.02;letter-spacing:-.02em;
+  margin:0;text-wrap:balance;
+}
+h1 em{font-style:normal;color:var(--pipe);}
+.deck{
+  font-family:var(--font-body);font-size:clamp(17px,2.2vw,20px);
+  line-height:1.65;color:var(--ink-soft);max-width:34em;margin:22px 0 0;
+}
+
+.facts{
+  display:flex;flex-wrap:wrap;gap:0;margin-top:36px;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+}
+.fact{
+  flex:1 1 140px;padding:16px 20px 14px;
+  border-right:1px solid var(--rule-soft);
+}
+.fact:last-child{border-right:0;}
+.fact b{
+  display:block;font-family:var(--font-mono);font-weight:500;
+  font-size:26px;line-height:1;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;
+}
+.fact span{
+  display:block;margin-top:7px;font-size:12px;color:var(--ink-faint);
+  letter-spacing:.02em;
+}
+
+/* ---------- the spine ---------- */
+.spine{position:relative;padding-left:44px;margin-top:64px;}
+.spine::before{
+  content:"";position:absolute;left:11px;top:6px;bottom:0;
+  width:2px;background:var(--rule);
+}
+section{position:relative;padding-bottom:64px;}
+section::before{
+  content:"";position:absolute;left:-44px;top:9px;
+  width:24px;height:24px;border-radius:50%;
+  background:var(--paper);border:2px solid var(--pipe);
+}
+section > h2{
+  font-family:var(--font-display);font-weight:800;
+  font-size:clamp(23px,3.4vw,30px);letter-spacing:-.015em;line-height:1.2;
+  margin:0 0 6px;text-wrap:balance;
+}
+.sub{
+  font-family:var(--font-body);color:var(--ink-soft);
+  font-size:16px;margin:0 0 26px;max-width:38em;
+}
+p{font-family:var(--font-body);}
+
+/* ---------- plain chain ---------- */
+.chain{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;}
+.chain-item{
+  flex:1 1 150px;background:var(--panel);
+  border:1px solid var(--rule);padding:16px 16px 18px;
+}
+.chain-item.hero{border-color:var(--pipe);border-width:2px;}
+.chain-role{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-faint);
+}
+.chain-name{font-weight:600;font-size:17px;margin-top:8px;letter-spacing:-.01em;}
+.chain-say{font-family:var(--font-body);font-size:14px;color:var(--ink-soft);margin-top:6px;line-height:1.5;}
+.chain-arrow{
+  align-self:center;font-family:var(--font-mono);color:var(--ink-faint);
+  font-size:15px;flex:0 0 auto;
+}
+
+/* ---------- tools ---------- */
+.tools{border-top:1px solid var(--rule);}
+.tool{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;
+  gap:6px 18px;align-items:start;
+  padding:18px 0 17px;border-bottom:1px solid var(--rule-soft);
+}
+.tool-name{
+  font-family:var(--font-mono);font-size:15px;font-weight:500;
+  color:var(--pipe);letter-spacing:-.01em;word-break:break-all;
+}
+.tool-say{
+  grid-column:1/2;font-family:var(--font-body);font-size:15px;
+  color:var(--ink);line-height:1.55;
+}
+.tool-args{grid-column:1/2;display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+.arg{
+  font-family:var(--font-mono);font-size:11px;padding:2px 7px;
+  border:1px solid var(--rule);color:var(--ink-soft);white-space:nowrap;
+}
+.arg.opt{border-style:dashed;color:var(--ink-faint);}
+.badge{
+  grid-row:1/2;grid-column:2/3;justify-self:end;
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 8px;white-space:nowrap;
+}
+.badge.read{background:var(--pipe-wash);color:var(--pipe);}
+.badge.write{background:var(--alert-wash);color:var(--alert);}
+.legend{
+  margin-top:14px;font-family:var(--font-mono);font-size:11px;
+  color:var(--ink-faint);letter-spacing:.02em;
+}
+
+/* ---------- figure ---------- */
+figure{margin:0;}
+.fig{
+  background:var(--panel);border:1px solid var(--rule);
+  padding:22px 20px 16px;overflow-x:auto;
+}
+.fig svg{display:block;width:100%;min-width:560px;height:auto;}
+figcaption{
+  font-family:var(--font-body);font-size:14px;color:var(--ink-soft);
+  margin-top:12px;line-height:1.55;
+}
+.svg-lbl{font-family:"IBM Plex Mono",monospace;font-size:11px;}
+.svg-title{font-family:"Archivo","PingFang SC",sans-serif;font-size:13px;font-weight:600;}
+.svg-note{font-family:"Archivo","PingFang SC",sans-serif;font-size:11px;}
+
+/* ---------- remedy ---------- */
+.remedies{display:grid;gap:8px;}
+.remedy{
+  display:grid;grid-template-columns:190px minmax(0,1fr);gap:16px;
+  align-items:baseline;padding:12px 14px;background:var(--panel);
+  border-left:3px solid var(--rule);
+}
+.remedy.r1{border-left-color:var(--ok);}
+.remedy.r2{border-left-color:var(--warn);}
+.remedy.r3{border-left-color:var(--pipe);}
+.remedy.r4{border-left-color:var(--alert);}
+.remedy.r5{border-left-color:var(--ink-faint);}
+.remedy code{
+  font-family:var(--font-mono);font-size:12.5px;font-weight:500;
+  letter-spacing:-.01em;word-break:break-all;
+}
+.remedy span{font-family:var(--font-body);font-size:14.5px;color:var(--ink-soft);line-height:1.5;}
+@media (max-width:600px){.remedy{grid-template-columns:1fr;gap:4px;}}
+
+/* ---------- mass bar ---------- */
+.mass{display:flex;height:64px;border:1px solid var(--rule);overflow:hidden;}
+.mass div{
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums;
+  border-right:1px solid var(--rule);overflow:hidden;white-space:nowrap;
+}
+.mass div:last-child{border-right:0;}
+.m-code{background:var(--pipe);color:#FBFCFA;}
+.m-cmt{background:var(--pipe-wash);color:var(--pipe);}
+.m-test{background:var(--panel);color:var(--ink-soft);}
+.m-doc{background:var(--warn-wash);color:var(--warn);}
+.mass-key{
+  display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;
+  font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);
+  font-variant-numeric:tabular-nums;
+}
+.mass-key i{
+  display:inline-block;width:9px;height:9px;margin-right:6px;
+  border:1px solid var(--rule);vertical-align:baseline;
+}
+
+/* ---------- flaws ---------- */
+.flaws{display:grid;gap:0;border-top:1px solid var(--rule);}
+.flaw{
+  padding:20px 0 19px;border-bottom:1px solid var(--rule-soft);
+  display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;
+}
+.sev{
+  grid-row:1/3;align-self:start;margin-top:3px;
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 7px;white-space:nowrap;
+}
+.sev.a{background:var(--alert-wash);color:var(--alert);}
+.sev.b{background:var(--warn-wash);color:var(--warn);}
+.sev.c{background:var(--rule-soft);color:var(--ink-soft);}
+.flaw h3{
+  margin:0;font-family:var(--font-display);font-weight:600;
+  font-size:17px;letter-spacing:-.01em;line-height:1.35;
+}
+.flaw p{margin:6px 0 0;font-size:15px;color:var(--ink-soft);line-height:1.6;}
+.flaw .says{
+  margin-top:9px;padding-left:12px;border-left:2px solid var(--rule);
+  font-family:var(--font-body);font-size:13.5px;color:var(--ink-faint);
+  line-height:1.55;
+}
+.flaw code,.sub code,p code{
+  font-family:var(--font-mono);font-size:.86em;
+  background:var(--rule-soft);padding:1px 4px;
+}
+
+/* ---------- closing ---------- */
+.kicker{
+  margin-top:8px;padding:28px 26px;border:2px solid var(--pipe);
+  background:var(--panel);
+}
+.kicker p{
+  margin:0;font-family:var(--font-body);font-size:19px;line-height:1.6;
+  max-width:32em;
+}
+.kicker p + p{margin-top:14px;font-size:15px;color:var(--ink-soft);}
+
+footer{
+  margin-top:56px;padding-top:20px;border-top:1px solid var(--rule);
+  font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);
+  line-height:1.8;
+}
+
+@media (max-width:640px){
+  .spine{padding-left:30px;}
+  .spine::before{left:7px;}
+  section::before{left:-30px;width:16px;height:16px;top:11px;}
+  .tool{grid-template-columns:1fr;}
+  .badge{grid-row:auto;grid-column:1/2;justify-self:start;}
+}
+@media (prefers-reduced-motion:no-preference){
+  a{transition:color .15s ease;}
+}
+a{color:var(--pipe);}
+a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pipe);outline-offset:2px;}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <p class="eyebrow">project_mcp · 架构导览</p>
+    <h1>五个工具，<br><em>一根管子</em></h1>
+    <p class="deck">
+      这是一个让 AI 模型能读写 GitHub issue 的小程序。它自己不会上网——它只会做一件事：
+      在你的电脑上敲 <code style="font-family:var(--font-mono);font-size:.85em">gh</code> 这个命令行工具，然后把结果翻译回去。
+      整个系统就是这一根管子，以及围着它写的一大堆规矩。
+    </p>
+
+    <div class="facts">
+      <div class="fact"><b>5</b><span>个 Tool</span></div>
+      <div class="fact"><b>1</b><span>条通往 GitHub 的路</span></div>
+      <div class="fact"><b>1,869</b><span>行正文代码</span></div>
+      <div class="fact"><b>10</b><span>份 ADR 决策记录</span></div>
+    </div>
+  </header>
+
+  <div class="spine">
+
+    <!-- 1 -->
+    <section>
+      <h2>它站在谁和谁之间</h2>
+      <p class="sub">四个角色，一条直线。中间那个才是这份代码。</p>
+
+      <div class="chain">
+        <div class="chain-item">
+          <div class="chain-role">Client</div>
+          <div class="chain-name">AI 模型</div>
+          <div class="chain-say">想知道「这个仓库有哪些 issue」，但它没有手。</div>
+        </div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-item hero">
+          <div class="chain-role">Server</div>
+          <div class="chain-name">这个程序</div>
+          <div class="chain-say">听懂问题，翻成命令，再把回答整理成规整的 JSON。</div>
+        </div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-item">
+          <div class="chain-role">子进程</div>
+          <div class="chain-name">gh</div>
+          <div class="chain-say">GitHub 官方命令行。密码、登录、网络，全是它的事。</div>
+        </div>
+        <div class="chain-arrow">→</div>
+        <div class="chain-item">
+          <div class="chain-role">远端</div>
+          <div class="chain-name">GitHub</div>
+          <div class="chain-say">真正存着 issue 的地方。</div>
+        </div>
+      </div>
+
+      <p style="font-size:15px;color:var(--ink-soft);margin:20px 0 0;max-width:38em;">
+        关键在第三格：这个程序<strong style="color:var(--ink)">从来不自己联网</strong>，也从来不碰你的
+        token。它只会启动 <code>gh</code>、把话喊进去、把回话捞出来。密码这件事因此根本不属于它。
+      </p>
+    </section>
+
+    <!-- 2 -->
+    <section>
+      <h2>它能做的五件事</h2>
+      <p class="sub">四件是读，一件是写。所有工具的头两个参数都一样：仓库归谁、叫什么。</p>
+
+      <div class="tools">
+        <div class="tool">
+          <div class="tool-name">list_issues</div>
+          <span class="badge read">读</span>
+          <div class="tool-say">列出一个仓库的 issue。可以按状态和标签筛。</div>
+          <div class="tool-args">
+            <span class="arg">owner</span><span class="arg">repo</span>
+            <span class="arg opt">state</span><span class="arg opt">labels</span><span class="arg opt">limit</span>
+          </div>
+        </div>
+
+        <div class="tool">
+          <div class="tool-name">get_issue</div>
+          <span class="badge read">读</span>
+          <div class="tool-say">看某一条 issue 的正文和状态。给它一个 pull request 的号码会被挡回去。</div>
+          <div class="tool-args">
+            <span class="arg">owner</span><span class="arg">repo</span><span class="arg">number</span>
+          </div>
+        </div>
+
+        <div class="tool">
+          <div class="tool-name">list_labels</div>
+          <span class="badge read">读</span>
+          <div class="tool-say">列出仓库的标签。大仓库里翻页几乎没用，得用 <code>search</code> 搜。</div>
+          <div class="tool-args">
+            <span class="arg">owner</span><span class="arg">repo</span>
+            <span class="arg opt">limit</span><span class="arg opt">search</span>
+          </div>
+        </div>
+
+        <div class="tool">
+          <div class="tool-name">list_issue_comments</div>
+          <span class="badge read">读</span>
+          <div class="tool-say">读一条 issue 底下的讨论。一次 100 条，从最新的一端往回翻。</div>
+          <div class="tool-args">
+            <span class="arg">owner</span><span class="arg">repo</span><span class="arg">number</span>
+            <span class="arg opt">limit</span><span class="arg opt">cursor</span>
+          </div>
+        </div>
+
+        <div class="tool">
+          <div class="tool-name">add_issue_comment</div>
+          <span class="badge write">写</span>
+          <div class="tool-say">贴一条评论上去。<strong>唯一一个会改变外面世界的工具。</strong></div>
+          <div class="tool-args">
+            <span class="arg">owner</span><span class="arg">repo</span><span class="arg">number</span><span class="arg">body</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="legend">实线框 = 必填 &nbsp;·&nbsp; 虚线框 = 可选 &nbsp;·&nbsp; 共 21 个参数，其中 10 个是重复的 owner / repo</p>
+    </section>
+
+    <!-- 3 -->
+    <section>
+      <h2>为什么说是「一根管子」</h2>
+      <p class="sub">五个工具各写各的，但要出门只有一道门。这是整个设计里最要紧的一条规矩。</p>
+
+      <figure>
+        <div class="fig">
+          <svg viewBox="0 0 620 300" role="img" aria-label="五个 Tool 汇聚到 GhCli，再经由一个子进程通往 GitHub">
+            <!-- five tools -->
+            <g>
+              <rect x="8" y="14" width="108" height="26" fill="var(--panel)" stroke="var(--rule)"/>
+              <text x="62" y="31" text-anchor="middle" class="svg-lbl" fill="var(--ink-soft)">list_issues</text>
+              <rect x="8" y="46" width="108" height="26" fill="var(--panel)" stroke="var(--rule)"/>
+              <text x="62" y="63" text-anchor="middle" class="svg-lbl" fill="var(--ink-soft)">get_issue</text>
+              <rect x="8" y="78" width="108" height="26" fill="var(--panel)" stroke="var(--rule)"/>
+              <text x="62" y="95" text-anchor="middle" class="svg-lbl" fill="var(--ink-soft)">list_labels</text>
+              <rect x="8" y="110" width="108" height="26" fill="var(--panel)" stroke="var(--rule)"/>
+              <text x="62" y="127" text-anchor="middle" class="svg-lbl" fill="var(--ink-soft)">list_comments</text>
+              <rect x="8" y="142" width="108" height="26" fill="var(--alert-wash)" stroke="var(--alert)"/>
+              <text x="62" y="159" text-anchor="middle" class="svg-lbl" fill="var(--alert)">add_comment</text>
+            </g>
+
+            <!-- funnel lines -->
+            <g stroke="var(--rule)" fill="none" stroke-width="1.5">
+              <path d="M116 27 C 150 27, 160 84, 196 91"/>
+              <path d="M116 59 C 150 59, 165 86, 196 91"/>
+              <path d="M116 91 L 196 91"/>
+              <path d="M116 123 C 150 123, 165 96, 196 91"/>
+            </g>
+            <path d="M116 155 C 150 155, 160 98, 196 91" stroke="var(--alert)" fill="none" stroke-width="1.5"/>
+
+            <!-- GhCli -->
+            <rect x="198" y="52" width="150" height="78" fill="var(--pipe)"/>
+            <text x="273" y="76" text-anchor="middle" class="svg-title" fill="#FBFCFA">GhCli</text>
+            <text x="273" y="95" text-anchor="middle" class="svg-note" fill="#D6DBF2">起进程 · 抽干管道</text>
+            <text x="273" y="112" text-anchor="middle" class="svg-note" fill="#D6DBF2">超时 · 读退出码</text>
+
+            <!-- to subprocess -->
+            <path d="M348 91 L 400 91" stroke="var(--pipe)" stroke-width="2" fill="none"/>
+            <polygon points="400,86 412,91 400,96" fill="var(--pipe)"/>
+
+            <rect x="414" y="66" width="100" height="50" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/>
+            <text x="464" y="88" text-anchor="middle" class="svg-lbl" fill="var(--ink)">gh</text>
+            <text x="464" y="104" text-anchor="middle" class="svg-note" fill="var(--ink-faint)">子进程</text>
+
+            <path d="M514 91 L 556 91" stroke="var(--rule)" stroke-width="1.5" fill="none"/>
+            <text x="586" y="88" text-anchor="middle" class="svg-note" fill="var(--ink-soft)">GitHub</text>
+            <text x="586" y="103" text-anchor="middle" class="svg-note" fill="var(--ink-faint)">☁</text>
+
+            <!-- stderr return path -->
+            <path d="M414 116 C 380 150, 320 150, 273 150" stroke="var(--warn)" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>
+            <polygon points="278,145 266,150 278,155" fill="var(--warn)"/>
+            <rect x="198" y="164" width="150" height="46" fill="var(--warn-wash)" stroke="var(--warn)"/>
+            <text x="273" y="183" text-anchor="middle" class="svg-title" fill="var(--warn)">GhStderr</text>
+            <text x="273" y="200" text-anchor="middle" class="svg-note" fill="var(--warn)">10 行对照表</text>
+
+            <text x="273" y="234" text-anchor="middle" class="svg-note" fill="var(--ink-soft)">出错时：把 gh 的抱怨翻成一句「你该怎么办」</text>
+
+            <!-- rule callout -->
+            <line x1="8" y1="256" x2="612" y2="256" stroke="var(--rule)"/>
+            <text x="8" y="278" class="svg-note" fill="var(--ink)">规矩：「gh 会怎么坏」这件知识只住在这一格里。</text>
+            <text x="8" y="293" class="svg-note" fill="var(--ink-faint)">五个 Tool 一行相关代码都没有，加第六个也不用写。</text>
+          </svg>
+        </div>
+        <figcaption>
+          左边加工具很便宜，右边这根管子很贵——所以贵的东西只有一份。
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- 4 -->
+    <section>
+      <h2>坏掉的时候说什么</h2>
+      <p class="sub">
+        这个系统不按「错在哪」分类，按「<strong style="color:var(--ink)">你现在该做什么</strong>」分类。
+        因为读的人是模型，模型需要的是下一步动作，不是病因。一共只有五种回答。
+      </p>
+
+      <div class="remedies">
+        <div class="remedy r1"><code>RETRY</code><span>等一下再试一次。比如撞到限流、网络不通。</span></div>
+        <div class="remedy r2"><code>CHECK_BEFORE_RETRY</code><span>先去查一下写进去没有，再决定要不要重来。只有那个写工具会给出这个。</span></div>
+        <div class="remedy r3"><code>FIX_REQUEST</code><span>你问的东西不对。号码不存在、仓库名写错了、这个仓库关掉了 issue。</span></div>
+        <div class="remedy r4"><code>ASK_OPERATOR</code><span>模型自己解决不了，得找人。没装 gh、没登录、登录了但没权限。</span></div>
+        <div class="remedy r5"><code>UNKNOWN</code><span>看不懂 gh 在抱怨什么。原话原样奉还，不猜。</span></div>
+      </div>
+
+      <p style="font-size:15px;color:var(--ink-soft);margin:22px 0 0;max-width:38em;">
+        中间那张 10 行的对照表只认识 <code>gh</code> 说过的几种话，而且每一行都得附上一句
+        <strong style="color:var(--ink)">真的见过的</strong>错误原文当证据。没见过的措辞不许写进去——
+        猜一句进去，就等于让系统对着一个它没验证过的情况，自信地给出一个可能是错的建议。
+      </p>
+    </section>
+
+    <!-- 5 -->
+    <section>
+      <h2>真正的代码只占七分之一</h2>
+      <p class="sub">把整个仓库按行数摊开，会看到一件挺极端的事。</p>
+
+      <div class="mass" role="img" aria-label="行数构成（均已扣除空行）：正文逻辑 882 行，正文注释 987 行，测试 2199 行，文档 1989 行">
+        <div class="m-code" style="flex:882 1 0">15%</div>
+        <div class="m-cmt"  style="flex:987 1 0">16%</div>
+        <div class="m-test" style="flex:2199 1 0">36%</div>
+        <div class="m-doc"  style="flex:1989 1 0">33%</div>
+      </div>
+      <div class="mass-key">
+        <span><i style="background:var(--pipe)"></i>正文逻辑 882 行</span>
+        <span><i style="background:var(--pipe-wash)"></i>正文注释 987 行</span>
+        <span><i style="background:var(--panel)"></i>测试 2,199 行</span>
+        <span><i style="background:var(--warn-wash)"></i>文档 1,989 行</span>
+      </div>
+
+      <p style="font-size:15px;color:var(--ink-soft);margin:22px 0 0;max-width:38em;">
+        六千行里，真正在干活的只有八百多。正文里<strong style="color:var(--ink)">注释比逻辑还多</strong>，
+        另外还有十份决策记录、两万多字。
+        这到底是臃肿还是严谨，取决于你问谁——但数字本身没有争议。
+      </p>
+    </section>
+
+    <!-- 6 -->
+    <section>
+      <h2>哪里确实不对劲</h2>
+      <p class="sub">按「会不会咬到人」排，不按好不好看排。多数问题项目自己已经记下来了。</p>
+
+      <div class="flaws">
+
+        <div class="flaw">
+          <span class="sev a">会咬人</span>
+          <h3>贴一条评论要打两通电话，中间没保险</h3>
+          <p>
+            先问「这条 issue 的内部编号是多少」，再拿编号去贴。两步之间如果 issue 被关掉、被锁上，
+            失败发生在第二步。更糟的是：第二步超时的时候，程序<strong>不知道评论到底贴进去没有</strong>。
+          </p>
+          <div class="says">项目的处理：不重试，改成告诉模型「先去查一下有没有」。这是那个第二种回答存在的唯一理由。</div>
+        </div>
+
+        <div class="flaw">
+          <span class="sev a">会咬人</span>
+          <h3>看不懂的错误，就变成一句「我不认识」</h3>
+          <p>
+            对照表只有 10 行。任何 <code>gh</code> 没被记录过的抱怨都会掉到 <code>UNKNOWN</code>，
+            模型拿到一句原始英文报错，得自己猜怎么办。表能认多少，取决于有人真的撞见过多少。
+          </p>
+          <div class="says">这是设计上的取舍，不是遗漏：宁可说不知道，也不给一个自信的错答案。</div>
+        </div>
+
+        <div class="flaw">
+          <span class="sev b">别扭</span>
+          <h3>那根管子里写死了一个工具的名字</h3>
+          <p>
+            管子的说明文档写着「所有工具共用同一套规矩，不含任何针对单个工具的代码」——
+            然后紧接着就有一句写死的提示语，里面点名了 <code>list_issue_comments</code>。
+            改名字不会有任何编译错误，只会让那句话悄悄变成谎话。
+          </p>
+          <div class="says">项目自己承认了：第二个写工具出现时就是该改的时候，现在还不到。</div>
+        </div>
+
+        <div class="flaw">
+          <span class="sev b">别扭</span>
+          <h3>五个工具，十个一模一样的参数</h3>
+          <p>
+            <code>owner</code> 和 <code>repo</code> 在每个工具上重复一遍，21 个参数里占了 10 个。
+            另外，GraphQL 的查询语句是手写在这个程序里的——GitHub 改了 schema，这里就得跟着改。
+          </p>
+        </div>
+
+        <div class="flaw">
+          <span class="sev b">别扭</span>
+          <h3>大仓库基本翻不动</h3>
+          <p>
+            每次最多 100 条，排序改不了，而且砍掉的永远是最旧的那些。
+            读一条长讨论串是「每 100 条一次调用」，而且只能从最新的一头往回翻。
+          </p>
+        </div>
+
+        <div class="flaw">
+          <span class="sev c">够不着</span>
+          <h3>有一种失败，这个项目量不出来</h3>
+          <p>
+            issue 被「锁定」时会发生什么，表里没有对应的行。今天实测过：锁对仓库主人根本不生效，
+            而没权限的身份在锁生效之前就已经被拒了。要撞到这一格，需要第二个 GitHub 账号。
+          </p>
+          <div class="says">从「还没量」改写成了「够不着」——这不是待办事项，是一条边界。</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section>
+      <h2>一句话总结</h2>
+      <div class="kicker">
+        <p>
+          五个很薄的工具，一根很厚的管子，外加一本厚得离谱的说明书。
+        </p>
+        <p>
+          薄和厚都是故意的：工具薄，所以加第六个几乎不花钱；管子厚，所以坏掉的方式只需要想明白一次。
+          说明书厚，是因为这个项目有条铁律——<strong style="color:var(--ink)">凡是没亲眼见过的，不许写进代码里当事实</strong>。
+          代价就是上面那张图：真正干活的代码只占七分之一。
+        </p>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    行数与参数实测于 <code>8ac7c76</code>：四块口径一致，均已扣除空行；文档一块计入仓库里全部 .md（含 README、CONTEXT、AGENTS）。<br>
+    工具与失败分类取自 src/main/java 与 docs/adr/0001–0010。<br>
+    「锁定」一格的结论来自 2026-09-07 对 sandbox 的一次实测，已记入 ADR-0009 的 Amendments。
+  </footer>
+
+</div>
