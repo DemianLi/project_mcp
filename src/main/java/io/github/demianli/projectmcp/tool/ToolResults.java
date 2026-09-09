@@ -39,6 +39,13 @@ import tools.jackson.databind.json.JsonMapper;
  * no label name reaches the log file, because a log that mirrors GitHub's content is a
  * disclosure surface that exists outside the protocol entirely.
  *
+ * <p><strong>Three ways a call ends, not two.</strong> It returns a value, or it throws a
+ * {@link ToolFailure} and the Client is told what to do about it — or an {@link Error}
+ * escapes, and there is nothing to tell anyone. The third branch writes the call's line and
+ * halts the process, because under stdio a Server that has died is one a Client can restart
+ * and a Server that is alive and mute is one it can only time out against. ADR-0015 carries
+ * the measurement.
+ *
  * <p><strong>What a Tool can still get wrong.</strong> Not forgetting to catch — that no
  * longer compiles. What is left is doing the work <em>outside</em> the lambda: a
  * {@code ToolFailure} thrown out of a Tool method is caught by Spring AI's own callback,
@@ -120,6 +127,25 @@ final class ToolResults {
             end(start, "error");
             log.info("{} failed", tool);
             return failure(e);
+        } catch (Error e) {
+            // Not a failure this Server can report: an Error means the process itself is no
+            // longer trustworthy, and building a CallToolResult to say so needs the memory
+            // that has just run out.
+            //
+            // Measured, which is why this branch exists. A response large enough to exhaust
+            // the heap left the Client with no answer of any kind -- no isError, no Remedy,
+            // not even a protocol error -- and left this process alive, still holding the
+            // pipe, after its stdin had closed. A stdio Client can restart a Server that
+            // died. It can only wait out its own timeout on one that is running and will
+            // never answer, and the abandoned process stays for as long as the machine does.
+            //
+            // So: leave a line saying which call it was, and stop. halt rather than exit
+            // because shutdown hooks are more of the untrustworthy process; the log file's
+            // appender flushes on write, so the line is already on disk.
+            end(start, "fatal");
+            log.error("{} died", tool, e);
+            Runtime.getRuntime().halt(70);
+            throw e;                        // unreachable; the compiler wants a way out
         } finally {
             for (String key : KEYS) {
                 MDC.remove(key);

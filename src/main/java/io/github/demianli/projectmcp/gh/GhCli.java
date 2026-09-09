@@ -63,6 +63,32 @@ public class GhCli {
      */
     static final int TIMEOUT_SECONDS = 30;
 
+    /**
+     * The most this Server will accept from one {@code gh} call.
+     *
+     * <p>Eight megabytes, and both ends of that were measured rather than guessed.
+     *
+     * <p><strong>Above.</strong> The largest response GitHub's own shapes can produce here is
+     * a full page of comments at its documented ceiling — 100 nodes of 65,536 characters —
+     * which came back at 6.57 MB and crossed the wire in 64 ms. Eight leaves that untouched.
+     * A limit that ordinary traffic can reach is a limit that gets raised until it means
+     * nothing.
+     *
+     * <p><strong>Below.</strong> Driving {@code get_issue} against manufactured bodies on a
+     * 256 MB heap: 40 MB passed through whole and was delivered to the Client; 60 MB threw
+     * {@code OutOfMemoryError}. The break sits near a fifth of the heap, because the bytes
+     * are decoded to a {@code String}, parsed to a tree, mapped to records and serialised
+     * back to JSON, each step holding its own copy. Eight is far enough below any plausible
+     * heap's fifth that <em>this</em> limit is reached first — which is the ordering that
+     * matters, since this one comes back as a {@link Remedy} and an {@code OutOfMemoryError}
+     * comes back as nothing at all.
+     *
+     * <p>Not configurable, for the reason {@link #TIMEOUT_SECONDS} and {@code Limits.MAX}
+     * are not: every bound in this Server is a constant with an ADR behind it. See
+     * {@code docs/adr/0015-a-ceiling-on-one-response.md}.
+     */
+    static final int MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+
     private final String executable;
     private final int timeoutSeconds;
 
@@ -178,13 +204,21 @@ public class GhCli {
                         "", null));
             }
 
-            String out = new String(stdout.get(), StandardCharsets.UTF_8);
+            byte[] out = stdout.get();
             String err = new String(stderr.get(), StandardCharsets.UTF_8).strip();
 
+            // Before the size check. A `gh` that failed and also wrote a great deal has a
+            // reason in its stderr, and that reason is worth more to a caller than the
+            // number of bytes it managed to produce on the way to it.
             if (process.exitValue() != 0) {
                 throw failure(command, GhStderr.classify(err));
             }
-            return out;
+            if (out.length > MAX_RESPONSE_BYTES) {
+                throw failure(command, tooLarge(out.length));
+            }
+            // Decoded only once the size is known to be sane: this is where the payload
+            // stops being bytes and starts being amplified. See MAX_RESPONSE_BYTES.
+            return new String(out, StandardCharsets.UTF_8);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             kill(process);
@@ -205,6 +239,34 @@ public class GhCli {
                             + (write ? CHECK_INSTEAD_OF_RETRYING : ""),
                     String.valueOf(e.getCause()), null));
         }
+    }
+
+    /**
+     * The failure for a response this Server will not carry.
+     *
+     * <p>{@code FIX_REQUEST} for every Tool, and the sentence has to serve two callers whose
+     * available action differs. A {@code list_*} caller can ask for fewer items or page with
+     * a cursor. A {@code get_issue} caller cannot make the issue smaller — but the action is
+     * still theirs, and it is to stop asking this Tool for this issue. Neither is
+     * {@code UNKNOWN}: that Remedy means this Server does not recognise the failure, and this
+     * is a failure it invented, named and measured in bytes.
+     *
+     * <p>The sentence is written once, here, rather than per Tool. This class knows how many
+     * bytes arrived and does not know which Tool asked — and giving it that knowledge would
+     * undo the boundary the whole package rests on, that how {@code gh} fails is this
+     * package's business and no Tool's. ADR-0015 records the cost.
+     *
+     * <p>{@code stderr} is empty because there was none: {@code gh} succeeded. This is the
+     * fourth failure this Server invents rather than inherits.
+     */
+    private static ToolFailure tooLarge(int bytes) {
+        return new ToolFailure(Remedy.FIX_REQUEST,
+                "GitHub returned " + bytes + " bytes, over this Server's limit of "
+                        + MAX_RESPONSE_BYTES + ". Nothing was lost and nothing was changed; "
+                        + "the response was refused rather than carried. If this Tool takes "
+                        + "a `limit`, ask for fewer items, or page with a cursor. If it does "
+                        + "not, this Tool cannot return this particular subject.",
+                "", null);
     }
 
     /**

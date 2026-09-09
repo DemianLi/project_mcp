@@ -56,8 +56,13 @@ final class LaunchedServer {
 
     private static McpSyncClient onPath(String path, Duration requestTimeout, String classpath,
             String[] appArgs) {
-        var args = new ArrayList<>(List.of(
-                "-cp", classpath,
+        return onPath(path, requestTimeout, classpath, new String[0], appArgs);
+    }
+
+    private static McpSyncClient onPath(String path, Duration requestTimeout, String classpath,
+            String[] jvmArgs, String[] appArgs) {
+        var args = new ArrayList<>(List.of(jvmArgs));
+        args.addAll(List.of("-cp", classpath,
                 "io.github.demianli.projectmcp.ProjectMcpApplication"));
         args.addAll(List.of(appArgs));
 
@@ -120,6 +125,21 @@ final class LaunchedServer {
             throws IOException {
         FakeGh.writing(dir, ghBody);
         return onPath(dir + ":/usr/bin:/bin", DEFAULT_REQUEST_TIMEOUT, withoutTestClasses(),
+                new String[] {"--logging.file.name=" + logFile});
+    }
+
+    /**
+     * A Server whose heap is too small for the work it is about to be given.
+     *
+     * <p>The only way to reach {@code ToolResults}' fatal branch from the wire. What that
+     * branch is for is a Server that has run out of memory and must not go on pretending to
+     * be a Server, and the only honest way to test it is to run one out of memory.
+     */
+    static McpSyncClient withGhAndHeap(Path dir, String ghBody, String heap, Path logFile)
+            throws IOException {
+        FakeGh.writing(dir, ghBody);
+        return onPath(dir + ":/usr/bin:/bin", DEFAULT_REQUEST_TIMEOUT, withoutTestClasses(),
+                new String[] {"-Xmx" + heap},
                 new String[] {"--logging.file.name=" + logFile});
     }
 
