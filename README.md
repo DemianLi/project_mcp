@@ -148,6 +148,11 @@ that write itself, which it decided against.
   six the specification states and five it never mentions but a customer asks about, each
   with the professional terms beside it. Written from this Server, including the places it
   is measurably not clean
+- [docs/deploying.md](./docs/deploying.md) — what a deployment has to provide and what it
+  has to decide: the identity every call shares, where `gh` looks for a credential and why
+  rotating it needs a restart in one arrangement and not the other, the conditions an image
+  has to satisfy in place of a Dockerfile nobody has built here, and the `gh` output that
+  reaches a model when a call fails
 - [CONTEXT.md](./CONTEXT.md) — domain glossary: the precise meaning of Server, Client,
   Inspector, Tool, Resource and the transports
 - [AGENTS.md](./AGENTS.md) — branch strategy and the configuration AI agents read

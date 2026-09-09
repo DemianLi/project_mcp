@@ -254,23 +254,34 @@ Stdio-only 意味著：
 
 ---
 
-### 2.3 OAuth 2.1 Authorization 層缺口
+### 2.3 OAuth 2.1 Authorization：不是缺口
 
-**規格要求** [2026-07-28 `basic/authorization.mdx`](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/basic/authorization/index.mdx)：
-- MCP servers 應支援 OAuth 2.1 流程 (若涉及用戶認證)
-- 資源服務器應驗證 access token
+> **2026-09-09 更正。** 本節原標題是「OAuth 2.1 Authorization 層缺口」，並把「應支援
+> OAuth 2.1 流程」當成規格要求。**那是誤讀，而且兩個 baseline 都誤讀。** 規格對 stdio
+> 傳輸的說法不是「應該做而沒做」，是「**不應該做**」。
 
-**本專案現狀**：
-- **認證完全外包給 `gh` CLI**
-- 不持有任何令牌、不驗證任何令牌
-- 借用 `gh` 的認證狀態
+**規格原文**（`2025-11-25` 與 `2026-07-28` 的 *Authorization* §Protocol Requirements
+一字不差）：
 
-**商用問題**：
-- 誰在部署時負責設定 `gh auth`? (操作員)
-- 多租戶場景如何隔離？(無法隔離 — 一個進程一個登錄)
-- 令牌輪換、撤銷、過期如何處理？(由 `gh` 自行管理)
+> Implementations using an STDIO transport **SHOULD NOT** follow this specification, and
+> instead retrieve credentials from the environment.
 
-**結論**：單租戶、內網部署可接受。**多租戶或 SaaS 部署 blocker**（見第 4 節）。
+整份 authorization 規格的適用範圍是 HTTP-based transports——開宗明義就寫著
+"This specification defines the authorization flow for HTTP-based transports"。一個 stdio
+Server 若真的在協議上收令牌並驗證，那是**偏離**規格而不是更貼近它。
+
+**本專案現狀**：認證完全外包給 `gh`，不持有也不驗證任何令牌，憑證從環境取得。**這正是
+規格對 stdio 指定的做法**，符合度是 ✓ 而不是缺口。
+
+**仍然成立的部署問題**（這些與 OAuth 無關，是「一個進程一個身份」的後果）：
+- 誰負責設定 `gh` 的認證？部署者。見 `docs/deploying.md`。
+- 多租戶如何隔離？無法——一個進程一個登錄，見 §4.1／§4.2。
+- 令牌輪換？**取決於憑證放在哪**：放環境變數要重啟 Server 進程（子行程繼承的是啟動時
+  固定的那份環境），放 `gh` 的設定檔則下一次呼叫就生效。這件事只有讀原始碼才看得出來，
+  已寫進 `docs/deploying.md`。
+
+**結論**：以 stdio 為前提，這一項不是缺口。**若哪天加上 Streamable HTTP，整份
+authorization 規格就一起進來，而那時是零實作。**
 
 ---
 
@@ -393,11 +404,19 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 - 依賴部署者「為每個租戶啟動一個 Server 副本」
 - 若強制單進程，無隔離手段
 
-**[規格依據]** 2025-11-25 Security Best Practices:
-- 伺服器應驗證客戶端身份（通常經由 OAuth）
-- 若無客戶端認證，伺服器應明確說明風險
+**[規格依據]** — **2026-09-09 更正，原文引錯了。** 原本寫「2025-11-25 Security Best
+Practices：伺服器應驗證客戶端身份（通常經由 OAuth）」。2025-11-25 底下**沒有**這份文件，
+也**沒有**這條要求：`docs/specification/2025-11-25/basic/` 只有 authorization、index、
+lifecycle、transports 四份，安全條款在 `index.mdx` 的 §Security and Trust & Safety，而且
+「取得明確同意」那幾條的對象是 **Host** 不是 Server。這一項是被發明出來的規格要求。
 
-本專案在 `README.md` 與 ADR 中說明了這一點，但部署文件缺。
+實際存在、而且對本專案生效的是 §Implementation Guidelines 那五條 **SHOULD**，其中第二條：
+
+> 2. Provide clear documentation of security implications
+
+——這正是 `docs/deploying.md` 存在的理由，也是這一節原本結語「部署文件缺」唯一站得住的
+部分。該缺口已補。**「一個進程一個身份」的風險本身完全不受影響**，它來自 ADR-0009 與這個
+Server 的形狀，不需要一條規格來背書。
 
 ### 4.3 Prompt Injection 與 GitHub 內容
 
@@ -615,13 +634,15 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 - **順帶修掉的一個外洩**：`add_issue_comment` 的 mutation 失敗時，整則留言內容會被寫進
   日誌檔。見 §3.2。
 
-#### P2: OAuth 2.1 整合文檔
-- **現狀**：文檔說明「外包給 `gh`」，無部署指南
-- **成本**：低 (寫文檔，補充 Dockerfile 範例)
-- **內容**：
-  - 如何在容器中設定 GH_TOKEN
-  - 令牌輪換策略
-  - 多租戶場景的風險警告
+#### ~~P2: OAuth 2.1 整合文檔~~ → 已完成（2026-09-09，`docs/deploying.md`）
+- **順帶更正**：本項原本的前提是「缺 OAuth」。查了規格原文後，stdio 傳輸下規格說的是
+  **SHOULD NOT** 走 authorization 那套、憑證從環境取得——所以那不是缺口。見 §2.3 的更正。
+- **沒有給 Dockerfile**，是刻意的：這台機器上 docker daemon 沒開，沒 build 過也沒跑過的
+  範例，價值低於它必須滿足的條件清單，而條件清單對 Dockerfile、systemd unit 與裸
+  `java -jar` 都適用。要 Dockerfile 的話，把 daemon 開起來就補。
+- **文件裡三件只有讀原始碼才知道的事**：令牌放環境變數要重啟才換得掉（`ProcessBuilder`
+  繼承的是啟動時固定的環境）；`gh` 必須在 PATH 上而且沒有 property 可以改；`gh` 寫到
+  stderr 的升級通知會在失敗時一起進到分類器與模型的視野。
 
 #### ~~P3: 監控指標 (Metrics)~~ → 已收成知情決策，見 ADR-0014
 - **現狀**：不做，且理由記名了。stdio 一桌一 process，計數器活不過那個 process，沒有端點
@@ -702,7 +723,7 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 ### 上線前改善（視商用目標）
 
 4. ~~**日誌結構化**~~：已完成（ECS，Boot 內建，ADR-0013）
-5. **OAuth 部署指南**：補充文檔
+5. ~~**OAuth 部署指南**~~：已完成（`docs/deploying.md`），且順帶更正了三處規格誤讀
 6. ~~**監控指標**~~：已收成「不做，以及誰該做」（ADR-0014）
 7. **輸出大小限制**：評估與實作
 8. **更新日誌**：記檄 timeout 政策、version 相容性
