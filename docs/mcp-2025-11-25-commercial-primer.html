@@ -1,0 +1,764 @@
+<title>MCP 商用門檻 2025-11-25</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600;700&family=Noto+Sans+TC:wght@400;500&family=Noto+Serif+TC:wght@700&display=swap">
+
+<style>
+:root{
+  --paper:#F4F6F4; --surface:#FFFFFF; --surface-2:#EDF1EE;
+  --ink:#12211F; --ink-2:#3A4C49; --muted:#66776F;
+  --rule:#D5DEDA; --rule-soft:#E4EAE7;
+  --accent:#0D6B60; --accent-soft:#E0EDE9;
+  --sig:#A63A25; --sig-soft:#F7E6E1;
+  --warn:#8F630D; --warn-soft:#F4EBD8;
+  --shadow:0 1px 2px rgba(18,33,31,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D1413; --surface:#141D1C; --surface-2:#1A2523;
+    --ink:#E7EEEA; --ink-2:#B6C5C0; --muted:#8CA29B;
+    --rule:#26332F; --rule-soft:#1E2A28;
+    --accent:#59C6B1; --accent-soft:#16302C;
+    --sig:#E5866A; --sig-soft:#3B211A;
+    --warn:#DBA841; --warn-soft:#332811;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D1413; --surface:#141D1C; --surface-2:#1A2523;
+  --ink:#E7EEEA; --ink-2:#B6C5C0; --muted:#8CA29B;
+  --rule:#26332F; --rule-soft:#1E2A28;
+  --accent:#59C6B1; --accent-soft:#16302C;
+  --sig:#E5866A; --sig-soft:#3B211A;
+  --warn:#DBA841; --warn-soft:#332811;
+  --shadow:none;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans","Noto Sans TC",system-ui,sans-serif;
+  font-size:16px; line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px 88px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+
+/* ---------- masthead ---------- */
+.masthead{padding:64px 0 40px;border-bottom:1px solid var(--rule)}
+.rev{
+  display:inline-flex;align-items:center;gap:10px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--accent);
+  border:1px solid var(--accent);border-radius:2px;padding:4px 10px;
+}
+h1{
+  font-family:"IBM Plex Serif","Noto Serif TC",Georgia,serif;
+  font-weight:700;font-size:clamp(30px,4.6vw,50px);line-height:1.24;
+  letter-spacing:-.005em;text-wrap:balance;margin:26px 0 0;max-width:19ch;
+}
+.lede{margin:22px 0 0;max-width:44ch;font-size:17.5px;color:var(--ink-2)}
+.lede strong{color:var(--ink);font-weight:600}
+
+/* ---------- keyword primer ---------- */
+.primer{
+  margin:38px 0 0;padding:26px 28px;background:var(--surface);
+  border:1px solid var(--rule);border-radius:3px;box-shadow:var(--shadow);
+}
+.primer h2{
+  font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  font-weight:500;margin:0 0 18px;font-family:"IBM Plex Mono",monospace;
+}
+.kw{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:2px 26px}
+.kw div{display:flex;gap:12px;align-items:baseline;padding:5px 0;font-size:15px;color:var(--ink-2)}
+.kw b{
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:500;
+  color:var(--ink);white-space:nowrap;min-width:82px;
+}
+.primer p{margin:20px 0 0;font-size:15px;color:var(--ink-2);max-width:60ch}
+
+/* ---------- part headers ---------- */
+.part{margin:74px 0 0;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.part-n{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.12em;
+  color:var(--paper);background:var(--ink);padding:3px 9px;border-radius:2px;
+}
+.part h2{
+  font-family:"IBM Plex Serif","Noto Serif TC",Georgia,serif;
+  font-size:26px;font-weight:700;margin:0;letter-spacing:-.005em;
+}
+.part-sub{margin:10px 0 0;color:var(--muted);font-size:15px;max-width:56ch}
+.part-rule{height:1px;background:var(--ink);opacity:.85;margin:20px 0 0}
+
+/* ---------- clauses ---------- */
+.clause{
+  display:grid;grid-template-columns:116px minmax(0,1fr) 214px;gap:0 30px;
+  padding:34px 0;border-bottom:1px solid var(--rule-soft);
+}
+.c-meta{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.c-no{
+  font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:400;
+  color:var(--muted);line-height:1;font-variant-numeric:tabular-nums;
+}
+.badge{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;
+  letter-spacing:.06em;padding:3px 8px;border-radius:2px;white-space:nowrap;
+}
+.b-mustnot{background:var(--sig);color:#fff}
+:root[data-theme="dark"] .b-mustnot{color:#20100C}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .b-mustnot{color:#20100C}}
+.b-must{background:var(--ink);color:var(--paper)}
+.b-should{border:1px solid var(--warn);color:var(--warn)}
+.b-kind{border:1px solid var(--ink-2);color:var(--ink-2)}
+.b-biz{border:1px solid var(--accent);color:var(--accent)}
+
+.c-body h3{
+  font-family:"IBM Plex Serif","Noto Serif TC",Georgia,serif;
+  font-size:23px;font-weight:600;line-height:1.4;margin:0 0 14px;
+  letter-spacing:-.003em;text-wrap:balance;
+}
+.c-body p{margin:0 0 13px}
+.c-body p:last-child{margin-bottom:0}
+.c-body code{
+  font-family:"IBM Plex Mono",monospace;font-size:.88em;
+  background:var(--surface-2);padding:1px 5px;border-radius:2px;
+}
+.hit{
+  border-left:2px solid var(--sig);padding:2px 0 2px 15px;
+  color:var(--ink-2);font-size:15px;
+}
+.eg{
+  background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+  padding:13px 16px;font-size:14.5px;color:var(--ink-2);line-height:1.7;
+}
+.eg b{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--accent);display:block;margin-bottom:4px;font-weight:500;
+}
+.eg.m{border-color:var(--sig);background:var(--sig-soft)}
+.eg.m b{color:var(--sig)}
+.snip{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.6;
+  background:var(--surface-2);border-radius:2px;padding:11px 13px;margin:10px 0;
+  overflow-x:auto;white-space:pre;color:var(--ink-2);
+}
+.four{list-style:none;margin:0 0 13px;padding:0;display:flex;flex-direction:column;gap:11px}
+.four li{padding-left:16px;border-left:1px solid var(--rule);font-size:15.5px}
+.four li b{font-weight:600}
+.four li.gap{border-left:2px solid var(--sig)}
+
+/* ---------- terminology rail ---------- */
+.rail{border-left:1px solid var(--rule);padding-left:22px}
+.rail-h{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);margin:6px 0 12px;
+}
+.rail ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.rail li{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.5;
+  color:var(--ink-2);
+}
+.rail li span{
+  font-family:"IBM Plex Sans","Noto Sans TC",sans-serif;
+  color:var(--muted);font-size:11.5px;display:block;
+}
+
+/* ---------- figures ---------- */
+figure{margin:22px 0;padding:0}
+.fig-in{
+  background:var(--surface);border:1px solid var(--rule);border-radius:3px;
+  padding:18px 18px 10px;overflow-x:auto;
+}
+figure svg{display:block;width:100%;min-width:520px;height:auto;color:var(--ink)}
+figcaption{margin:11px 0 0;font-size:13.5px;color:var(--muted);line-height:1.65}
+.dg-box{fill:var(--surface);stroke:currentColor;stroke-opacity:.32;stroke-width:1}
+.dg-fill{fill:var(--surface-2);stroke:currentColor;stroke-opacity:.32}
+.dg-tube{fill:var(--accent-soft);stroke:var(--accent);stroke-opacity:.5}
+.dg-ln{stroke:currentColor;stroke-opacity:.55;fill:none;stroke-width:1.4}
+.dg-sig{stroke:var(--sig);fill:none;stroke-width:1.8}
+.dg-t{fill:currentColor;font-family:"IBM Plex Sans","Noto Sans TC",sans-serif;font-size:13px}
+.dg-s{fill:var(--muted);font-size:11.5px}
+.dg-m{font-family:"IBM Plex Mono",monospace;font-size:11.5px}
+.dg-sigt{fill:var(--sig);font-family:"IBM Plex Mono",monospace;font-size:11.5px}
+.dg-sigw{fill:var(--sig);font-family:"IBM Plex Sans","Noto Sans TC",sans-serif;font-size:12px}
+
+/* ---------- closing ---------- */
+.close{margin:70px 0 0;padding:34px 32px;background:var(--surface);border:1px solid var(--rule);border-radius:3px}
+.close h2{
+  font-family:"IBM Plex Serif","Noto Serif TC",Georgia,serif;
+  font-size:22px;margin:0 0 20px;font-weight:600;
+}
+.close ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:14px}
+.close li{max-width:58ch}
+.close li b{font-weight:600}
+footer{margin:44px 0 0;padding-top:22px;border-top:1px solid var(--rule);font-size:13px;color:var(--muted);line-height:1.8}
+footer code{font-family:"IBM Plex Mono",monospace;font-size:12px}
+
+a{color:var(--accent)}
+a:focus-visible,:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+@media (max-width:860px){
+  .clause{grid-template-columns:1fr;gap:16px}
+  .c-meta{flex-direction:row;align-items:center;gap:14px}
+  .c-no{font-size:20px}
+  .rail{border-left:0;border-top:1px solid var(--rule);padding:16px 0 0}
+  .rail ul{flex-direction:row;flex-wrap:wrap;gap:6px 16px}
+  .rail li span{display:inline}
+}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <span class="rev mono">規格修訂版 2025-11-25</span>
+  <h1>一個 MCP Server 要滿足什麼，才敢拿去商用</h1>
+  <p class="lede">
+    「商用」不是功能多。是有人把公司的帳號、資料和錢綁在你這支程式上跑，
+    出事的時候有人要負責。這頁把要求分成兩堆：<strong>規格白紙黑字寫的</strong>——
+    違反了就是不合規，對方有理由拒收；以及<strong>規格沒管、但客戶一定會問的</strong>。
+  </p>
+  <p class="lede">
+    兩堆混著講，是新手最容易踩的坑。混久了就會講出「規格要求你上 Micrometer」這種話，
+    在專業場合會被當場糾正。
+  </p>
+</header>
+
+<section class="primer">
+  <h2>先認得規格裡的大寫字</h2>
+  <div class="kw">
+    <div><b>MUST</b>沒做就是不合規</div>
+    <div><b>MUST NOT</b>做了就是不合規</div>
+    <div><b>SHOULD</b>可以不做，但要記在案</div>
+    <div><b>MAY</b>隨你</div>
+  </div>
+  <p>
+    這四個字出自 RFC 2119，是等級，不是語氣。讀規格時先看這個字，再看句子。
+    另外一個習慣要一開始就養成：<strong>講 MCP 一定要帶日期</strong>。
+    這套規格沒有語意化版本號，只有修訂日期（2024-11-05、2025-03-26、2025-06-18、2025-11-25、2026-07-28）。
+    大家嘴上的「MCP 2.0」指的是 2026-07-28 那一版，跟這頁講的不是同一份文件。
+  </p>
+</section>
+
+<div class="part">
+  <span class="part-n">第一部</span>
+  <h2>規格說了算</h2>
+</div>
+<p class="part-sub">以下每一條都能在 2025-11-25 的規格文字裡指出出處。違反了，你就是不合規。</p>
+<div class="part-rule"></div>
+
+<!-- 01 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">01</span><span class="badge b-mustnot">MUST NOT</span></div>
+  <div class="c-body">
+    <h3>管子裡只能流 MCP 訊息</h3>
+    <p>
+      stdio 傳輸下，你和 Client 之間只有一條管子。管子裡的每一行都必須是合法的 MCP 訊息。
+      你隨手一個 <code>print</code>、框架開機打的 banner、一行 log——對方的 JSON-RPC 解析器就從那裡開始壞。
+    </p>
+    <p class="hit">
+      最難的地方：違反這條不會有編譯錯誤，也不會有測試紅燈。只會在別人的機器上壞。
+    </p>
+    <figure>
+      <div class="fig-in">
+        <svg viewBox="0 0 720 272" role="img" aria-label="Client 與 Server 之間只有一條 stdout／stdin 管子，管子裡只能放 MCP 訊息；log 必須另外走檔案或 stderr，任何非 MCP 的輸出寫進管子都是 MUST NOT">
+          <defs>
+            <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+            <marker id="ar1s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--sig)"/></marker>
+          </defs>
+          <rect class="dg-box" x="24" y="52" width="152" height="84" rx="4"/>
+          <text class="dg-t" x="100" y="90" text-anchor="middle">Client</text>
+          <text class="dg-t dg-s" x="100" y="110" text-anchor="middle">模型那一端</text>
+
+          <rect class="dg-tube" x="190" y="46" width="340" height="96" rx="6"/>
+          <text class="dg-t dg-s dg-m" x="360" y="36" text-anchor="middle">stdout / stdin</text>
+          <line class="dg-ln" x1="208" y1="94" x2="510" y2="94" marker-end="url(#ar1)"/>
+          <text class="dg-t dg-s dg-m" x="360" y="86" text-anchor="middle">tools/call</text>
+          <line class="dg-ln" x1="512" y1="118" x2="210" y2="118" marker-end="url(#ar1)"/>
+          <text class="dg-t dg-s dg-m" x="360" y="134" text-anchor="middle">CallToolResult</text>
+
+          <rect class="dg-box" x="544" y="52" width="152" height="84" rx="4"/>
+          <text class="dg-t" x="620" y="90" text-anchor="middle">Server</text>
+          <text class="dg-t dg-s" x="620" y="110" text-anchor="middle">你寫的這支</text>
+
+          <line class="dg-ln" x1="620" y1="136" x2="620" y2="202" marker-end="url(#ar1)"/>
+          <text class="dg-t dg-s" x="630" y="176" text-anchor="start">log 走這條</text>
+          <rect class="dg-fill" x="544" y="206" width="152" height="52" rx="4"/>
+          <text class="dg-t dg-m" x="620" y="230" text-anchor="middle">檔案 / stderr</text>
+          <text class="dg-t dg-s" x="620" y="248" text-anchor="middle">規格明說 MAY</text>
+
+          <rect class="dg-sig" x="190" y="206" width="214" height="52" rx="4" stroke-dasharray="5 4" fill="none"/>
+          <text class="dg-sigw" x="297" y="230" text-anchor="middle">任何非 MCP 的輸出</text>
+          <text class="dg-sigt" x="297" y="248" text-anchor="middle">System.out.println(…)</text>
+          <line class="dg-sig" x1="297" y1="202" x2="297" y2="148" marker-end="url(#ar1s)" stroke-dasharray="5 4"/>
+          <path class="dg-sig" d="M289,166 L305,184 M305,166 L289,184"/>
+          <text class="dg-sigt" x="315" y="180" text-anchor="start">MUST NOT</text>
+        </svg>
+      </div>
+      <figcaption>
+        同一支程式有兩個出口，走錯一個不會報錯，只會讓對方解析失敗。整份設定檔通常只為這件事存在。
+      </figcaption>
+    </figure>
+    <div class="eg">
+      <b>實例</b>
+      本專案的 <code>application.yml</code> 把 console appender 關成 <code>OFF</code>、banner 關掉、
+      <code>web-application-type: none</code>——三行設定，唯一的理由就是這一條。改動之前要知道自己在拆什麼。
+    </div>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>stdio transport</li>
+      <li>stdout purity<span>「管子要乾淨」</span></li>
+      <li>protocol pollution</li>
+      <li>newline-delimited JSON-RPC</li>
+      <li>console appender</li>
+      <li>stderr</li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 02 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">02</span><span class="badge b-must">MUST</span></div>
+  <div class="c-body">
+    <h3>見面第一件事，講好你會哪一版</h3>
+    <p>
+      連上線的第一次互動 MUST 是初始化。Client 說「我想講 2025-11-25」，你會就回同一版；
+      不會就回你自己支援的版本，讓對方決定要不要繼續。同時你要交代自己有哪些能力（tools、resources、prompts）。
+    </p>
+    <p>
+      這段多半是 SDK 幫你做完的。你真正該知道的是：<strong>你的版本上限是 SDK 給的，不是你決定的</strong>。
+      問「我這支支援到哪一版」，答案在你的相依鏈裡。
+    </p>
+    <p class="hit">
+      而這整段交握在 2026-07-28 被整個拿掉了，改成無狀態。所以「我的 server 支援 MCP」這句話沒有意義。
+    </p>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>initialize</li>
+      <li>InitializeResult</li>
+      <li>protocolVersion negotiation</li>
+      <li>capability declaration</li>
+      <li>lifecycle</li>
+      <li>stateless core<span>2026-07-28 的改法</span></li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 03 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">03</span><span class="badge b-must">MUST</span></div>
+  <div class="c-body">
+    <h3>每個工具都要交一張合法的表格</h3>
+    <p>
+      <code>inputSchema</code> MUST 是一個合法的 JSON Schema object，不可以是 <code>null</code>。
+      這是模型唯一知道「這個工具要餵什麼」的來源。工具名字 SHOULD 是 1–128 字、
+      只用大小寫字母／數字／<code>_</code>／<code>-</code>／<code>.</code>、不含空白、在同一個 server 內唯一。
+    </p>
+    <p>
+      開發時最常撞到的是這件事：<strong>schema 是從你的方法簽章推導出來的</strong>。
+      所以簽章要保持扁平。想把三個參數收成一個值物件，那個物件會直接變成對外 schema 的形狀——
+      要收攏概念，在方法體內構造。
+    </p>
+    <p>
+      如果你宣告了 <code>outputSchema</code>，回傳的 structured 結果 MUST 符合它。
+      （附帶一提，很多人不知道：一旦 <code>isError</code> 為真，output-schema 驗證會被跳過。）
+    </p>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>tool definition</li>
+      <li>inputSchema</li>
+      <li>outputSchema</li>
+      <li>JSON Schema</li>
+      <li>schema derivation<span>從簽章推導</span></li>
+      <li>flat signature</li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 04 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">04</span><span class="badge b-kind">兩種機制</span></div>
+  <div class="c-body">
+    <h3>錯誤有兩種，分錯了模型就看不到</h3>
+    <p>
+      「你叫的工具根本不存在」「JSON 格式壞了」——這是<strong>協議層</strong>的錯，走 JSON-RPC error。
+      它的意思是：這通呼叫沒有發生過。它到不了模型手上。
+    </p>
+    <p>
+      「工具跑了，但 GitHub 說你沒權限」「網路斷了」「參數超出範圍」——這是<strong>執行層</strong>的錯。
+      要包成一個<em>正常</em>的回覆，裡面 <code>isError: true</code>。模型看得到，才有機會自己改。
+    </p>
+    <figure>
+      <div class="fig-in">
+        <svg viewBox="0 0 760 404" role="img" aria-label="協議層的錯走 JSON-RPC error，被擋在模型之前；執行層的錯走 CallToolResult 帶 isError true 與 remedy，送進模型，模型才能改寫請求再試一次">
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+          </defs>
+          <rect class="dg-box" x="20" y="168" width="140" height="64" rx="4"/>
+          <text class="dg-t" x="90" y="194" text-anchor="middle">Server</text>
+          <text class="dg-t dg-s" x="90" y="214" text-anchor="middle">出事了</text>
+
+          <path class="dg-ln" d="M160,190 C202,190 208,92 246,92" marker-end="url(#ar2)"/>
+          <path class="dg-ln" d="M160,212 C202,212 208,300 246,300" marker-end="url(#ar2)"/>
+
+          <text class="dg-sigt" x="248" y="48" text-anchor="start">協議層 · Protocol Error</text>
+          <rect class="dg-box" x="248" y="60" width="252" height="66" rx="4"/>
+          <text class="dg-t dg-m" x="374" y="88" text-anchor="middle">JSON-RPC error</text>
+          <text class="dg-t dg-s" x="374" y="108" text-anchor="middle">「這通呼叫沒發生」</text>
+          <line class="dg-ln" x1="500" y1="93" x2="562" y2="93" marker-end="url(#ar2)"/>
+          <line class="dg-sig" x1="576" y1="54" x2="576" y2="132" stroke-width="2.5"/>
+          <rect class="dg-box" x="596" y="62" width="140" height="62" rx="4" opacity=".4"/>
+          <text class="dg-t" x="666" y="98" text-anchor="middle" opacity=".4">模型</text>
+          <text class="dg-sigw" x="666" y="152" text-anchor="middle">模型看不到</text>
+
+          <text class="dg-t dg-m dg-s" x="248" y="256" text-anchor="start">執行層 · Tool Execution Error</text>
+          <rect class="dg-box" x="248" y="268" width="252" height="66" rx="4"/>
+          <text class="dg-t dg-m" x="374" y="294" text-anchor="middle">CallToolResult</text>
+          <text class="dg-t dg-s dg-m" x="374" y="316" text-anchor="middle">isError: true ＋ remedy</text>
+          <line class="dg-ln" x1="500" y1="301" x2="588" y2="301" marker-end="url(#ar2)"/>
+          <rect class="dg-box" x="596" y="270" width="140" height="62" rx="4"/>
+          <text class="dg-t" x="666" y="296" text-anchor="middle">模型</text>
+          <text class="dg-t dg-s" x="666" y="316" text-anchor="middle">看得到，能改</text>
+
+          <path class="dg-ln" d="M666,332 L666,378 L88,378 L88,238" marker-end="url(#ar2)"/>
+          <text class="dg-t dg-s" x="380" y="370" text-anchor="middle">模型改寫請求，再試一次</text>
+        </svg>
+      </div>
+      <figcaption>
+        分錯的代價在右上角：把「沒權限」丟成 protocol error，模型只知道呼叫失敗、不知道為什麼，
+        於是原封不動重試——重試一百次也一樣。
+      </figcaption>
+    </figure>
+    <p>
+      <strong>再往前一步</strong>（規格沒要求，但成熟的 server 都這樣做）：錯誤要按
+      「你現在該做什麼」分類，不要按「哪裡壞了」分類。
+      模型不需要知道是 401 還是 403，它需要知道的是——重試、先查再重試、改你的請求、去問人。
+      這份對照表就是你的失敗契約，是一份要維護的公開介面。
+    </p>
+    <p class="hit">
+      還有一條 SHOULD：回傳 structured content 的時候，也該在文字區塊放一份序列化後的 JSON，
+      給只會讀文字的舊 Client。要偏離可以——但理由和代價要寫在案。
+    </p>
+    <div class="eg m">
+      <b>實測補充 · 這條線上有一個框架挖的洞</b>
+      上面那套讀起來很乾淨，但真的把 server 跑起來、送一個<strong>缺必填參數</strong>的呼叫進去——
+      而這正是模型最常犯的錯——回來的是這個：
+      <div class="snip">{"content":[{"type":"text","text":
+   "Tool (get_issue) input validation failed: …
+    [: 未找到所需屬性“repo”, : 未找到所需屬性“number”]"}],
+ "isError": true}</div>
+      <code>isError</code> 是對的，但<strong>沒有 <code>structuredContent</code></strong>，
+      所以沒有 remedy。原因是框架先拿 <code>inputSchema</code> 驗了參數，你的方法體根本沒跑——
+      失敗還沒走到你寫的那條出口。而且那串訊息跟著機器的語言設定走：
+      同一個錯誤，換一台 <code>LANG=ja_JP</code> 的機器就是日文。
+      <br><br>
+      要帶走的形狀是這個：<strong>你的失敗契約只管得到方法體以內</strong>。
+      方法體之前那一關屬於框架，得自己把它接回來——否則模型最常拿到的那個錯誤，
+      正好是唯一沒有 remedy 的那個。做一個 MCP 之前，
+      這一格值得你親手送一次壞參數進去看看你的框架回什麼。
+    </div>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>protocol error<span>vs. tool execution error</span></li>
+      <li>CallToolResult</li>
+      <li>isError</li>
+      <li>structuredContent</li>
+      <li>TextContent block</li>
+      <li>failure contract</li>
+      <li>remedy taxonomy<span>按動作分類，非按成因</span></li>
+      <li>model self-correction</li>
+      <li>schema validation<span>發生在方法體之前</span></li>
+      <li>locale-dependent error</li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 05 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">05</span><span class="badge b-should">SHOULD</span></div>
+  <div class="c-body">
+    <h3>每個送出去的請求都要有逾時</h3>
+    <p>
+      沒有逾時，等於同意別人讓你永遠等下去。規格這條講的是 MCP 請求本身，通常 SDK 有預設值。
+    </p>
+    <p>
+      但真正會吊死你的那幾段，規格沒管：你叫起來的子進程、你打出去的 HTTP、你查的資料庫。
+      那些逾時要自己補，而且選 30 秒還是 300 秒，理由要寫下來——
+      這是客戶環境不同時第一個要調的旋鈕。
+    </p>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>request timeout</li>
+      <li>hung request</li>
+      <li>subprocess timeout</li>
+      <li>timeout policy<span>要文件化</span></li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 06 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">06</span><span class="badge b-must">MUST ×4</span></div>
+  <div class="c-body">
+    <h3>安全那一節，是四條並列的 MUST</h3>
+    <p>規格的 Security Considerations 只有四句話。四句都是 MUST，沒有一句是建議。</p>
+    <figure>
+      <div class="fig-in">
+        <svg viewBox="0 0 720 178" role="img" aria-label="每一次 tools/call 都要穿過四道 MUST：驗輸入、做權限、限流、淨化輸出；限流是最常整個漏掉的一道">
+          <defs>
+            <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+          </defs>
+          <text class="dg-t dg-s dg-m" x="4" y="34" text-anchor="start">tools/call</text>
+          <line class="dg-ln" x1="4" y1="94" x2="36" y2="94" marker-end="url(#ar3)"/>
+
+          <rect class="dg-box" x="40" y="52" width="148" height="84" rx="4"/>
+          <text class="dg-t" x="114" y="80" text-anchor="middle">參數先驗過</text>
+          <text class="dg-t dg-s dg-m" x="114" y="102" text-anchor="middle">Validate all</text>
+          <text class="dg-t dg-s dg-m" x="114" y="118" text-anchor="middle">tool inputs</text>
+          <line class="dg-ln" x1="190" y1="94" x2="210" y2="94" marker-end="url(#ar3)"/>
+
+          <rect class="dg-box" x="214" y="52" width="148" height="84" rx="4"/>
+          <text class="dg-t" x="288" y="80" text-anchor="middle">誰能做什麼</text>
+          <text class="dg-t dg-s dg-m" x="288" y="102" text-anchor="middle">Implement proper</text>
+          <text class="dg-t dg-s dg-m" x="288" y="118" text-anchor="middle">access controls</text>
+          <line class="dg-ln" x1="364" y1="94" x2="384" y2="94" marker-end="url(#ar3)"/>
+
+          <rect class="dg-sig" x="388" y="52" width="148" height="84" rx="4" stroke-dasharray="6 5" fill="none"/>
+          <text class="dg-sigw" x="462" y="80" text-anchor="middle">限流</text>
+          <text class="dg-sigt" x="462" y="102" text-anchor="middle">Rate limit</text>
+          <text class="dg-sigt" x="462" y="118" text-anchor="middle">tool invocations</text>
+          <text class="dg-sigw" x="462" y="162" text-anchor="middle">最常整個漏掉的一道</text>
+          <line class="dg-ln" x1="538" y1="94" x2="558" y2="94" marker-end="url(#ar3)"/>
+
+          <rect class="dg-box" x="562" y="52" width="148" height="84" rx="4"/>
+          <text class="dg-t" x="636" y="80" text-anchor="middle">輸出要處理</text>
+          <text class="dg-t dg-s dg-m" x="636" y="102" text-anchor="middle">Sanitize</text>
+          <text class="dg-t dg-s dg-m" x="636" y="118" text-anchor="middle">tool outputs</text>
+        </svg>
+      </div>
+      <figcaption>
+        少一道閘門不會擋住任何請求——那正是它難被發現的原因。四道之中，限流是最常整個沒做的一道。
+      </figcaption>
+    </figure>
+    <ul class="four">
+      <li><b>驗輸入</b>——邊界值、分頁游標、型別。模型送來的東西一律當成不可信。</li>
+      <li><b>做權限</b>——誰能做什麼。可以外包給下游（例如交給 CLI 解析出的登入身分），但要知道那代表「一個進程一個身分」。</li>
+      <li class="gap"><b>限流</b>——注意這個陷阱：下游被 GitHub 限流、你把錯誤如實回報，<strong>那不算你在限流</strong>。那是你被動反映別人的限流。這條是 MUST。</li>
+      <li><b>淨化輸出</b>——這道有兩難：模型需要原文，你不能亂轉義；但那代表 issue 內文裡的惡意內容會原樣送到 Client。至少要把「渲染責任在 Client」寫成一句警語。</li>
+    </ul>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>input validation</li>
+      <li>access control</li>
+      <li>rate limiting / throttling</li>
+      <li>output sanitization</li>
+      <li>prompt injection</li>
+      <li>XSS<span>渲染端的責任</span></li>
+      <li>defense in depth</li>
+    </ul>
+  </aside>
+</article>
+
+<div class="part">
+  <span class="part-n">第二部</span>
+  <h2>規格沒說，但客戶會問</h2>
+</div>
+<p class="part-sub">以下五條你都可以不做，而且完全合規。但只要有人拿它跑正事，這五條會一條一條找上你。</p>
+<div class="part-rule"></div>
+
+<!-- 07 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">07</span><span class="badge b-biz">商用實務</span></div>
+  <div class="c-body">
+    <h3>出事的時候，你要查得到</h3>
+    <p>
+      成功的呼叫如果不留任何痕跡，你手上就只有一句「它壞了」。
+    </p>
+    <p>三件事，成本由低到高：</p>
+    <ul class="four">
+      <li><b>日誌要機器讀得懂</b>——JSON 格式，不是人寫給人看的句子。這樣才接得上 ELK 或 Datadog。</li>
+      <li><b>要有數字</b>——每個工具的呼叫次數、延遲分佈（P50／P95／P99）、失敗率，而且失敗率要能按失敗類別拆開。</li>
+      <li><b>要能串起來</b>——每通請求一個編號，從進來到出去都帶著。跨進程邊界時會斷，那也要知道斷在哪。</li>
+    </ul>
+    <p class="hit">
+      stdio 有個現實限制：沒有地方掛 <code>/health</code> 或 <code>/metrics</code>，因為根本沒有 HTTP。
+      這件事跟第 09 條綁在一起。
+    </p>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>structured logging</li>
+      <li>JSON appender</li>
+      <li>correlation ID</li>
+      <li>distributed tracing</li>
+      <li>Micrometer</li>
+      <li>P50 · P95 · P99</li>
+      <li>SLI / SLO</li>
+      <li>health endpoint</li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 08 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">08</span><span class="badge b-biz">商用實務</span></div>
+  <div class="c-body">
+    <h3>一個進程，就是一個身分</h3>
+    <p>
+      如果認證是外包給下游工具的（例如讓 <code>gh</code> 自己去讀環境變數裡的 token），
+      那整個 server 進程只有一把鑰匙，每次呼叫都用同一把。
+    </p>
+    <ul class="four">
+      <li><b>單租戶：這是優點。</b>少一層自己蓋的認證，就少一層自己會寫錯的東西。</li>
+      <li class="gap"><b>多租戶 SaaS：這是硬牆。</b>A 的登入狀態就是 B 的登入狀態；A 會看到 B 才有權限看的倉庫。</li>
+    </ul>
+    <p>
+      兩條路：每個租戶開一個進程（部署變複雜，但一行程式都不用改），
+      或自己蓋認證層（貴，而且是你最不想寫錯的那一層）。
+    </p>
+    <p class="hit">
+      這件事要寫在<strong>部署文件</strong>裡。寫在 ADR 裡不算數——ADR 是給後來改程式的人看的，
+      不是給把它裝起來跑的人看的。
+    </p>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>tenant isolation</li>
+      <li>multi-tenancy</li>
+      <li>credential isolation</li>
+      <li>blast radius</li>
+      <li>process-per-tenant</li>
+      <li>OAuth 2.1</li>
+      <li>token rotation</li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 09 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">09</span><span class="badge b-biz">商用實務</span></div>
+  <div class="c-body">
+    <h3>傳輸決定你能不能長大</h3>
+    <p>
+      stdio 是一對一、綁在同一台機器上的：Client 把你當子進程叫起來。
+      沒有反向代理、沒有負載平衡、沒有水平擴充、沒有健康檢查。
+      內網單機、單租戶完全夠用；SaaS 不行。
+    </p>
+    <p>
+      好消息是這件事的成本取決於你的分層。<strong>如果工具層完全不碰協議</strong>——
+      工具只管做事、回一個值，協議的事交給上面那層——換成 HTTP 的時候工具一行都不用改。
+      這是「分層」在真實世界裡最直接的一次回報。
+    </p>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>stdio transport</li>
+      <li>Streamable HTTP</li>
+      <li>reverse proxy</li>
+      <li>horizontal scaling</li>
+      <li>transport-agnostic tool layer</li>
+      <li>separation of concerns</li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 10 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">10</span><span class="badge b-biz">商用實務</span></div>
+  <div class="c-body">
+    <h3>一個大回應就能把你撐死</h3>
+    <p>
+      把下游的輸出整包讀進記憶體（<code>readAllBytes</code> 之類），
+      遇到一個大倉庫的清單查詢，回來的 JSON 可能是 MB 級的。沒有上限，就有 OOM。
+    </p>
+    <p>
+      補法很便宜：輸出大小設一個上限，超過就回一個「太大了」的失敗；
+      能分頁的工具全部給游標。這條的修復成本低到沒有理由不做。
+    </p>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>resource exhaustion</li>
+      <li>OOM</li>
+      <li>response size cap</li>
+      <li>pagination / cursor</li>
+      <li>backpressure</li>
+      <li>streaming parse</li>
+    </ul>
+  </aside>
+</article>
+
+<!-- 11 -->
+<article class="clause">
+  <div class="c-meta"><span class="c-no">11</span><span class="badge b-biz">商用實務</span></div>
+  <div class="c-body">
+    <h3>測試要跨過那條線</h3>
+    <p>
+      單元測試證明你的函式算得對，但它證明不了「送出去的那包 JSON 長得對」。
+      那兩件事之間隔著一整個框架。
+    </p>
+    <p class="hit">
+      失敗契約特別容易在這裡破：寫法一錯，框架會用它自己的預設路徑接手，
+      回去的東西 <code>isError</code> 看起來還是對的——但你精心分好的 remedy 和原始錯誤訊息整包不見了。
+      這種 bug 只有跨過 wire 的驗收測試抓得到，而且它值得為此存在一支專門的測試。
+    </p>
+  </div>
+  <aside class="rail">
+    <p class="rail-h">講給行家聽</p>
+    <ul>
+      <li>acceptance test</li>
+      <li>contract test</li>
+      <li>across the wire</li>
+      <li>coverage layer</li>
+      <li>test pyramid</li>
+    </ul>
+  </aside>
+</article>
+
+<section class="close">
+  <h2>學完之後，跟人講這件事的三個習慣</h2>
+  <ol>
+    <li>
+      <b>永遠帶著日期講。</b>「2025-11-25 的 <code>server/tools.mdx</code> 說……」，
+      而不是「MCP 規格說……」。這套規格沒有語意化版本，只有修訂日期，
+      而每一版之間有真正的破壞性變更。
+    </li>
+    <li>
+      <b>分清楚「規格要求」和「商用要求」。</b>前者你可以引條文，對方要反駁得拿規格出來；
+      後者你要講的是風險和成本，引條文反而會被抓包。這頁的兩部就是這條線。
+    </li>
+    <li>
+      <b>偏離規格不是罪，不記錄才是。</b>SHOULD 可以不做，MUST 有時也真的做不到——
+      但要有一份文件寫下理由和代價。審查的時候，「有意偏離、已記載」和「沒想到」是兩件完全不同的事。
+    </li>
+  </ol>
+</section>
+
+<footer>
+  基準為 MCP 規格 <code>2025-11-25</code>。第一部每一條的規格文字都出自
+  <code>modelcontextprotocol/modelcontextprotocol</code> 的
+  <code>docs/specification/2025-11-25/</code>，逐條核對於 2026-09-08。
+  第二部取自本 repo 的商用就緒評審，非規格條文。
+  文中標示「實測」的段落，是 2026-09-09 以 MCP Inspector v2.5.0 與手寫 JSON-RPC
+  各驅動一次本 repo 的 server 所得，不是讀原始碼推論的。<br>
+  同倉庫的兩份來源文件：<code>docs/mcp-2025-11-25-conformance.html</code>（逐條對照與驗證結果）、
+  <code>docs/reviews/commercial-readiness.md</code>（含對 2026-07-28 的差距分析）。
+</footer>
+
+</div>
