@@ -24,8 +24,8 @@ import org.springframework.stereotype.Component;
  * are chosen by asking for them rather than trimmed on arrival, and
  * {@code list_issue_comments}' Envelope carries two keys the others do not (ADR-0006).
  *
- * <p><strong>Every GraphQL variable here is sent with {@code -f}, and none with
- * {@code -F}.</strong> The two flags are not spellings of one thing. {@code -f} adds the
+ * <p><strong>Every GraphQL variable typed {@code String} here is sent with {@code -f}.</strong>
+ * The two flags are not spellings of one thing. {@code -f} adds the
  * value as a string, taken literally. {@code -F} has three magic readings of it, all three
  * measured on this exact route: {@code 123} and {@code true} arrive as JSON scalars, which
  * against a {@code String!} variable is a type error; {@code {owner}}, {@code {repo}} and
