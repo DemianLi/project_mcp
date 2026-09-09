@@ -92,7 +92,7 @@ Requires a JDK 25 and Maven.
 
 ```bash
 mvn package
-java -jar target/project-mcp-0.1.0-SNAPSHOT.jar
+java -jar target/project-mcp-0.1.0.jar
 ```
 
 **Do not use `mvn spring-boot:run`.** Maven writes its own build output to stdout
@@ -171,6 +171,8 @@ that write itself, which it decided against.
   `deploying.md`: what one Tool call costs against real GitHub, and what happens to a call
   the Client stopped waiting for. Primary sources rather than tests — they assert nothing,
   they print what they saw
+- [CHANGELOG.md](./CHANGELOG.md) — what each release contains, what it is compatible with
+  (down to the `gh` versions it has been exercised against), and the departures it ships with
 - [CONTEXT.md](./CONTEXT.md) — domain glossary: the precise meaning of Server, Client,
   Inspector, Tool, Resource and the transports
 - [AGENTS.md](./AGENTS.md) — branch strategy and the configuration AI agents read
