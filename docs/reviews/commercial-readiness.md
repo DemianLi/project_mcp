@@ -58,12 +58,41 @@ String MCP_2025_11_25 = "2025-11-25";
 
 ### 1.1 協議初始化與功能宣告
 
-**符合情況**：✓ 完整
+**符合情況**：✓ 合規，但宣告與實作之間有一處落差（實測後修正，見本節末）
 
-- `initialize` 請求與 `InitializeResult` 應答均遵循 2025-11-25 規格 (`IssueTools.java:51-97`)
-- `protocolVersion` 正確設定為 `2025-11-25` (由 Spring AI 與 MCP SDK 自動協商)
+- `initialize` 請求與 `InitializeResult` 應答均遵循 2025-11-25 規格
+- `protocolVersion` 協商結果為 `2025-11-25`（由 Spring AI 與 MCP SDK 自動協商）
 - 五個 Tool 正確宣告 `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` annotations
-- 無 Resource 宣告，符合設計決策 (CONTEXT.md:73-79, ADR-0004)
+- 宣告的 capability 比實作的多，見下
+
+**capability 宣告（實測，非推論）**
+
+以 Inspector 與手寫 JSON-RPC 各驅動一次，`InitializeResult` 回的是：
+
+```json
+{"completions":{}, "logging":{}, "prompts":{"listChanged":true},
+ "resources":{"subscribe":false,"listChanged":true}, "tools":{"listChanged":true}}
+```
+
+Spring AI 預設把五個 capability 全開，本專案沒有關掉任何一個。實作的只有 `tools`：
+
+| capability | 宣告 | 實際 | 後果 |
+|---|---|---|---|
+| `tools` | ✓ | 五個 Tool | 相符 |
+| `resources` | ✓ | `resources/list` → `[]`、`resources/templates/list` → `[]` | 清單空，但 Client 會認為這個 Server 有 Resource 面 |
+| `prompts` | ✓ | `prompts/list` → `[]` | 同上 |
+| `logging` | ✓ | `logging/setLevel` 回 `{}` 照收，但 `src/` 裡沒有任何一處呼叫 SDK 的 logging notification API | Client 可以合法開啟 MCP logging，然後一則 `notifications/message` 都收不到 |
+| `completions` | ✓ | `completion/complete` 對不存在的 prompt 回 `-32602` | 沒有可補全的東西 |
+
+**校訂註記（2026-09-09）**：本節原本寫「無 Resource 宣告，符合設計決策 (CONTEXT.md:73-79,
+ADR-0004)」，並引 `IssueTools.java:51-97` 作為 `initialize` 的出處。兩者都要更正。ADR-0004 決定的是
+**不提供任何 Resource**，那件事成立且實測相符（清單是空的）；但 capability **有**宣告，
+「不宣告」與「宣告了但空的」對 Client 是兩件事。原句是讀原始碼推論出來的，這次跑起來才看到。
+`IssueTools.java` 也不是 `initialize` 的出處——那段完全在 SDK 手上，本專案沒有一行程式碼參與交握。
+
+`logging` 那一列值得單獨記著：專案刻意把 log 寫進檔案（見 §3.1），卻同時宣告了自己不會使用的
+MCP logging capability。要收掉這個落差，方向是在 Spring AI 設定裡關掉未實作的 capability，
+而不是去實作它們。
 
 **[規格引用]** 2025-11-25 | `initialize` | [`docs/specification/2025-11-25/index.mdx`](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/index.mdx)（注意：2026-07-28 已移除此交握，見前置澄清）
 
@@ -100,16 +129,42 @@ String MCP_2025_11_25 = "2025-11-25";
 
 ### 1.4 Error 與 isError 語義
 
-**符合情況**：✓ 完整執行
+**符合情況**：✓ 合規。但失敗契約的覆蓋範圍比 ADR-0002 宣稱的窄一塊，見下。
 
 **ADR-0002 的原理**：
 - 所有失敗發出 `isError: true` 而非 JSON-RPC protocol error
 - 分類邏輯集中在 `GhCli.classify()` (GhCli.java:184)
-- 失敗不走 Spring AI 的預設錯誤處理 (ToolResults.java:28-32 註解明確說明)
+- 進到 Tool 方法體之後的失敗不走 Spring AI 的預設錯誤處理 (ToolResults.java:28-32)
 
-**規格遵循** [2026-07-28 `server/tools.mdx`](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2026-07-28/server/tools.mdx)：
-- Tool 調用失敗應回傳 `CallToolResult` with `isError: true` ✓
+**規格遵循** [2025-11-25 `server/tools.mdx` §Error Handling](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/server/tools.mdx)：
+- Tool 調用失敗回傳 `CallToolResult` with `isError: true` ✓
 - 允許 `structuredContent` 攜帶額外信息 ✓
+
+**實測補充（2026-09-09）：契約有一個框架層的破口**
+
+失敗契約管得到的範圍，是 Tool 方法體開始執行之後。方法體之前還有一段：Spring AI 會先拿
+`inputSchema` 驗參數。這一關擋下來的失敗，不經過 `ToolResults`，也就不帶 Remedy。
+
+手寫 JSON-RPC 送一個缺 `repo` 與 `number` 的 `get_issue`，回來的是：
+
+```json
+{"content":[{"type":"text","text":"Tool (get_issue) input validation failed: Validation failed: JSON schema validation errors: [: 未找到所需屬性“repo”, : 未找到所需屬性“number”]"}],
+ "isError":true}
+```
+
+三件事要記著：
+
+1. **沒有 `structuredContent`**——沒有 `remedy`，也沒有 `stderr` 欄位。ADR-0002 的
+   「每一次失敗都帶著一個 Remedy」在這條路徑上不成立。
+2. **訊息跟著 JVM 預設 locale 走**。上面那串是在 `zh_TW` 的機器上跑出來的；
+   換一台 `LANG=ja_JP` 的機器，同一個錯誤會變成日文。這不是化妝品問題——
+   模型最常犯的錯就是漏一個必填參數，而這條路徑正是它最常拿到的回覆。
+3. **這不是寫錯造成的**，跟 `ToolResults` 註解裡警告的「`ToolFailure` 擲在 `attempt` 外面」
+   是不同的東西。那個是可以靠紀律避免的；這個是框架的必經之路。
+
+要收掉它，得在 Spring AI 的 tool callback 層攔截 schema 驗證失敗，把它也導進
+`ToolResults.failure(...)`，Remedy 為 `FIX_REQUEST`。成本不高，但需要一支
+acceptance test 釘住——現有的測試套件沒有覆蓋這條路徑（81 支全過，而這個破口還在）。
 
 ---
 
