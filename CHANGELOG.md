@@ -76,7 +76,10 @@ break this Server loudly — the marker stops matching, the failure lands in `UN
 the caller gets a correct response with no recovery advice in it. That risk is accepted by
 design and recorded in
 [ADR-0002](docs/adr/0002-failure-contract-for-gh-calls.md); the versions above are the ones
-it has actually been exercised against.
+it has actually been exercised against, and
+[`docs/measurements/gh-compatibility.sh`](docs/measurements/gh-compatibility.sh) re-checks
+them against whatever `gh` is installed: it provokes seven of the ten rows and exits
+non-zero if one stops matching.
 
 Moving to protocol revision 2026-07-28 waits on the MCP Java SDK, not on this repository.
 

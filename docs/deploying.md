@@ -338,6 +338,13 @@ feeds it that way); the notifier writing to stderr is `gh`'s own documentation; 
 colliding has not been provoked here, because there is no way to make `gh` believe a newer
 release exists.
 
+**After upgrading `gh`, check that it still fails in the words this Server reads.** The
+same `contains` matching is how every failure gets its Remedy, so a rephrased message costs
+the caller its recovery advice without anything going red.
+[`docs/measurements/gh-compatibility.sh`](measurements/gh-compatibility.sh) provokes seven
+of the ten classified failures against the installed `gh` and exits non-zero if one no
+longer matches. It writes nothing to GitHub.
+
 `GH_PROMPT_DISABLED` and `NO_COLOR` are cheaper insurance in the same direction — nothing
 here is a terminal, and neither a prompt nor an escape sequence has anywhere useful to go.
 

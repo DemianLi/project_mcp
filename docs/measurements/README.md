@@ -20,10 +20,11 @@ JAVA_HOME=/path/to/jdk-25 docs/measurements/concurrency-and-cancellation.sh
 JSON-RPC that came back — is written under `target/measurements/`, which is ignored by git.
 `python3` is used to summarise the first one.
 
-| Script | Network | Writes | Takes |
-| --- | --- | --- | --- |
-| `tool-latency.sh` | real GitHub, authenticated `gh` | nothing — read-only Tools only | ~1 min |
-| `concurrency-and-cancellation.sh` | none — a stand-in `gh` on `PATH` | nothing | ~45 s |
+| Script | Network | Writes | Takes | Verdict |
+| --- | --- | --- | --- | --- |
+| `tool-latency.sh` | real GitHub, authenticated `gh` | nothing — read-only Tools only | ~1 min | prints |
+| `concurrency-and-cancellation.sh` | none — a stand-in `gh` on `PATH` | nothing | ~45 s | prints |
+| `gh-compatibility.sh` | real GitHub, authenticated `gh` | nothing — every probe is a read | ~30 s | **exits non-zero** |
 
 ## What each one answers
 
@@ -42,6 +43,24 @@ its late response interleaves (it does not — responses leave in completion ord
 ids), and what this Server does with `notifications/cancelled` (ignores it, and logs the
 Client's own reason text). See
 [ADR-0016](../adr/0016-a-cancelled-call-is-not-cancelled-here.md).
+
+**`gh-compatibility.sh`** — whether the `gh` in front of this Server still fails in the
+words `GhStderr` recognises. Those markers are substrings of messages `gh` chooses, not an
+API, and a release that rephrases one degrades this Server quietly: the marker stops
+matching, the failure falls to `UNKNOWN`, and the Client gets a well-formed response with no
+recovery advice in it. [ADR-0002](../adr/0002-failure-contract-for-gh-calls.md) accepts that
+risk; this script is what turns *accepted* into *checked*. It provokes seven of the ten rows
+through the Server's own Tools, reads the Remedy and the row's own sentence back off the
+wire, and names the three it cannot provoke along with why.
+
+This is the one script here with a right answer, so it is also the one that fails: it exits
+non-zero when a row stops matching, and prints the stderr to paste into that row's samples.
+Run it after upgrading `gh`, and before changing the `gh` version in the
+[`Dockerfile`](../../Dockerfile).
+
+Two rows are checked by more than the Remedy on purpose. Six of the seven answer
+`FIX_REQUEST`, so a Remedy alone cannot tell a matching row from a *different* matching row —
+the script also looks for a fragment of the sentence that row alone writes.
 
 ## What these numbers are not
 

@@ -431,6 +431,40 @@ Server 的形狀，不需要一條規格來背書。
 
 **評估**：✓ Server 層安全。Client 層責任。
 
+> **2026-09-09 更新：上面那個評估太早了。「不經 shell」是對的，但參數不是只有 shell 一條路。**
+>
+> 寫 `docs/measurements/gh-compatibility.sh` 時撞到的：`owner` 沒有任何檢查就參與組成
+> `--repo owner/repo`，而 **`gh` 的 `--repo` 接受的是 `[HOST/]OWNER/REPO`**。所以 `owner`
+> 裡放一個斜線，第一段就變成**主機名**。
+>
+> 實測，從 Tool 介面進去，不是直接打 `gh`：
+>
+> | 送進去的 `owner` / `repo` | Server 實際去連的地方 | Client 收到的 Remedy |
+> |---|---|---|
+> | `a/b` ／ `c` | `https://a/api/graphql` | `UNKNOWN` |
+> | `127.0.0.1:8099/a` ／ `b` | `https://127.0.0.1:8099/api/graphql` | **`RETRY`** |
+>
+> **兩個問題，第二個比第一個嚴重。**
+>
+> 一是**外連目的地由呼叫方決定**。這個 Server 不渲染內容、不執行 shell，但它會照著參數
+> 去連一台第三方指定的主機——而參數的來源，在 MCP 的部署形狀裡，經常是讀了 GitHub issue
+> 內容之後的模型。**未驗證**的是那個請求裡帶不帶憑證：`gh` 文件說 `GH_TOKEN` 是給
+> github.com 的、其他主機走 `GH_ENTERPRISE_TOKEN`，所以推測不帶，但這裡沒有量到——要量
+> 得架一台憑證被信任的 TLS 監聽器，那件事沒做。
+>
+> 二是**它被分類成 `RETRY`**：「GitHub could not be reached. The network looks
+> unavailable.」網路好得很，是位址被寫壞了，而 Client 被告知的動作是「再試一次」。這正是
+> ADR-0002 自己列為最糟的那一類——**有信心的錯誤 Remedy**，比 `UNKNOWN` 更壞，因為
+> `UNKNOWN` 至少會把 stderr 原文交出去讓人自己看。
+>
+> 順帶一提，那段 stderr 是 `network` 那一列第一次拿到**真的來自 `gh`** 的樣本：
+> `Post "https://127.0.0.1:8099/api/graphql": dial tcp 127.0.0.1:8099: connect: connection refused`。
+> 該列現在三個樣本全是 `UNMEASURED`。
+>
+> **還沒修。** 修的形狀大概是 Tool 層在呼叫前拒絕帶斜線（或空白）的 `owner`／`repo`，
+> 像 `add_issue_comment` 拒絕空白 body 那樣自己發明一個失敗——但那會動到失敗契約，
+> 該走一張 wayfinder 票而不是順手塞進這次的量測工作。
+
 ### 4.4 Timeout 與資源耗盡
 
 **GhCli.TIMEOUT_SECONDS = 30** (GhCli.java:64)
