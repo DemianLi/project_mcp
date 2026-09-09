@@ -137,6 +137,17 @@ A Client sending malformed calls all day produces a log file that says the Serve
 `durationMs` measures the Tool method body, not the request, for the same reason. This is
 the second consequence of ADR-0011's boundary; the first was the missing `structuredContent`.
 
+### Amended by ADR-0015: a call ends three ways, not two
+
+[ADR-0015](0015-a-ceiling-on-one-response.md) adds a third value to `outcome`. A call now
+reports `ok`, `error`, or **`fatal`** — the last when an `Error` escapes the Tool's work and
+the process halts rather than staying up and mute. A reader filtering on `error` will not
+see those.
+
+That branch also removes one entry from the list below: a fatal `Error` used to leave the
+file with nothing but Reactor's stack trace, and now leaves a line naming the call. The
+schema-rejected call remains the only ending that leaves nothing at all.
+
 ### `stderr` is a route this contract does not close
 
 `GhCli` logs `gh`'s stderr verbatim, and this Server does not write it. If GitHub ever
