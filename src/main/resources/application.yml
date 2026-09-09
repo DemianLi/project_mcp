@@ -10,6 +10,22 @@ spring:
         type: SYNC
         name: project-mcp
         version: 0.1.0
+        # Declare only what is implemented. Spring AI turns all four of these on by
+        # default, and the three below were being advertised in `InitializeResult`
+        # while `resources/list`, `prompts/list` and `resources/templates/list` all
+        # returned empty -- measured, not deduced. A Client probing this Server's
+        # capabilities was told it had a Resource face and a Prompt face; it has
+        # neither, by the decision in ADR-0004.
+        #
+        # `logging` is the one that cannot be turned off here: there is no property
+        # for it, and switching it off would mean replacing the whole capability set
+        # through an McpSyncServerCustomizer bean. It stays declared and unused --
+        # nothing in `src/` ever emits a logging notification, because logs go to the
+        # file named below. Known, and not worth a class of its own.
+        capabilities:
+          resource: false
+          prompt: false
+          completion: false
 
 logging:
   file:
