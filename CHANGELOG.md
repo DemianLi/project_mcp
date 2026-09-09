@@ -6,8 +6,9 @@ not why.
 
 ## 0.1.1 — 2026-09-10
 
-A single fix, and it is worth taking if a Client of this Server ever passes it parameters
-that came from anywhere but a person typing them.
+Two fixes. The first is worth taking if a Client of this Server ever passes it parameters
+that came from anywhere but a person typing them; the second is why this release says
+0.1.1 when you ask it.
 
 ### Fixed
 
