@@ -276,45 +276,88 @@ Stdio-only 意味著：
 
 ## 3. 可觀測性與維運
 
-### 3.1 Logging 現狀
+> **2026-09-09 全節重寫。** 原文的三項建議有兩項在這個 classpath 上做不出來，一項的歸因是
+> 錯的，見本節末的校訂註記。以下是實作後的現況，全部由驅動 jar 量出來而非讀原始碼推出來。
 
-**檔案日誌** (application.yml:16, GhCli.java:236-238)：
-- 位置：`logs/project-mcp.log`
-- 內容：失敗時記錄 argv + Remedy (GhCli line 236)
-- 格式：標準 logback，無結構化日誌
+### 3.1 現況
 
-**stdout 保留政策** (application.yml:20, ToolResults.java註解)：
-- console appender `OFF` — stdout 保留給 JSON-RPC
-- 任何其他輸出污染協議
+**每次呼叫一行**（`ToolResults.attempt`，ADR-0013）：
 
-### 3.2 缺口
+```json
+{"@timestamp":"2026-09-09T11:03:24.965587Z",
+ "log":{"level":"INFO","logger":"io.github.demianli.projectmcp.tool.ToolResults"},
+ "process":{"pid":34178,"thread":{"name":"boundedElastic-1"}},
+ "service":{"name":"project-mcp","version":"0.1.0-SNAPSHOT"},
+ "message":"get_issue ok","callId":"c3dc7fc4","tool":"get_issue",
+ "repo":"DemianLi/project-mcp-sandbox","outcome":"ok",
+ "durationMs":"9","resultBytes":"254","ecs":{"version":"8.11"}}
+```
+
+- **格式**：Elastic Common Schema，Spring Boot 4.1.1 內建（`logging.structured.format.file: ecs`），
+  沒有引入任何新依賴。
+- **欄位**：`tool` `callId` `repo` `outcome` `durationMs` 恆有；`resultBytes` 只在成功時，
+  `remedy` 只在失敗時。
+- **寫入額外一行**：`add_issue_comment` 成功後多一行 `comment written`，帶 `commentUrl`
+  永久連結。這結掉了 ADR-0007 掛著的那條 "a successful write leaves nothing in this
+  Server's log"。
+- **`GhCli` 的 argv 行仍在**，且自動帶上同一個 `callId` / `tool` / `repo`——MDC 在 lambda
+  外圍設好，`GhCli` 本身沒有被改動任何一行來配合。
+- **保留策略**：單檔 10MB、7 天、總量上限 100MB。上限這項不是預設值，Boot 的預設是無上限。
+
+**stdout 保留政策**：console appender `OFF`，實測 stdout 只有 JSON-RPC。
+
+### 3.2 一條紅線，以及它本來是破的
+
+日誌記**形狀**不記**內容**：哪個 Tool、哪個 repo、多久、多大、怎麼結束會進去；issue 標題、
+issue body、comment 內文、label 名稱不會。CONTEXT.md 已收錄這組詞。
+
+**這條線在寫測試之前就是破的。** `GhCli` 記的是逐字 argv，而 `add_issue_comment` 的 argv
+結尾是 `-f body=<整則留言>`。要失敗落在 **mutation** 而不是前面那次 lookup 才看得到，所以
+五個 Tool 的既有測試從來沒撞到。現在 `GhCli.argv()` 會把 `CONTENT_VARIABLES`（目前一個：
+`body`）的值換成長度：
+
+```
+-f body=<36 chars>` failed [UNKNOWN]: gh: mutation refused
+```
+
+`TraceContractAcceptanceTest` 把這件事釘在 wire 上，並且經過反向驗證——把修補拿掉，測試會紅。
+
+**這條線沒蓋到的地方**：`GhCli` 會逐字記 `gh` 的 stderr，那是 GitHub 的文字不是這個 Server
+寫的。若 GitHub 哪天用「把 body 引述回來」的方式拒絕一次寫入，內容會從這條路徑進到檔案。
+不遮蔽 stderr 是刻意的——遮掉就等於讓失敗沒有任何證據。列為 ADR-0013 的具名限制。
+
+### 3.3 缺口
 
 | 需求 | 現狀 | 備註 |
 |------|------|------|
-| **結構化日誌** | ❌ | 使用文本格式，機器難以解析 |
-| **Trace/Correlation** | ❌ | 無 request ID、無分佈式追蹤 |
-| **Metrics** | ❌ | 無調用次數、延遲、失敗率指標 |
-| **健康檢查端點** | ❌ (Stdio) | HTTP 傳輸後可加 `/health` |
-| **請求日誌** | ❌ | 成功調用無任何痕跡 (ADR-0007 Known Limitations) |
+| **結構化日誌** | ✓ | ECS JSON，Boot 內建 |
+| **請求日誌** | ✓ | 每次呼叫一行，成功失敗皆有 |
+| **Correlation** | ✓（進程內） | 自生 `callId`。**跨不過 `gh` 子行程**，也拿不到 MCP request id |
+| **Metrics** | ❌ | 知情不做，ADR-0014 記名了誰該補 |
+| **健康檢查端點** | ❌ | stdio 沒有端點可加；HTTP 傳輸後才有意義 |
+| **日誌送出** | ❌ | 檔案就是終點，沒有 agent、沒有 exporter |
 
-### 3.3 商用升級
+**兩件反直覺的事**：
 
-**強烈建議**（未必是 blocker）：
-1. **結構化日誌**：引入 JSON 日誌格式 (e.g. Logstash JSON appender for logback)
-   - 影響範圍：`application.yml` + logback configuration
-   - 相容性：對 Tool 邏輯零影響
+1. **被 schema 擋掉的呼叫完全沒有日誌。** SDK 在 dispatch 之前驗證（ADR-0011），自己造
+   result 就回去了，根本沒進 `ToolResults`。一個一直送壞請求的 Client，會產生一份看起來
+   「這台 Server 很閒」的日誌。`durationMs` 量的也因此是 Tool 方法體而非整個請求。
+2. **`durationMs` / `resultBytes` 是 JSON 字串不是數字**，MDC 只有字串型別。`jq` 要
+   `tonumber`。要真數字得寫 `StructuredLoggingJsonMembersCustomizer`，判斷不划算。
 
-2. **Micrometer Metrics**：Spring Boot 4.1.1 已包含 micrometer (pom.xml 透過 spring-ai-commons 依賴)
-   - 可追蹤：Tool 調用計數、`gh` 延遲分佈、失敗類別計數
-   - 實現：@Timed 註解或 MeterRegistry 注入
+### 3.4 校訂註記（2026-09-09）
 
-3. **Trace Header Propagation**：
-   - 若轉為 HTTP，添加 `X-Trace-ID` 或 W3C Trace Context
-   - 跨越 `GhCli` 子進程邊界困難（子進程無法回傳 trace header）
+原文這一節有三處要更正，兩處是我讀原始碼推出來而沒有跑過：
 
-**stdout 約束的可行性**：
-- Stdio 模式無法加健康檢查端點
-- HTTP 模式下可安全添加 `/health`, `/metrics` 端點（不污染 `/mcp` 端點）
+- **「無 request ID」歸因錯誤。** 原文列為未實作。實情是**拿不到**：`McpSyncServerExchange`
+  只暴露 `sessionId()`，整個 SDK 的 `server` package 裡 grep `requestId` 零命中。所以
+  correlation 只能自生，這是 SDK 的邊界不是這個專案的疏漏。
+- **「Micrometer：`@Timed` 註解或 `MeterRegistry` 注入」照字面做不出來。** `micrometer-core`
+  確實在 classpath 上（Spring AI 帶進來），但沒有任何 `micrometer-registry-*`，也沒有
+  `spring-boot-starter-actuator`——`MeterRegistry` 是 actuator 自動配置的，沒有 bean 可注入。
+  這句建議是讀依賴樹讀出來的，不是試出來的。見 ADR-0014。
+- **「引入 Logstash JSON appender」是多餘的依賴。** Boot 4.1.1 內建 ECS / Logstash / GELF
+  三種 formatter 與 logback `StructuredLogEncoder`，零新依賴。
 
 ---
 
@@ -564,10 +607,13 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 
 ### 7.2 上線前應補項目（Pre-Launch）
 
-#### P1: 結構化日誌
-- **現狀**：文本格式，難以自動化解析與告警
-- **成本**：低 (logback JSON appender 設定)
-- **建議**：加上 JSON 日誌格式，便於 ELK/Datadog 集成
+#### ~~P1: 結構化日誌~~ → 已完成（2026-09-09，ADR-0013）
+- **做法**：`logging.structured.format.file: ecs`，Spring Boot 4.1.1 內建，**沒有**引入
+  logback JSON appender——原建議的那個依賴是多餘的。
+- **順帶做掉的**：每次呼叫留一行痕跡（原本只有失敗才留），寫入成功多一行帶永久連結，
+  開機三行框架噪音壓掉，保留策略明寫並加上總量上限。
+- **順帶修掉的一個外洩**：`add_issue_comment` 的 mutation 失敗時，整則留言內容會被寫進
+  日誌檔。見 §3.2。
 
 #### P2: OAuth 2.1 整合文檔
 - **現狀**：文檔說明「外包給 `gh`」，無部署指南
@@ -577,13 +623,13 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
   - 令牌輪換策略
   - 多租戶場景的風險警告
 
-#### P3: 監控指標 (Metrics)
-- **現狀**：無 Tool 調用計數、延遲分佈
-- **成本**：中 (整合 Micrometer)
-- **建議**：
-  - Tool 調用計數 (per tool, per remedy)
-  - `gh` 延遲分佈 (P50, P95, P99)
-  - 失敗率追蹤
+#### ~~P3: 監控指標 (Metrics)~~ → 已收成知情決策，見 ADR-0014
+- **現狀**：不做，且理由記名了。stdio 一桌一 process，計數器活不過那個 process，沒有端點
+  可 scrape 也沒有對端可 push；而且這個 classpath 上沒有 `MeterRegistry` bean（沒有
+  actuator），原本的建議寫法根本編不出來。
+- **替代**：要的數字都在日誌裡，只是逐筆而非聚合——`durationMs` 是延遲，`outcome` /
+  `remedy` 是失敗率與其分類，一行就是一次呼叫。聚合是一條 `jq`。
+- **誰該補**：把這個 Server 部署到一張桌子以外、傳輸換成 HTTP 的人。見 ADR-0014。
 
 #### P4: 超大回應處理
 - **現狀**：無回應大小上限，極端情況 OOM 風險
@@ -655,9 +701,9 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 
 ### 上線前改善（視商用目標）
 
-4. **日誌結構化**：加入 JSON appender
+4. ~~**日誌結構化**~~：已完成（ECS，Boot 內建，ADR-0013）
 5. **OAuth 部署指南**：補充文檔
-6. **監控指標**：整合 Micrometer
+6. ~~**監控指標**~~：已收成「不做，以及誰該做」（ADR-0014）
 7. **輸出大小限制**：評估與實作
 8. **更新日誌**：記檄 timeout 政策、version 相容性
 
@@ -696,7 +742,7 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 | Single-tenant 部署 | ✓ | 五個 Tool 已端到端驅動過，見 §10 |
 | Multi-tenant SaaS | ❌ | Blocker: 無隔離機制 |
 | Distributed deployment | ⚠️ | Blocker: Stdio only |
-| Observability | ⚠️ | 日誌、metrics 缺失 |
+| Observability | ⚠️ | 日誌已結構化且每次呼叫留痕（§3）；metrics 知情不做（ADR-0014）；無送出管線 |
 | 規格 MUST 缺口 | ❌ | 無限流（ADR-0012 記為知情偏離） |
 | Dependency maturity | ✓ | Java 25 是 LTS；Spring 兩個版本都很新，見 §6 |
 
@@ -708,8 +754,9 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 
 **單機、單租戶**（例如內部 AI Agent 工具）：§7.1 的三個 blocker 沒有一個適用——
 SDK 天花板只在客戶要求 2026-07-28 時才擋，stdio 與多租戶隔離講的都是別種部署形狀。
-五個 Tool 已端到端驅動過（§10），可以上線。上線前該補的是運維面（結構化日誌、metrics）
-與部署文件，不是架構。
+五個 Tool 已端到端驅動過（§10），可以上線。運維面的日誌部分已經補完（§3）：每次呼叫留痕、
+ECS 結構化、內容不入檔。剩下的是部署文件，以及一件只有離開單機才成立的事——把日誌送出去。
+Metrics 在這個形狀下是刻意不做的，不是欠的（ADR-0014）。
 
 **分散式或多租戶 SaaS**：blocker #2 與 #3 都是硬牆，且 #3 的修復成本高——
 要嘛每租戶一個進程，要嘛重新設計認證層。同時限流那條 MUST 在這種形狀下不再是可以記載的偏離，

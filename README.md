@@ -58,6 +58,15 @@ access and the login had it. Locking is not an access control this Server can be
 on to respect — the login is the only gate there is, which is ADR-0009 seen from the other
 side.
 
+**It writes a file, and the file is not empty.** Every Tool call leaves one JSON line in
+`logs/project-mcp.log` — which Tool, which repository, how long, how it ended — and a write
+leaves a second one with the comment's permalink. What the line never carries is content:
+no issue body, no comment text, no label name, on any path this Server controls. That is a
+boundary rather than a habit, and
+[ADR-0013](./docs/adr/0013-what-a-call-leaves-behind.md) explains why, including the leak it
+was written after finding. Nothing ships the file anywhere and nothing deletes it beyond a
+100 MB cap, so a deployment that wants these lines collected owns that part.
+
 **One write, and it is deliberate.** `add_issue_comment` is the only Tool that changes
 anything on GitHub; everything else reads. Deletion, editing an existing comment, creating
 issues and anything on the pull-request side are all out of scope — see
