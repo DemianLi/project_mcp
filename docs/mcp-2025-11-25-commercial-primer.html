@@ -458,6 +458,10 @@ a:focus-visible,:focus-visible{outline:2px solid var(--accent);outline-offset:3p
       失敗還沒走到你寫的那條出口。而且那串訊息跟著機器的語言設定走：
       同一個錯誤，換一台 <code>LANG=ja_JP</code> 的機器就是日文。
       <br><br>
+      漏參數是這樣，<strong>型別給錯也是這樣</strong>——把一個該是陣列的欄位送成字串，
+      回來的是同一個形狀：<code>[/labels: 已找到 string，必須是 array]</code>，一樣沒有 remedy。
+      凡是被 schema 擋下來的輸入都走這條路，而那正好是 Client 最常犯的兩種錯。
+      <br><br>
       要帶走的形狀是這個：<strong>你的失敗契約只管得到方法體以內</strong>。
       方法體之前那一關屬於框架，得自己把它接回來——否則模型最常拿到的那個錯誤，
       正好是唯一沒有 remedy 的那個。做一個 MCP 之前，
