@@ -103,6 +103,7 @@ public class LabelTools {
             args.add("asc");
         }
 
-        return ToolResults.attempt(() -> mapper.toEnvelope(gh.run(args), effectiveLimit));
+        return ToolResults.attempt("list_labels", owner, repo,
+                () -> mapper.toEnvelope(gh.run(args), effectiveLimit));
     }
 }

@@ -115,7 +115,8 @@ public class IssueTools {
             }
         }
 
-        return ToolResults.attempt(() -> mapper.toEnvelope(gh.run(args), effectiveLimit));
+        return ToolResults.attempt("list_issues", owner, repo,
+                () -> mapper.toEnvelope(gh.run(args), effectiveLimit));
     }
 
     @McpTool(name = "get_issue",
@@ -148,7 +149,7 @@ public class IssueTools {
                 "--repo", owner + "/" + repo,
                 "--json", DETAIL_FIELDS);
 
-        return ToolResults.attempt(() -> {
+        return ToolResults.attempt("get_issue", owner, repo, () -> {
             // Mapped first, then judged. IssueMapper stays a pure function of a string and
             // knows nothing about failure; the semantic check runs on the record it
             // returns, so the payload is parsed exactly once. The next Tool that has to

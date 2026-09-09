@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -233,8 +234,45 @@ public class GhCli {
      * appender is off, because stdout belongs to JSON-RPC.
      */
     private static ToolFailure failure(List<String> command, ToolFailure failure) {
-        log.warn("`{}` failed [{}]: {}", String.join(" ", command), failure.remedy(),
+        log.warn("`{}` failed [{}]: {}", argv(command), failure.remedy(),
                 failure.stderr().isEmpty() ? failure.getMessage() : failure.stderr());
         return failure;
+    }
+
+    /**
+     * The GraphQL variables that carry <em>content</em> rather than shape.
+     *
+     * <p>One entry, and a new one is not optional. ADR-0013 draws the line this set enforces:
+     * the log records which Tool ran against which repository and how it ended, never what
+     * was written or read. Every other value in an argv here is shape — {@code owner},
+     * {@code name}, {@code number}, {@code subjectId}, the query document itself,
+     * {@code --repo}, {@code --limit}, {@code --json} — and stays legible because diagnosis
+     * needs it. {@code body} is the one that is the Client's text.
+     */
+    private static final Set<String> CONTENT_VARIABLES = Set.of("body");
+
+    /**
+     * The argv as a line, with content elided.
+     *
+     * <p>Measured before it was written: an {@code add_issue_comment} whose mutation failed
+     * put the entire comment into {@code logs/project-mcp.log}, because the argv it logs
+     * ends in {@code -f body=<the comment>}. The failure needed to be the mutation rather
+     * than the lookup for it to happen, which is why four Tools' worth of green tests never
+     * saw it.
+     *
+     * <p>The length survives. It is shape, and it is the half of the value that diagnoses
+     * anything: a body of 0 characters and a body of 60000 fail for different reasons, and
+     * neither reason is legible from the text itself.
+     */
+    private static String argv(List<String> command) {
+        List<String> safe = new ArrayList<>(command.size());
+        for (String arg : command) {
+            int equals = arg.indexOf('=');
+            String name = equals < 0 ? "" : arg.substring(0, equals);
+            safe.add(CONTENT_VARIABLES.contains(name)
+                    ? name + "=<" + (arg.length() - equals - 1) + " chars>"
+                    : arg);
+        }
+        return String.join(" ", safe);
     }
 }

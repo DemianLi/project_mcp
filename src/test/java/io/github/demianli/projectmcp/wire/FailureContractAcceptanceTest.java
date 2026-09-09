@@ -36,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <pre>{@code
  * String out = gh.run(args);                       // outside: escapes to Spring AI
- * return ToolResults.attempt(() -> map(out));
+ * return ToolResults.attempt("list_issues", owner, repo, () -> map(out));
  * }</pre>
  *
  * <p>— which is a natural enough shape to reach for, produces a result that reads as correct,

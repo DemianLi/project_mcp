@@ -7,6 +7,9 @@ import io.github.demianli.projectmcp.gh.GhCli;
 import io.github.demianli.projectmcp.gh.Remedy;
 import io.github.demianli.projectmcp.gh.ToolFailure;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
@@ -59,6 +62,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class CommentTools {
+
+    private static final Logger log = LoggerFactory.getLogger(CommentTools.class);
 
     /**
      * The one query, serving both the first call and every continuation.
@@ -182,7 +187,7 @@ public class CommentTools {
                 // the response volunteers. See ADR-0006.
                 "-F", "last=" + effectiveLimit));
 
-        return ToolResults.attempt(() -> {
+        return ToolResults.attempt("list_issue_comments", owner, repo, () -> {
             // Before the call, so a cursor from the wrong issue costs nothing to reject.
             String before = Cursors.unwrap(issue, cursor);
             if (before != null) {
@@ -241,7 +246,7 @@ public class CommentTools {
                     blank, and is refused before GitHub is called.""")
             String body) {
 
-        return ToolResults.attempt(() -> {
+        return ToolResults.attempt("add_issue_comment", owner, repo, () -> {
             // Before the call, for the reason Cursors.unwrap is: a blank body has no possible
             // success, so letting `gh` discover it spends a round trip held open by a
             // 30-second timeout. GitHub's predicate is blankness rather than emptiness --
@@ -285,11 +290,28 @@ public class CommentTools {
             // "123" arriving as a JSON number against `body:String!` is the mildest of the
             // three readings -- a body beginning `@` would post a file off this machine to
             // GitHub, over a Tool a Client is told writes a comment.
-            return mapper.toNewComment(gh.runWrite(List.of(
+            NewComment written = mapper.toNewComment(gh.runWrite(List.of(
                     "api", "graphql",
                     "-f", "query=" + ADD_COMMENT,
                     "-f", "subjectId=" + subjectId,
                     "-f", "body=" + body)));
+
+            // The one line ADR-0007 recorded as missing: "a successful write leaves nothing
+            // in this Server's log". ADR-0013 settles that it should, and settles that this
+            // is where it comes from rather than ToolResults -- the shared entry takes a
+            // Supplier<?> and teaching it to recognise NewComment would open a branch that
+            // every future write Tool adds to. It reads correctly here because the trace
+            // fields are already in the MDC around this lambda, so this line carries the same
+            // callId as the one ToolResults writes when the call ends.
+            //
+            // The permalink and nothing else. It identifies owner, repository, issue and
+            // comment in one field, and contains no part of what was written -- `body` is
+            // three lines above and stays there.
+            MDC.put("commentUrl", written.url());
+            log.info("comment written");
+            MDC.remove("commentUrl");
+
+            return written;
         });
     }
 
