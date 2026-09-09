@@ -46,7 +46,9 @@ if (handler == null) {
 ```
 
 One `WARN` in the log file, no reply, and nothing on stdout — the protocol stream stayed
-clean. The `gh` ran to completion and its response was written 20.36 seconds after the
+clean. The probe is
+[`docs/measurements/concurrency-and-cancellation.sh`](../measurements/concurrency-and-cancellation.sh);
+it runs offline, so this is re-checkable against a future SDK in about forty seconds. The `gh` ran to completion and its response was written 20.36 seconds after the
 request, correctly tagged with its own id, after a later request that had already been
 answered.
 

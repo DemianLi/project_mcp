@@ -212,7 +212,9 @@ response at 18 KB, which is a 460th of the 8 MB ceiling
 traffic they bound.
 
 One desk's afternoon, on one machine, against one network. Read it as an order of magnitude,
-not an SLO — the trap [ADR-0014](adr/0014-no-metrics-and-who-would-have-to.md) names.
+not an SLO — the trap [ADR-0014](adr/0014-no-metrics-and-who-would-have-to.md) names. Take
+your own with [`docs/measurements/tool-latency.sh`](measurements/tool-latency.sh), which is
+the script this table came out of.
 
 ### The number a Client timeout is set from
 
@@ -247,7 +249,10 @@ interleaved into the middle of another message.
 
 This is the SDK's scheduling rather than this Server's: an observation about MCP Java SDK
 2.0.0 and Spring AI 2.0.1, not a promise this Server keeps. It is not pinned by a test,
-because a test over it would assert someone else's internals.
+because a test over it would assert someone else's internals — re-run it against your own
+versions with
+[`docs/measurements/concurrency-and-cancellation.sh`](measurements/concurrency-and-cancellation.sh),
+which needs no network and no credential.
 
 ### When the Client gives up
 

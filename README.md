@@ -167,6 +167,10 @@ that write itself, which it decided against.
   number and the one Tool whose worst case is twice it. The [`Dockerfile`](./Dockerfile)
   beside it satisfies every condition in it, and was built and driven before it was
   committed
+- [docs/measurements/](./docs/measurements/) — the two scripts behind the numbers in
+  `deploying.md`: what one Tool call costs against real GitHub, and what happens to a call
+  the Client stopped waiting for. Primary sources rather than tests — they assert nothing,
+  they print what they saw
 - [CONTEXT.md](./CONTEXT.md) — domain glossary: the precise meaning of Server, Client,
   Inspector, Tool, Resource and the transports
 - [AGENTS.md](./AGENTS.md) — branch strategy and the configuration AI agents read
