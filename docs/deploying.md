@@ -95,9 +95,15 @@ recording.
 
 ## What a deployment has to provide
 
-No Dockerfile is shipped, deliberately: one has not been built and run here, and an
-unverified example is worth less than the conditions it would have to satisfy. These
-conditions hold for a container image, a systemd unit, or a bare `java -jar`.
+The repository's [`Dockerfile`](../Dockerfile) is one deployment that satisfies all of this,
+and it was built and driven before it was committed: image built, container started, a
+`tools/list` and a `get_issue` answered over its stdio, stdout checked line by line for
+anything that was not JSON-RPC, and the out-of-memory path provoked inside the container to
+confirm the protocol stream survives it. About 510 MB on arm64, most of which is the JRE and
+`gh` — this Server cannot do anything at all without the GitHub CLI in the image.
+
+The conditions below are what that file is satisfying, and they hold just as well for a
+systemd unit or a bare `java -jar`.
 
 1. **A JDK 25 runtime.** The build targets Java 25; earlier runtimes will not load the
    classes.
@@ -126,6 +132,38 @@ conditions hold for a container image, a systemd unit, or a bare `java -jar`.
 
 `mvn spring-boot:run` is not a way to start this. Maven writes build output to stdout before
 the application starts, and a Client parses that as JSON-RPC. Always the packaged jar.
+
+## JVM flags, and why they come in a pair
+
+```
+-XX:+ExitOnOutOfMemoryError -XX:+DisplayVMOutputToStderr
+```
+
+The Server refuses any single `gh` response over 8 MB and halts itself on a fatal `Error`
+([ADR-0015](adr/0015-a-ceiling-on-one-response.md)), so most of this is already handled in
+code. Keep the flags anyway: the same provocation at the same heap size ended two different
+ways. On the host the Server's own branch won and wrote the line naming the call; in the
+container the flag won and the log file held nothing but its startup lines. Which gets there
+first is not this Server's to decide, so both are worth having.
+
+Without them, a Server that runs out of memory **does not die**. Measured: no response to the
+in-flight call, nothing in the log but a Reactor stack trace, and the process still holding
+the pipe ten minutes after its stdin closed. A Client can restart a Server that died; against
+one that is up and mute it can only wait out its own timeout, while the abandoned process
+stays.
+
+The second flag is not decoration. `-XX:+ExitOnOutOfMemoryError` on its own prints
+`Terminating due to java.lang.OutOfMemoryError` **to stdout** — into the JSON-RPC stream,
+breaking the one `MUST NOT` the stdio transport has.
+`-XX:OnOutOfMemoryError="kill -9 %p"` prints four lines there. `DisplayVMOutputToStderr`
+moves the JVM's own output to stderr, which the specification explicitly allows a stdio
+server to write to. All three measured; the pair is the only combination that exits promptly
+and leaves the protocol stream untouched.
+
+Heap sizing follows from the same ADR: the amplification chain holds several copies of a
+payload, so the practical break is near a fifth of the heap. The 8 MB ceiling is set far
+enough below any plausible heap's fifth that it is reached first — a refusal carries a
+Remedy, an `OutOfMemoryError` carries nothing.
 
 ## Environment variables worth setting
 
@@ -178,6 +216,13 @@ Not gaps to be apologised for; boundaries with reasons recorded elsewhere.
 - **It does not respect an issue lock.** Measured: an owner's login posted a comment to a
   locked issue, because GitHub's lock refuses people without write access and that login had
   it. Locking is not an access control this Server can be leaned on to enforce.
+- **It does not carry a response over 8 MB.** Over that, one `gh` call is refused with
+  `FIX_REQUEST` rather than delivered or crashed on. Ordinary traffic never meets it: the
+  largest response GitHub's own shapes produce here is a full comment page at 6.57 MB,
+  measured. A response so large that reading it exhausts the heap before the ceiling can be
+  applied — 200 MB against a 256 MB heap — comes back as `UNKNOWN` instead, from the path
+  that already handled a `gh` this Server could not read.
+  [ADR-0015](adr/0015-a-ceiling-on-one-response.md).
 - **It does not sanitise GitHub's content.** Issue bodies and comments cross the wire as
   GitHub returned them. A Client that renders them is responsible for doing so safely;
   `commercial-readiness.md` §4.3 covers the injection surface on both sides.

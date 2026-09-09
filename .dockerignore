@@ -1,0 +1,7 @@
+# The build stage compiles from source, so nothing built locally belongs in the context.
+target/
+logs/
+.git/
+.idea/
+*.iml
+docs/

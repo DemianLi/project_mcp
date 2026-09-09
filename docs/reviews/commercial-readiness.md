@@ -439,16 +439,38 @@ Server 的形狀，不需要一條規格來背書。
 - ProcessBuilder 有無資源上限? (GhCli.java:146 無 `redirectErrorStream()` 或資源配置)
 - 若 `gh` 回傳極大輸出，是否會 OOM?
 
-**現狀**：
-- `stdout.get()` 與 `stderr.get()` 都是 `readAllBytes()` (GhCli.java:160-161)
-- 無輸出大小限制
-- `gh` 對大倉庫的列表查詢可能回傳 MB 級別的 JSON
+> **2026-09-09 更新：量過了，方向對、比重錯，而且下面有更嚴重的東西。**
 
-**風險等級**：低（GitHub GraphQL 有內建速率限制），但應記檔。
+**已實作的上限**：`GhCli.MAX_RESPONSE_BYTES = 8 MB`。超過就以 `FIX_REQUEST` 拒絕，量在
+`readAllBytes` 之後、轉成 `String` 之前——那是位元組開始被放大的地方。見
+[ADR-0015](../adr/0015-a-ceiling-on-one-response.md)。
 
-**建議**：
-- 記檄超大回應 (>10MB) 的情況
-- 考慮加 `ProcessBuilder.redirectErrorStream(false)` 以確保分離
+**實測數字**（`get_issue`，256 MB heap）：
+
+| 回應大小 | 修改前 |
+|---|---|
+| 1 / 10 / 20 / 40 MB | 整包通過並送達 Client |
+| 60 MB | `OutOfMemoryError` |
+
+斷點約在 **heap 的五分之一**，因為 bytes → `String` → tree → record → 再序列化，每一步各持
+一份。而 GitHub 自己形狀撐死是 **6.57 MB**（100 則留言各 65,536 字，實測 64 ms 回來、判為
+成功）。**所以 OOM 不是日常傷害；日常傷害是 6.5 MB 一次進模型的 context 而沒人有意見。**
+
+**真正嚴重的是 OOM 的壞法**：Client 收到的不是 `isError`、不是 Remedy、不是協議錯誤，而是
+**什麼都沒有**；日誌裡除了 Reactor 的堆疊什麼都沒留；而且**行程在 stdin 關閉之後還活著**
+——實測十分鐘還握著 pipe，最後是手動 kill 掉的。stdio 下 Client 放棄後會重啟一個新的，舊的
+就留在機器上。那正是 `GhCli.kill(Process)` javadoc 說這個類別存在就是為了避免的失敗，換一扇
+門進來。
+
+**已修**：`ToolResults` 多一條 `catch (Error)` 分支，寫下 `outcome: "fatal"` 的痕跡行然後
+`halt` 掉行程；部署層再加一對 JVM 旗標。**旗標必須成對**——`-XX:+ExitOnOutOfMemoryError`
+單獨用會把 `Terminating due to…` 印到 **stdout**，也就是 JSON-RPC 串流本身。三種組合都實測
+過，只有配上 `-XX:+DisplayVMOutputToStderr` 才既會死又不弄髒協議。
+
+**原建議的兩條都不採用**：「記錄超大回應」是把問題寫進日誌而不是解決它；
+`redirectErrorStream(false)` 則是無操作——`GhCli` 從未呼叫過 `redirectErrorStream`（已 grep
+確認），而 `ProcessBuilder` 的預設本來就是分離（JDK API 文件所載，非本次實測），兩條 pipe
+也已經被併發抽乾。
 
 ### 4.5 限流：規格的 MUST，本專案沒有
 
@@ -647,12 +669,14 @@ Server 的形狀，不需要一條規格來背書。
   `remedy` 是失敗率與其分類，一行就是一次呼叫。聚合是一條 `jq`。
 - **誰該補**：把這個 Server 部署到一張桌子以外、傳輸換成 HTTP 的人。見 ADR-0014。
 
-#### P4: 超大回應處理
-- **現狀**：無回應大小上限，極端情況 OOM 風險
-- **成本**：低 (添加大小檢查或流式解析)
-- **建議**：
-  - Tool 層檢查輸出大小，超過 X MB 返回 UNKNOWN (too large)
-  - 或加入分頁機制 (list_issues 已有分頁，其他讀取 Tool 考慮)
+#### ~~P4: 超大回應處理~~ → 已完成（2026-09-09，ADR-0015）
+- **做了什麼**：8 MB 上限（`GhCli`，原始位元組）＋ 致命 `Error` 時寫痕跡行並終止行程
+  ＋ 一對 JVM 旗標。兩個邊界都有 wire 層測試釘住，其中一支會**真的把 Server 跑到 OOM**。
+- **原建議兩條都沒採用**：上限不放 Tool 層而放 `GhCli`（放大鏈之前，Tool 層已經付掉峰值）；
+  Remedy 不用 `UNKNOWN` 而用 `FIX_REQUEST`（`UNKNOWN` 的語義是「認不出這個失敗」，而這是
+  一個我們自己發明、命名、還數得出位元組的失敗）。
+- **量出來才知道的比重**：GitHub 形狀撐死 6.57 MB，OOM 斷點在 heap 的五分之一——所以
+  日常傷害不是 OOM，是 6.5 MB 進 context。詳見 §4.4。
 
 #### P5: Timeout 政策文檔
 - **現狀**：30 秒固定，未記檄在案
@@ -720,7 +744,7 @@ Server 的形狀，不需要一條規格來背書。
 4. ~~**日誌結構化**~~：已完成（ECS，Boot 內建，ADR-0013）
 5. ~~**OAuth 部署指南**~~：已完成（`docs/deploying.md`），且順帶更正了三處規格誤讀
 6. ~~**監控指標**~~：已收成「不做，以及誰該做」（ADR-0014）
-7. **輸出大小限制**：評估與實作
+7. ~~**輸出大小限制**~~：已完成（8 MB 上限＋致命 Error 終止行程，ADR-0015）
 8. **更新日誌**：記檄 timeout 政策、version 相容性
 
 ### 未來功能演進（無緊迫性）
@@ -758,6 +782,7 @@ Server 的形狀，不需要一條規格來背書。
 | Single-tenant 部署 | ✓ | 五個 Tool 已端到端驅動過，見 §10 |
 | Multi-tenant SaaS | ❌ | Blocker: 無隔離機制 |
 | Distributed deployment | ⚠️ | Blocker: Stdio only |
+| 資源上限 | ✓ | 單一回應 8 MB 上限，致命 Error 終止行程（ADR-0015） |
 | Observability | ⚠️ | 日誌已結構化且每次呼叫留痕（§3）；metrics 知情不做（ADR-0014）；無送出管線 |
 | 規格 MUST 缺口 | ❌ | 無限流（ADR-0012 記為知情偏離） |
 | Dependency maturity | ✓ | Java 25 是 LTS；Spring 兩個版本都很新，見 §6 |
@@ -846,10 +871,12 @@ check your internet connection or https://githubstatus.com
 ### 仍未測到
 
 - rate limit → `RETRY`（要真的打爆 GraphQL 額度；ADR-0002 當年也 provoke 不出來）
-- 超大回應 / OOM
+- ~~超大回應 / OOM~~ → **2026-09-09 已測**，見 §4.4 與 ADR-0015。8 MB 上限、60 MB 的
+  OOM 與殭屍行程、6.57 MB 的現實最壞形狀、容器內的 OOM 路徑，全部驅動過；兩個邊界有 wire
+  層測試釘住
 - 併發、長時間連線
 
-前三項都需要真實流量形狀才測得有意義，現在測等於憑空猜負載。
+剩下兩項都需要真實流量形狀才測得有意義，現在測等於憑空猜負載。
 
 ---
 

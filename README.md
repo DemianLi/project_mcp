@@ -67,6 +67,15 @@ boundary rather than a habit, and
 was written after finding. Nothing ships the file anywhere and nothing deletes it beyond a
 100 MB cap, so a deployment that wants these lines collected owns that part.
 
+**One response has a ceiling, and running out of memory is fatal on purpose.** No single
+`gh` response over 8 MB is carried — over that the call is refused with a Remedy rather than
+delivered or crashed on, and ordinary traffic never meets it (the largest shape GitHub
+produces here measured 6.57 MB). If the heap does run out anyway, the Server writes the line
+naming the call and then stops: measured, a Server that survives its own
+`OutOfMemoryError` answers nothing and outlives the Client that started it, and under stdio a
+dead Server is one a Client can restart.
+[ADR-0015](./docs/adr/0015-a-ceiling-on-one-response.md) has the numbers.
+
 **One write, and it is deliberate.** `add_issue_comment` is the only Tool that changes
 anything on GitHub; everything else reads. Deletion, editing an existing comment, creating
 issues and anything on the pull-request side are all out of scope — see
@@ -150,9 +159,10 @@ that write itself, which it decided against.
   is measurably not clean
 - [docs/deploying.md](./docs/deploying.md) — what a deployment has to provide and what it
   has to decide: the identity every call shares, where `gh` looks for a credential and why
-  rotating it needs a restart in one arrangement and not the other, the conditions an image
-  has to satisfy in place of a Dockerfile nobody has built here, and the `gh` output that
-  reaches a model when a call fails
+  rotating it needs a restart in one arrangement and not the other, the `gh` output that
+  reaches a model when a call fails, and the JVM flags without which a Server that runs out
+  of memory stays up and mute. The [`Dockerfile`](./Dockerfile) beside it satisfies every
+  condition in it, and was built and driven before it was committed
 - [CONTEXT.md](./CONTEXT.md) — domain glossary: the precise meaning of Server, Client,
   Inspector, Tool, Resource and the transports
 - [AGENTS.md](./AGENTS.md) — branch strategy and the configuration AI agents read
