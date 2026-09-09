@@ -161,8 +161,12 @@ that write itself, which it decided against.
   has to decide: the identity every call shares, where `gh` looks for a credential and why
   rotating it needs a restart in one arrangement and not the other, the `gh` output that
   reaches a model when a call fails, and the JVM flags without which a Server that runs out
-  of memory stays up and mute. The [`Dockerfile`](./Dockerfile) beside it satisfies every
-  condition in it, and was built and driven before it was committed
+  of memory stays up and mute. It also separates the two clocks a deployment has to set —
+  the Client's request deadline, which the specification talks about, and this Server's
+  30-second `gh` budget, which it does not — with the measured round trips behind that
+  number and the one Tool whose worst case is twice it. The [`Dockerfile`](./Dockerfile)
+  beside it satisfies every condition in it, and was built and driven before it was
+  committed
 - [CONTEXT.md](./CONTEXT.md) — domain glossary: the precise meaning of Server, Client,
   Inspector, Tool, Resource and the transports
 - [AGENTS.md](./AGENTS.md) — branch strategy and the configuration AI agents read

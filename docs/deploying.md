@@ -165,6 +165,143 @@ payload, so the practical break is near a fifth of the heap. The 8 MB ceiling is
 enough below any plausible heap's fifth that it is reached first — a refusal carries a
 Remedy, an `OutOfMemoryError` carries nothing.
 
+## Two clocks, and only one of them is this Server's
+
+The word *timeout* means two unrelated things here, and a deployment that conflates them
+sets the wrong number.
+
+**The Client's clock** is the one the specification talks about. `2025-11-25`'s
+`basic/lifecycle.mdx`, under *Timeouts*, binds the **sender** of a request: a sender SHOULD
+establish a timeout for requests it sends, and SHOULD issue a cancellation notification when
+one expires. On `tools/call` this Server is the receiver, and it uses none of
+the server-to-client requests the protocol offers — no sampling, no elicitation, no
+`roots/list` — so in this Server that clause has nothing of its own to bind and addresses
+the Client. (The SDK does hold a `requestTimeout` for the requests a server *can* send;
+this one never sends them.) The sentence beside it, saying an SDK SHOULD let those timeouts
+be set per request, is addressed to the sender's SDK for the same reason. Neither is a requirement on the
+budget below, and neither is a gap this Server is conceding.
+
+**This Server's clock** is `GhCli.TIMEOUT_SECONDS = 30`: how long one `gh` invocation may
+take before it is killed, along with everything it spawned. The specification says nothing
+about it. It exists because a subprocess that never returns is the failure `GhCli` was
+written to prevent.
+
+Neither clock knows about the other, which is what the rest of this section is about.
+
+### What a call actually costs
+
+Measured 2026-09-09 against `github.com`, five samples per shape, driving the packaged jar
+over its own stdio. The number is the Server's own `durationMs` — the whole Tool body, `gh`
+round trip plus parse plus serialise, which is what the Client waits for.
+
+| Tool | Repository | median | slowest | largest response |
+| --- | --- | ---: | ---: | ---: |
+| `list_labels` | `DemianLi/project_mcp` | 542 ms | 555 ms | 1.4 KB |
+| `list_issue_comments` | `DemianLi/project_mcp` | 595 ms | 665 ms | 3.6 KB |
+| `get_issue` | `DemianLi/project_mcp` | 659 ms | 705 ms | 7.7 KB |
+| `list_issue_comments` | `modelcontextprotocol/modelcontextprotocol` | 702 ms | 844 ms | 13.4 KB |
+| `list_issues` (state `ALL`) | `DemianLi/project_mcp` | 824 ms | 882 ms | 7.1 KB |
+| `list_issues` (100 open) | `modelcontextprotocol/modelcontextprotocol` | 966 ms | 1,474 ms | 18.2 KB |
+
+Thirty seconds is **31 times the slowest median above and 20 times the slowest single call
+observed**. That is the argument for the number: it is not "about long enough", it is two
+orders of magnitude away from ordinary traffic, far enough that reaching it means `gh` or
+the network is genuinely stuck rather than merely busy. The same run puts the largest
+response at 18 KB, which is a 460th of the 8 MB ceiling
+([ADR-0015](adr/0015-a-ceiling-on-one-response.md)) — both bounds sit a long way outside the
+traffic they bound.
+
+One desk's afternoon, on one machine, against one network. Read it as an order of magnitude,
+not an SLO — the trap [ADR-0014](adr/0014-no-metrics-and-who-would-have-to.md) names.
+
+### The number a Client timeout is set from
+
+The budget is per `gh` invocation, not per Tool call, and one Tool makes two.
+
+| Tool | `gh` invocations | worst case |
+| --- | ---: | ---: |
+| `list_issues`, `get_issue`, `list_labels`, `list_issue_comments` | 1 | ~30 s |
+| `add_issue_comment` | 2 | ~60 s (structural bound, not measured) |
+
+The two are structural, not an oversight: GraphQL cannot feed a query's result into a
+mutation in the same document, and `addComment` needs a `subjectId` that a prior query
+resolved. That first call is deliberately a read — a timeout there means nothing was
+written ([ADR-0007](adr/0007-add-issue-comment-parameters-return-and-annotations.md)).
+
+A Client deadline shorter than 60 seconds can therefore expire over a write that is still in
+flight. What happens then is below, and it is not a hang.
+
+### One slow call does not block the others
+
+Measured with a stand-in `gh` that sleeps 20 seconds. Request A (`list_issues`, into the
+slow binary) went out; one second later request B (`list_labels`, into a fast one):
+
+```
+B answered  27 ms after it was sent, with A's `gh` still 19 s from returning
+A answered  20.36 s after it was sent, tagged with its own id, after B
+```
+
+So a stuck `gh` costs its own caller and nobody else, and responses leave in completion
+order with their `id` — which JSON-RPC allows and a Client matches on. Nothing was
+interleaved into the middle of another message.
+
+This is the SDK's scheduling rather than this Server's: an observation about MCP Java SDK
+2.0.0 and Spring AI 2.0.1, not a promise this Server keeps. It is not pinned by a test,
+because a test over it would assert someone else's internals.
+
+### When the Client gives up
+
+Nothing reaches this Server. `notifications/cancelled` is not implemented anywhere in the
+stack it is built on — `mcp-core` 2.0.0, `mcp-json-jackson3` 2.0.0, `spring-ai-mcp` 2.0.1
+and `spring-ai-autoconfigure-mcp-server-common` 2.0.1 contain no occurrence of the string,
+and `McpSchema`'s method constants do not include it. A cancellation therefore lands in the
+SDK's unknown-notification branch: one `WARN` in the log file, no reply, nothing on stdout.
+The specification permits exactly this — a receiver MAY ignore a cancellation — and
+[ADR-0016](adr/0016-a-cancelled-call-is-not-cancelled-here.md) records the decision not to
+close the gap.
+
+What that costs, concretely:
+
+- **The `gh` keeps running**, to its own completion or to the 30-second budget, whichever
+  arrives first. The work is not stopped and the subprocess is not killed early.
+- **The late response is still written**, correctly tagged. A Client that gave up must
+  ignore it, which is what the specification tells the sender to do.
+- **The Client's own words end up in the log file.** That `WARN` prints the whole
+  notification, `reason` included:
+
+  ```
+  No handler registered for notification method: JSONRPCNotification[jsonrpc=2.0,
+    method=notifications/cancelled, params={requestId=101, reason=probe gave up}]
+  ```
+
+  [ADR-0013](adr/0013-what-a-call-leaves-behind.md)'s boundary is about GitHub's content —
+  no issue body, no comment text. This is the Client's own text, and it is outside that
+  boundary. A deployment where the Client puts anything sensitive in a cancellation reason
+  should know the file holds it.
+
+### Changing the budget
+
+Thirty seconds is a constant, not a property. That is deliberate and it is the same rule
+`MAX_RESPONSE_BYTES` and `Limits.MAX` follow: every bound in this Server is a constant with
+an ADR behind it, because a bound exposed as configuration is a bound set by someone who
+never read the reasoning. Nothing in the specification's timeout clause argues otherwise —
+as above, that clause is addressed to the sender.
+
+Two ways to change it, both requiring a build: edit `GhCli.TIMEOUT_SECONDS`, or construct
+`GhCli` through its two-argument constructor, which is how the timeout tests run their
+budget down to one second.
+
+What each direction buys and costs:
+
+- **Shorter.** A stuck call is abandoned sooner. It also expires over more writes that were
+  about to succeed, and every expired write comes back `CHECK_BEFORE_RETRY` — the Client is
+  told to go and look rather than retry, because GitHub has no idempotency key
+  ([ADR-0008](adr/0008-failure-contract-for-writes.md)). Shortening buys responsiveness with
+  unconfirmed writes.
+- **Longer.** More slow-but-real calls complete. Past the Client's own deadline it buys
+  nothing at all: the Client stops waiting, this Server never learns, and the work runs on
+  to produce a response nobody reads.
+
 ## Environment variables worth setting
 
 Not for the Server's sake — for `gh`'s.

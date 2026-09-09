@@ -160,6 +160,26 @@ payload. So the claim this Server makes is narrower than "no content in the file
 *no content this Server puts there*. Recorded rather than left to be discovered, and not
 provoked against the real endpoint, because no rejection observed so far has echoed a body.
 
+### The Client's own text arrives by a second route
+
+The section above narrows the claim to *GitHub's* content. There is a second author whose
+text reaches the file, found while writing
+[ADR-0016](0016-a-cancelled-call-is-not-cancelled-here.md): the Client's.
+
+`notifications/cancelled` is not implemented anywhere in this stack, so the SDK takes its
+unknown-notification branch and logs the whole notification — including the free-text
+`reason` the Client wrote:
+
+```
+No handler registered for notification method: JSONRPCNotification[jsonrpc=2.0,
+  method=notifications/cancelled, params={requestId=101, reason=probe gave up}]
+```
+
+Measured against a running Server, not deduced. It is the SDK's line rather than this
+Server's, and the boundary this ADR draws was never about the caller's own words — but a
+reader who takes "shape, never content" as covering the whole file would be wrong twice, not
+once, and the second one is worth the same paragraph as the first.
+
 ### `durationMs` and `resultBytes` read back as strings
 
 The MDC holds strings and has no other type, so `"durationMs":"12"`, not `12`. A `jq`
