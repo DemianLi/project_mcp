@@ -461,9 +461,11 @@ Server 的形狀，不需要一條規格來背書。
 > `Post "https://127.0.0.1:8099/api/graphql": dial tcp 127.0.0.1:8099: connect: connection refused`。
 > 該列現在三個樣本全是 `UNMEASURED`。
 >
-> **還沒修。** 修的形狀大概是 Tool 層在呼叫前拒絕帶斜線（或空白）的 `owner`／`repo`，
-> 像 `add_issue_comment` 拒絕空白 body 那樣自己發明一個失敗——但那會動到失敗契約，
-> 該走一張 wayfinder 票而不是順手塞進這次的量測工作。
+> **還沒修，票開了**：[#37](https://github.com/DemianLi/project_mcp/issues/37)。修的形狀大概是
+> Tool 層在呼叫前拒絕帶斜線的 `owner`／`repo`，像 `add_issue_comment` 拒絕空白 body 那樣自己
+> 發明一個失敗——但那會動到失敗契約，而且要先決定拒絕長什麼樣子，所以走票不順手改。
+> 空字串與 `a/` 這種形狀今天就已經是 `FIX_REQUEST`（`gh` 自己會抱怨格式，已量），
+> **只有斜線是漏的那一格**。
 
 ### 4.4 Timeout 與資源耗盡
 
