@@ -201,8 +201,11 @@ inside the same two calls. Choosing GraphQL costs #28 nothing.
   than GitHub's. Deliberate, and the reason is above.
 - **`authorAssociation` is not reported.** A Client that needs to know what identity the
   comment was written under has to read it back with `list_issue_comments`.
-- **A successful write leaves nothing in this Server's log.** ADR-0002 logs argv on failure
-  only. Whether that is right for a write is flagged on the map as not yet specified.
+- ~~**A successful write leaves nothing in this Server's log.**~~ Specified by
+  [ADR-0013](0013-what-a-call-leaves-behind.md), 2026-09-09: it now leaves two lines — the
+  per-call trace every Tool writes, and a `comment written` line carrying the permalink,
+  emitted here rather than in `ToolResults` for the reason that ADR gives. The comment's
+  text is not in either, and is elided from the argv line as well.
 - **The pull-request guard rests on a `classify()` branch shared with the read route**, whose
   comment must therefore name this ADR.
 

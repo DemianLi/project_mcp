@@ -193,6 +193,15 @@ payload, because console logging is off, and that recovering it would need a fil
 The decision is unaffected — the argv still stays out of what the caller sees — but its
 stated cost was not real, so the implementation logs it rather than discarding it.
 
+**2026-09-09, [ADR-0013](0013-what-a-call-leaves-behind.md).** The argv written to the log
+is no longer written verbatim. `add_issue_comment`'s argv ends in `-f body=<the whole
+comment>`, so a mutation that failed put a Client's text into `logs/project-mcp.log` — the
+lookup failing was not enough to show it, which is why the suite never did. The values of
+the variables in `GhCli.CONTENT_VARIABLES` (one entry, `body`) are replaced by their length.
+Everything else in the argv is unchanged and stays legible: it is the shape of the call, and
+diagnosis needs it. The decision above is unaffected — the argv still stays out of what the
+caller sees, and it still survives in the log — but *all* of it no longer does.
+
 **2026-09-05, during [#13](https://github.com/DemianLi/project_mcp/issues/13).** The failure
 type is renamed `GhFailure` → **`ToolFailure`**. `get_issue` rejecting a pull request number
 is the first failure this Server reports that `gh` did not produce — `gh` succeeded and

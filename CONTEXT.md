@@ -123,6 +123,20 @@ the Envelope it is this Server's own design, learned once and holding across eve
 See `docs/adr/0002-failure-contract-for-gh-calls.md`.
 _Avoid_: error code, error type, failure kind, 错误码
 
+**Shape** (against **Content**):
+The two halves of a call, and the line between them is where this Server's log stops. The
+_shape_ of a call is which Tool ran, against which repository, how long it took, how large
+the answer was, and how it ended. The _content_ is the text on either side of it: an issue's
+title or body, a comment, a label's name — whether a Client sent it or GitHub returned it.
+
+The log records shape and never content. Not a convention but a boundary: content in the log
+is a copy of GitHub's text on a disk outside the protocol, that nothing here deletes, whose
+access controls are the filesystem's rather than GitHub's. It would be a disclosure surface
+created by accident. The one argument that is content — a comment's `body` — is elided from
+the argv line by name, and the distinction is what `TraceContractAcceptanceTest` exists to
+hold. See `docs/adr/0013-what-a-call-leaves-behind.md`.
+_Avoid_: payload, data, metadata, 资料, 内容
+
 ### Deployment
 
 **Read-only instance**:
