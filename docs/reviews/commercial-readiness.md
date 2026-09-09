@@ -260,15 +260,13 @@ Stdio-only 意味著：
 > OAuth 2.1 流程」當成規格要求。**那是誤讀，而且兩個 baseline 都誤讀。** 規格對 stdio
 > 傳輸的說法不是「應該做而沒做」，是「**不應該做**」。
 
-**規格原文**（`2025-11-25` 與 `2026-07-28` 的 *Authorization* §Protocol Requirements
-一字不差）：
+**規格怎麼說**（`2025-11-25` 與 `2026-07-28` 的 *Authorization* §Protocol Requirements
+一字不差）：走 stdio 傳輸的實作 **SHOULD NOT** 遵循 authorization 那份規格，而應該從環境
+取得憑證。原文在 `docs/specification/2025-11-25/basic/authorization.mdx`，2026-07-28 的
+對應檔在 `basic/authorization/index.mdx`。
 
-> Implementations using an STDIO transport **SHOULD NOT** follow this specification, and
-> instead retrieve credentials from the environment.
-
-整份 authorization 規格的適用範圍是 HTTP-based transports——開宗明義就寫著
-"This specification defines the authorization flow for HTTP-based transports"。一個 stdio
-Server 若真的在協議上收令牌並驗證，那是**偏離**規格而不是更貼近它。
+整份 authorization 規格的適用範圍在它自己的 Purpose and Scope 就寫明是 HTTP-based
+transports。一個 stdio Server 若真的在協議上收令牌並驗證，那是**偏離**規格而不是更貼近它。
 
 **本專案現狀**：認證完全外包給 `gh`，不持有也不驗證任何令牌，憑證從環境取得。**這正是
 規格對 stdio 指定的做法**，符合度是 ✓ 而不是缺口。
@@ -410,11 +408,8 @@ Practices：伺服器應驗證客戶端身份（通常經由 OAuth）」。2025-
 lifecycle、transports 四份，安全條款在 `index.mdx` 的 §Security and Trust & Safety，而且
 「取得明確同意」那幾條的對象是 **Host** 不是 Server。這一項是被發明出來的規格要求。
 
-實際存在、而且對本專案生效的是 §Implementation Guidelines 那五條 **SHOULD**，其中第二條：
-
-> 2. Provide clear documentation of security implications
-
-——這正是 `docs/deploying.md` 存在的理由，也是這一節原本結語「部署文件缺」唯一站得住的
+實際存在、而且對本專案生效的是 `index.mdx` §Implementation Guidelines 那五條 **SHOULD**，
+其中第二條要求實作者提供關於安全影響的清楚文件——這正是 `docs/deploying.md` 存在的理由，也是這一節原本結語「部署文件缺」唯一站得住的
 部分。該缺口已補。**「一個進程一個身份」的風險本身完全不受影響**，它來自 ADR-0009 與這個
 Server 的形狀，不需要一條規格來背書。
 

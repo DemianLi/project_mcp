@@ -28,15 +28,14 @@ reading before promising either to anyone.
 
 ### What the specification asks of a stdio server
 
-Nothing that this Server is missing. Both revisions state the same requirement:
-
-> Implementations using an STDIO transport **SHOULD NOT** follow this specification, and
-> instead retrieve credentials from the environment.
->
-> — MCP `2025-11-25` and `2026-07-28`, *Authorization*, Protocol Requirements
+Nothing that this Server is missing. Under *Protocol Requirements*, both revisions say the
+same thing in the same words: an implementation on a stdio transport **SHOULD NOT** follow
+the authorization specification, and should retrieve its credentials from the environment
+instead. Read it at `docs/specification/2025-11-25/basic/authorization.mdx` — and at
+`2026-07-28/basic/authorization/index.mdx`, which is identical on this point.
 
 OAuth 2.1, resource-server token validation, protected-resource metadata — all of it is
-scoped to HTTP-based transports. A stdio server that took a token over the wire would be
+scoped to HTTP-based transports, as that document's own Purpose and Scope says. A stdio server that took a token over the wire would be
 departing from the specification, not conforming to it more closely. This Server holds no
 token, validates no token, and reads none: authentication is entirely `gh`'s, resolved
 either from the environment the Server was started in or from `gh`'s own stored
@@ -120,9 +119,10 @@ conditions hold for a container image, a systemd unit, or a bare `java -jar`.
    The Server's own hygiene is already handled (`banner-mode: off`,
    `web-application-type: none`, console appender `OFF`); what a deployment adds around it is
    not.
-6. **stdin and stdout attached to the Client**, unbuffered, and not shared with anything
-   else. There is no port to expose and no health endpoint to probe — under stdio there is
-   nowhere to put one.
+6. **stdin and stdout attached to the Client, and shared with nothing else.** The Server
+   reads line-delimited JSON-RPC from one and writes it to the other; a second writer on
+   either interleaves into the middle of a message. There is no port to expose and no health
+   endpoint to probe — under stdio there is nowhere to put one.
 
 `mvn spring-boot:run` is not a way to start this. Maven writes build output to stdout before
 the application starts, and a Client parses that as JSON-RPC. Always the packaged jar.
