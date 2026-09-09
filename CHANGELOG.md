@@ -4,6 +4,24 @@ Notable changes to this Server. The reasoning behind them lives in
 [docs/adr/](docs/adr/) — this file records what changed and what it is compatible with,
 not why.
 
+## Unreleased
+
+### Fixed
+
+- **`owner` and `repo` may no longer contain a slash.** `gh`'s `--repo` takes
+  `[HOST/]OWNER/REPO`, so a slash in `owner` promoted its first segment to a hostname and
+  the caller chose where this Server made its next request — measured through the Tool
+  interface against 0.1.0. Worse, the resulting connection failure matched `GhStderr`'s
+  network row and came back as `RETRY`, "the network looks unavailable", sending a Client
+  that followed the advice at the same host again. Both halves are now refused with
+  `FIX_REQUEST` before any subprocess starts.
+  [#37](https://github.com/DemianLi/project_mcp/issues/37),
+  [ADR-0017](docs/adr/0017-owner-and-repo-may-not-contain-a-slash.md).
+
+  Not measured, and stated in the ADR: whether that request carried a credential. `gh`
+  documents `GH_TOKEN` as github.com's and `GH_ENTERPRISE_TOKEN` as other hosts', which
+  suggests not.
+
 ## 0.1.0 — 2026-09-09
 
 First release. Five Tools over stdio, driven end to end against real GitHub.

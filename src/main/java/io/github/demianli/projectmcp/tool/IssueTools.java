@@ -99,24 +99,29 @@ public class IssueTools {
         int effectiveLimit = Limits.clamp(limit);
         IssueState effectiveState = state == null ? IssueState.OPEN : state;
 
-        List<String> args = new ArrayList<>(List.of(
-                "issue", "list",
-                "--repo", owner + "/" + repo,
-                "--state", effectiveState.forGh(),
-                // One spare, so `truncated` can mean "more exist" rather than merely
-                // "your limit was clamped".
-                "--limit", Integer.toString(effectiveLimit + 1),
-                "--json", FIELDS));
+        return ToolResults.attempt("list_issues", owner, repo, () -> {
+            // The argv is composed in here rather than above it because composing it can
+            // now fail: Repos.slug refuses a slash, and a refusal thrown outside this
+            // lambda would be Spring AI's to answer, arriving with no Remedy. Same reason
+            // add_issue_comment checks its body in here. See ToolResults and ADR-0011.
+            List<String> args = new ArrayList<>(List.of(
+                    "issue", "list",
+                    "--repo", Repos.slug(owner, repo),
+                    "--state", effectiveState.forGh(),
+                    // One spare, so `truncated` can mean "more exist" rather than merely
+                    // "your limit was clamped".
+                    "--limit", Integer.toString(effectiveLimit + 1),
+                    "--json", FIELDS));
 
-        if (labels != null) {
-            for (String label : labels) {
-                args.add("--label");
-                args.add(label);
+            if (labels != null) {
+                for (String label : labels) {
+                    args.add("--label");
+                    args.add(label);
+                }
             }
-        }
 
-        return ToolResults.attempt("list_issues", owner, repo,
-                () -> mapper.toEnvelope(gh.run(args), effectiveLimit));
+            return mapper.toEnvelope(gh.run(args), effectiveLimit);
+        });
     }
 
     @McpTool(name = "get_issue",
@@ -144,12 +149,12 @@ public class IssueTools {
                     one sequence; a pull request number is rejected.""")
             int number) {
 
-        List<String> args = List.of(
-                "issue", "view", Integer.toString(number),
-                "--repo", owner + "/" + repo,
-                "--json", DETAIL_FIELDS);
-
         return ToolResults.attempt("get_issue", owner, repo, () -> {
+            List<String> args = List.of(
+                    "issue", "view", Integer.toString(number),
+                    "--repo", Repos.slug(owner, repo),
+                    "--json", DETAIL_FIELDS);
+
             // Mapped first, then judged. IssueMapper stays a pure function of a string and
             // knows nothing about failure; the semantic check runs on the record it
             // returns, so the payload is parsed exactly once. The next Tool that has to

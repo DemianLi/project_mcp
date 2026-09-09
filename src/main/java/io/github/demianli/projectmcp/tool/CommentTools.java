@@ -188,6 +188,11 @@ public class CommentTools {
                 "-F", "last=" + effectiveLimit));
 
         return ToolResults.attempt("list_issue_comments", owner, repo, () -> {
+            // This route never composes `--repo`, so a slash here is inert -- and it is
+            // refused anyway, so that one bad parameter gets one answer whichever Tool
+            // received it. Repos says why at length. Issue #37.
+            Repos.check(owner, repo);
+
             // Before the call, so a cursor from the wrong issue costs nothing to reject.
             String before = Cursors.unwrap(issue, cursor);
             if (before != null) {
@@ -260,6 +265,9 @@ public class CommentTools {
             if (body == null || body.isBlank()) {
                 throw blankBody();
             }
+
+            // Inert on this route too, and refused for the same reason: see Repos.
+            Repos.check(owner, repo);
 
             // Call one is a read, and takes the read route deliberately. A timeout here
             // means nothing was written, so CHECK_BEFORE_RETRY would send a Client looking

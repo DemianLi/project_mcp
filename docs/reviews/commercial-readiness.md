@@ -461,11 +461,20 @@ Server 的形狀，不需要一條規格來背書。
 > `Post "https://127.0.0.1:8099/api/graphql": dial tcp 127.0.0.1:8099: connect: connection refused`。
 > 該列現在三個樣本全是 `UNMEASURED`。
 >
-> **還沒修，票開了**：[#37](https://github.com/DemianLi/project_mcp/issues/37)。修的形狀大概是
-> Tool 層在呼叫前拒絕帶斜線的 `owner`／`repo`，像 `add_issue_comment` 拒絕空白 body 那樣自己
-> 發明一個失敗——但那會動到失敗契約，而且要先決定拒絕長什麼樣子，所以走票不順手改。
-> 空字串與 `a/` 這種形狀今天就已經是 `FIX_REQUEST`（`gh` 自己會抱怨格式，已量），
-> **只有斜線是漏的那一格**。
+> **已修**：[#37](https://github.com/DemianLi/project_mcp/issues/37) ／
+> [ADR-0017](../adr/0017-owner-and-repo-may-not-contain-a-slash.md)。`Repos` 在任何子行程啟動
+> 之前就以 `FIX_REQUEST` 拒絕帶斜線的 `owner`／`repo`，並指名是哪一個參數；五個 Tool 都檢查，
+> 包括三個斜線本來就無害的 GraphQL 路徑——**同一個壞參數，不該因為 Tool 內部走哪條路而得到
+> 不同的答案**。
+>
+> 只拒斜線。空字串與 `a/` 這種形狀 `gh` 自己會抱怨格式（已量），`GhStderr` 已經把它變成
+> `FIX_REQUEST`，再攔一次等於這個 Server 用比較差的話重講 GitHub 說對了的事。
+>
+> `RepositoryNameAcceptanceTest` 從 `listTools()` 逐一驅動每個 Tool，斷言 `FIX_REQUEST`
+> 而不只是「有失敗」，並且斷言 stand-in `gh` **從未被啟動**——在 spawn 之後才拒絕，回應看起來
+> 一模一樣，但請求已經離開這台機器了。做過 mutation 檢查：拿掉守衛就紅。
+>
+> **憑證那一項仍未量**，所以嚴重性仍是「未定」而不是「低」。
 
 ### 4.4 Timeout 與資源耗盡
 

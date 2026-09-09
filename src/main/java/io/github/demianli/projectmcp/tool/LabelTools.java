@@ -78,32 +78,36 @@ public class LabelTools {
         int effectiveLimit = Limits.clamp(limit);
         boolean filtering = search != null && !search.isBlank();
 
-        List<String> args = new ArrayList<>(List.of(
-                "label", "list",
-                "--repo", owner + "/" + repo,
-                // One spare, as in list_issues, so `truncated` means "more exist" rather
-                // than merely "your limit was clamped". Verified to hold under --search.
-                "--limit", Integer.toString(effectiveLimit + 1),
-                "--json", FIELDS));
+        return ToolResults.attempt("list_labels", owner, repo, () -> {
+            // Composed in here, not above: Repos.slug can refuse, and a refusal
+            // thrown outside this lambda loses its Remedy to Spring AI. See
+            // ToolResults and ADR-0011.
+            List<String> args = new ArrayList<>(List.of(
+                    "label", "list",
+                    "--repo", Repos.slug(owner, repo),
+                    // One spare, as in list_issues, so `truncated` means "more exist" rather
+                    // than merely "your limit was clamped". Verified to hold under --search.
+                    "--limit", Integer.toString(effectiveLimit + 1),
+                    "--json", FIELDS));
 
-        // Ordering is a guarantee this Server makes, not a parameter it accepts -- and the
-        // two flags must not be sent alongside --search, which `gh` refuses outright
-        // ("cannot specify --order or --sort with --search", non-zero exit). Spring AI
-        // derives its schema from this method's signature, so it has no oneOf and could not
-        // publish that exclusion; keeping `sort` out of the signature is what makes the
-        // illegal combination unreachable rather than merely rejected. Which is why these
-        // two branches are exclusive and must stay that way.
-        if (filtering) {
-            args.add("--search");
-            args.add(search);
-        } else {
-            args.add("--sort");
-            args.add("name");
-            args.add("--order");
-            args.add("asc");
-        }
+            // Ordering is a guarantee this Server makes, not a parameter it accepts -- and the
+            // two flags must not be sent alongside --search, which `gh` refuses outright
+            // ("cannot specify --order or --sort with --search", non-zero exit). Spring AI
+            // derives its schema from this method's signature, so it has no oneOf and could not
+            // publish that exclusion; keeping `sort` out of the signature is what makes the
+            // illegal combination unreachable rather than merely rejected. Which is why these
+            // two branches are exclusive and must stay that way.
+            if (filtering) {
+                args.add("--search");
+                args.add(search);
+            } else {
+                args.add("--sort");
+                args.add("name");
+                args.add("--order");
+                args.add("asc");
+            }
 
-        return ToolResults.attempt("list_labels", owner, repo,
-                () -> mapper.toEnvelope(gh.run(args), effectiveLimit));
+            return mapper.toEnvelope(gh.run(args), effectiveLimit);
+        });
     }
 }

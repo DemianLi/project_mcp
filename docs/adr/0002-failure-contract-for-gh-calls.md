@@ -160,6 +160,9 @@ Clients see.
   [#7](https://github.com/DemianLi/project_mcp/issues/7). Two things bound the damage: the
   verbatim stderr always travels alongside, so a misclassification loses nothing, and
   unmatched output falls to `UNKNOWN` rather than to a confident wrong answer.
+  **Narrower than it reads** — see [ADR-0017](0017-owner-and-repo-may-not-contain-a-slash.md),
+  where a *matched* stderr produced exactly the confident wrong answer this bullet rules out,
+  because the request it correctly described should never have been made.
 - Dropping the argv from the payload costs nothing diagnostically. It is written to the log
   file at `WARN` instead, with the Remedy alongside. Only the *console* appender is off
   (`logging.threshold.console=OFF`, the price of stdout hygiene); `logging.file.name` has
