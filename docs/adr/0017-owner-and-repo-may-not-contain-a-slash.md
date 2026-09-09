@@ -36,10 +36,35 @@ address was not. A Client that follows that advice sends the same request to the
 again. ADR-0002 puts a **confident wrong Remedy** in its worst category — worse than
 `UNKNOWN`, which at least hands the stderr over and admits it does not know.
 
-**What was not measured.** Whether a credential accompanies that request. `gh` documents
-`GH_TOKEN` as github.com's and `GH_ENTERPRISE_TOKEN` as other hosts', which suggests not,
-but measuring it needs a TLS listener with a certificate this machine trusts and that was
-not built. The severity of the first problem is therefore *undetermined*, not *low*.
+**Whether a credential went with it: answered from the source, not measured.** `gh` 2.91.0
+pins `github.com/cli/go-gh/v2 v2.13.0`, whose `pkg/auth/auth.go` decides this in one
+branch of `tokenForHost`. `api.AddAuthTokenHeader` (`api/http_client.go`) sets
+`Authorization` whenever that lookup returns a token for the request's host, and the lookup
+splits the world in two:
+
+- **The host is `github.com`, a `*.ghe.com` tenancy, or `github.localhost`** — `GH_TOKEN`
+  or `GITHUB_TOKEN` applies.
+- **Anything else** — those two are *not* consulted; `GH_ENTERPRISE_TOKEN` or
+  `GITHUB_ENTERPRISE_TOKEN` is, **for any such host**, with no allow-list. Failing that, the
+  config file's `hosts.<host>.oauth_token` and then the keyring, both keyed by host and
+  therefore empty for a host nobody logged into.
+
+So the answer depends on the deployment, and the dependency is uncomfortable:
+
+| Credential the deployment sets | What a caller-chosen host received |
+| --- | --- |
+| `GH_TOKEN` / `GITHUB_TOKEN`, or `gh auth login` for github.com | no `Authorization` header |
+| **`GH_ENTERPRISE_TOKEN` / `GITHUB_ENTERPRISE_TOKEN`** | **that token, valid, in the header** |
+
+The second row is the route [docs/deploying.md](../deploying.md) names for GitHub Enterprise
+Server. For those deployments 0.1.0's defect was a credential disclosure and not merely a
+redirect — which is why the severity could not be left at "undetermined" once it was
+cheap to settle.
+
+Read rather than run: no request was captured with a header in it, because doing that needs
+a TLS listener with a certificate this machine trusts. The branch is a plain string
+comparison with no configuration in it, so the reading is not delicate — but it is a reading,
+and it is pinned to those two versions.
 
 ## Decision
 

@@ -72,6 +72,14 @@ For GitHub Enterprise Server, the token variable is `GH_ENTERPRISE_TOKEN` and th
 from `GH_HOST`. Untested here — every measurement in this repository was taken against
 `github.com`.
 
+**If that is your variable, take 0.1.1 rather than 0.1.0.** `gh` attaches
+`GH_ENTERPRISE_TOKEN` to a request to *any* host that is not `github.com`, a `*.ghe.com`
+tenancy or `github.localhost` — there is no allow-list — and until 0.1.1 a Client could
+choose that host by putting a slash in `owner`
+([ADR-0017](adr/0017-owner-and-repo-may-not-contain-a-slash.md), read out of `go-gh`
+v2.13.0's `tokenForHost`). On a `GH_TOKEN` deployment the same defect sent no credential;
+on this one it sent a valid enterprise token.
+
 ### Rotating the credential, and why it depends on where you put it
 
 This is the one thing in this document that cannot be worked out without reading the source.
