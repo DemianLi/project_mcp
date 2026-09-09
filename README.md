@@ -114,6 +114,11 @@ that write itself, which it decided against.
   the whole Server on one page: what it sits between, the five Tools, the single pipe out,
   the five things it says when it breaks, and where it is actually wrong. A snapshot — its
   line counts are measured, and pinned to the commit named in its footer
+- [docs/mcp-2025-11-25-conformance.html](./docs/mcp-2025-11-25-conformance.html) — which
+  revision of the MCP specification this Server answers to, what that revision requires of
+  a stdio server, and a layered diagram of where each requirement is met. Five checklists,
+  every row given a verdict — including the one outright gap, and the reason behind each
+  deliberate departure
 - [CONTEXT.md](./CONTEXT.md) — domain glossary: the precise meaning of Server, Client,
   Inspector, Tool, Resource and the transports
 - [AGENTS.md](./AGENTS.md) — branch strategy and the configuration AI agents read
