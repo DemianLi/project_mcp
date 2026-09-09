@@ -266,10 +266,11 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
 <tr><td>初始化階段 <strong>MUST</strong> 是 client 與 server 的第一次互動</td><td><span class="tag must">MUST</span></td><td><span class="v-na">—</span> SDK 負責</td></tr>
 <tr><td>Server <strong>MUST</strong> 以自己的 capabilities 與 information 回應</td><td><span class="tag must">MUST</span></td><td><span class="v-na">—</span> SDK 負責；名稱與版本取自 <code>application.yml</code> 的 <code>spring.ai.mcp.server</code></td></tr>
 <tr><td>Server 支援請求的版本則 <strong>MUST</strong> 回同一版本，否則 <strong>MUST</strong> 回自己支援的版本</td><td><span class="tag must">MUST</span></td><td><span class="v-na">—</span> SDK 負責，上限 <code>2025-11-25</code></td></tr>
-<tr><td>實作 <strong>SHOULD</strong> 為所有送出的請求設逾時</td><td><span class="tag should">SHOULD</span></td><td><span class="v-ok">✓</span> 這條談的是 MCP 請求（SDK 負責），但本專案另外替子進程設了 <code>GhCli.TIMEOUT_SECONDS = 30</code>——那是規格沒管、但同樣會吊死的另一段</td></tr>
+<tr><td>實作 <strong>SHOULD</strong> 為所有<em>送出</em>的請求設逾時，逾時 <strong>SHOULD</strong> 送取消通知</td><td><span class="tag should">SHOULD</span></td><td><span class="v-na">—</span> 這條綁的是<strong>送出請求的一方</strong>。本 Server 在 <code>tools/call</code> 上是接收方，而且完全沒用到 server→client 的請求（sampling／elicitation／<code>roots/list</code> 都沒有），所以這條在本專案裡沒有東西可綁，談的是 Client 的時鐘（SDK 對它能送的那些請求持有 <code>requestTimeout</code>，本 Server 從不送）。<code>GhCli.TIMEOUT_SECONDS = 30</code> 是子行程預算，規格隻字未提——兩個時鐘互不知道對方，見 <a href="deploying.md">deploying.md</a> 的 <em>Two clocks</em></td></tr>
+<tr><td>取消通知的接收方 <strong>SHOULD</strong> 停止處理、釋放資源、不回應；但在請求未知／已完成／不可取消時 <strong>MAY</strong> 忽略</td><td><span class="tag should">SHOULD</span></td><td><span class="v-note">△</span> 忽略，走的是規格明列的 <strong>MAY ignore</strong>。<code>notifications/cancelled</code> 在整個相依堆疊（<code>mcp-core</code> 2.0.0、<code>spring-ai-mcp</code> 2.0.1…）裡不存在，SDK 走未知通知分支：一行 <code>WARN</code>、不回應、不碰 stdout。代價是那個 <code>gh</code> 會跑到自己的 30 秒為止；實測 20.36 秒後仍寫出一個 id 正確的回應。見 <a href="adr/0016-a-cancelled-call-is-not-cancelled-here.md">ADR-0016</a></td></tr>
 </table>
 </div>
-<div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx</a></div>
+<div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx</a>、<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/utilities/cancellation.mdx">basic/utilities/cancellation.mdx</a></div>
 
 <h3>2.3 Tool 定義</h3>
 <div class="scroll">
@@ -387,7 +388,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
 <footer>
   規格條文於 2026-09-08 自 <code>modelcontextprotocol/modelcontextprotocol</code> 的
   <code>main</code> 分支逐條核對；本文所有外部連結均已驗證可取得。<br>
-  程式碼觀察對照 <code>99ba0b3</code>。基準為 2025-11-25——本專案相依的 MCP Java SDK 2.0.0 的協議上限。
+  程式碼觀察對照 <code>99ba0b3</code>，取消與逾時兩列另於 2026-09-09 實測補上。基準為 2025-11-25——本專案相依的 MCP Java SDK 2.0.0 的協議上限。
 </footer>
 
 </div>
