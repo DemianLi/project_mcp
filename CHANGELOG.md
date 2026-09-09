@@ -4,7 +4,10 @@ Notable changes to this Server. The reasoning behind them lives in
 [docs/adr/](docs/adr/) — this file records what changed and what it is compatible with,
 not why.
 
-## Unreleased
+## 0.1.1 — 2026-09-10
+
+A single fix, and it is worth taking if a Client of this Server ever passes it parameters
+that came from anywhere but a person typing them.
 
 ### Fixed
 
@@ -20,7 +23,20 @@ not why.
 
   Not measured, and stated in the ADR: whether that request carried a credential. `gh`
   documents `GH_TOKEN` as github.com's and `GH_ENTERPRISE_TOKEN` as other hosts', which
-  suggests not.
+  suggests not, and until someone measures it the severity is undetermined rather than low.
+
+- **The version a Client is told is now the version that was built.**
+  `spring.ai.mcp.server.version` was a hand-maintained literal in `application.yml`, so
+  0.1.1 built cleanly and introduced itself over the wire as 0.1.0. It is now filled in
+  from `@project.version@` at package time. Caught by driving the packaged jar before
+  tagging, which is the only reason that step exists.
+
+**Who should take this.** Anyone whose `owner` and `repo` reach this Server from a model,
+a config file, or any other party that is not the person running it. On one desk, with a
+person typing both halves, the defect is unreachable.
+
+Nothing else changed: same five Tools, same bounds, same protocol revision, same
+compatibility table below.
 
 ## 0.1.0 — 2026-09-09
 
@@ -87,6 +103,9 @@ A [`Dockerfile`](Dockerfile) that was built and driven before it was committed, 
 | Spring AI | 2.0.1 (`spring-ai-starter-mcp-server`) |
 | MCP Java SDK | 2.0.0 |
 | `gh` | measured against **2.91.0** on the host and **2.100.0** in the container image |
+
+Unchanged in 0.1.1 — the fix touched this Server's own parameters, not anything it asks of
+`gh`.
 
 **The `gh` row is the one that can bite.** `GhStderr.classify()` recognises `gh`'s failures
 by matching the wording of its stderr. A `gh` release that rephrases a message does not

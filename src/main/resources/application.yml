@@ -9,7 +9,11 @@ spring:
       server:
         type: SYNC
         name: project-mcp
-        version: 0.1.0
+        # Filled in by Maven at package time (spring-boot-starter-parent filters this
+        # file with @..@ delimiters), because it was a hand-maintained literal until
+        # 0.1.1 and 0.1.1 nearly shipped announcing itself as 0.1.0. What a Client is
+        # told in `InitializeResult` is now the same string as the artifact's name.
+        version: @project.version@
         # Declare only what is implemented. Spring AI turns all four of these on by
         # default, and the three below were being advertised in `InitializeResult`
         # while `resources/list`, `prompts/list` and `resources/templates/list` all

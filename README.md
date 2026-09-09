@@ -92,7 +92,7 @@ Requires a JDK 25 and Maven.
 
 ```bash
 mvn package
-java -jar target/project-mcp-0.1.0.jar
+java -jar target/project-mcp-0.1.1.jar
 ```
 
 **Do not use `mvn spring-boot:run`.** Maven writes its own build output to stdout

@@ -13,7 +13,7 @@
 
   <groupId>io.github.demianli</groupId>
   <artifactId>project-mcp</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
   <name>project-mcp</name>
   <description>An MCP server exposing GitHub platform operations as Tools</description>
 
