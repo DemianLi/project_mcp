@@ -43,6 +43,21 @@ report clearly when GitHub refuses. Handing out a read-only instance therefore m
 pointing `gh` at a login without the permission — a choice made outside this Server. See
 [ADR-0009](./docs/adr/0009-writes-are-gated-outside-this-server.md).
 
+Two consequences that were measured rather than reasoned about, and that a deployer needs
+before an operator does.
+
+**One process is one identity.** Every call this Server makes uses the same resolved
+login, so two people sharing one instance share one set of permissions and one view of
+which repositories exist. That is a simplification worth having on one desk and a wall in
+front of multi-tenant deployment: the answer there is one process per tenant, not one
+process with a switch. `docs/reviews/commercial-readiness.md` §7.1 costs it out.
+
+**A locked issue does not stop it.** Driving the Server against a locked issue with an
+owner's login posted the comment, because GitHub's lock refuses people without write
+access and the login had it. Locking is not an access control this Server can be leaned
+on to respect — the login is the only gate there is, which is ADR-0009 seen from the other
+side.
+
 **One write, and it is deliberate.** `add_issue_comment` is the only Tool that changes
 anything on GitHub; everything else reads. Deletion, editing an existing comment, creating
 issues and anything on the pull-request side are all out of scope — see
@@ -119,6 +134,11 @@ that write itself, which it decided against.
   a stdio server, and a layered diagram of where each requirement is met. Five checklists,
   every row given a verdict — including the one outright gap, and the reason behind each
   deliberate departure
+- [docs/mcp-2025-11-25-commercial-primer.html](./docs/mcp-2025-11-25-commercial-primer.html) —
+  the same ground pitched at someone learning to build one: eleven clauses in two parts,
+  six the specification states and five it never mentions but a customer asks about, each
+  with the professional terms beside it. Written from this Server, including the places it
+  is measurably not clean
 - [CONTEXT.md](./CONTEXT.md) — domain glossary: the precise meaning of Server, Client,
   Inspector, Tool, Resource and the transports
 - [AGENTS.md](./AGENTS.md) — branch strategy and the configuration AI agents read
