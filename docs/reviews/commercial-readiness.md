@@ -74,7 +74,7 @@ String MCP_2025_11_25 = "2025-11-25";
  "resources":{"subscribe":false,"listChanged":true}, "tools":{"listChanged":true}}
 ```
 
-Spring AI 預設把五個 capability 全開，本專案沒有關掉任何一個。實作的只有 `tools`：
+Spring AI 預設把五個 capability 全開，本專案當時沒有關掉任何一個。實作的只有 `tools`：
 
 | capability | 宣告 | 實際 | 後果 |
 |---|---|---|---|
@@ -90,9 +90,14 @@ ADR-0004)」，並引 `IssueTools.java:51-97` 作為 `initialize` 的出處。�
 「不宣告」與「宣告了但空的」對 Client 是兩件事。原句是讀原始碼推論出來的，這次跑起來才看到。
 `IssueTools.java` 也不是 `initialize` 的出處——那段完全在 SDK 手上，本專案沒有一行程式碼參與交握。
 
-`logging` 那一列值得單獨記著：專案刻意把 log 寫進檔案（見 §3.1），卻同時宣告了自己不會使用的
-MCP logging capability。要收掉這個落差，方向是在 Spring AI 設定裡關掉未實作的 capability，
-而不是去實作它們。
+**已修（`65b4d67`）**：`application.yml` 加了三行
+`spring.ai.mcp.server.capabilities.{resource,prompt,completion}: false`，重跑 `initialize`
+確認 wire 上只剩 `{"logging":{}, "tools":{"listChanged":true}}`，並由
+`SdkBoundaryAcceptanceTest.onlyTheImplementedCapabilitiesAreDeclared` 釘住。
+
+`logging` 留著：metadata 只暴露 completion／prompt／resource／tool 四個屬性，沒有 logging 的，
+要關得靠 customizer bean 整組換掉 capability。為一格沒人問的宣告新增一個類別不划算，
+所以它是「宣告了、不使用、已記載」，`application.yml` 的註解與上述測試都把這件事講明。
 
 **[規格引用]** 2025-11-25 | `initialize` | [`docs/specification/2025-11-25/index.mdx`](https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/index.mdx)（注意：2026-07-28 已移除此交握，見前置澄清）
 
@@ -162,9 +167,20 @@ MCP logging capability。要收掉這個落差，方向是在 Spring AI 設定�
 3. **這不是寫錯造成的**，跟 `ToolResults` 註解裡警告的「`ToolFailure` 擲在 `attempt` 外面」
    是不同的東西。那個是可以靠紀律避免的；這個是框架的必經之路。
 
-要收掉它，得在 Spring AI 的 tool callback 層攔截 schema 驗證失敗，把它也導進
-`ToolResults.failure(...)`，Remedy 為 `FIX_REQUEST`。成本不高，但需要一支
-acceptance test 釘住——現有的測試套件沒有覆蓋這條路徑（81 支全過，而這個破口還在）。
+**後續（`65b4d67`，[ADR-0011](../adr/0011-the-failure-contract-begins-at-the-tool-method.md)）**：
+本節初稿說「在 tool callback 層攔截，導進 `ToolResults.failure(...)`」——那是推論，而且**錯了**。
+兩條路都建起來量過：
+
+- `validateToolInputs(false)`（透過 `McpSyncServerCustomizer`）**更糟**。缺必填參數變成
+  `java.lang.NullPointerException: Cannot invoke "java.lang.Number.intValue()"`，
+  JVM 內部細節直接上 wire，`structuredContent` 一樣沒有。
+- 自訂 `JsonSchemaValidator` 摸得到 `validation.errorMessage()`，所以能解掉 locale，
+  但摸不到結果的形狀——結果是 `ToolInputValidator` 自己組的。
+
+所以這不是本專案的設計失誤，是 SDK 的結構性邊界。ADR-0011 把界線定下來：
+**失敗契約的範圍是 Tool 方法體**。現況由
+`SdkBoundaryAcceptanceTest.aCallTheSchemaRejectsCarriesNoRemedy` 釘住——它斷言
+`structuredContent` **是 null**，當絆線用：SDK 哪天長出縫，那支測試會紅。
 
 ---
 
@@ -376,6 +392,18 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 **建議**：
 - 記檄超大回應 (>10MB) 的情況
 - 考慮加 `ProcessBuilder.redirectErrorStream(false)` 以確保分離
+
+### 4.5 限流：規格的 MUST，本專案沒有
+
+2025-11-25 `server/tools.mdx` 的 Security Considerations 是四條並列的 MUST，其中
+`Rate limit tool invocations` 本專案完全沒有。**這是真正的不符合規格**，不是解讀差異。
+
+要留意的陷阱：`gh` 撞到 GitHub 限流、`GhStderr` 判成 `RETRY` 並帶上等待秒數——
+那是下游限流被動反映回來，不是這個 Server 在限流。讀成合規就是讀反方向。
+
+已由 [ADR-0012](../adr/0012-no-rate-limiting-and-why.md) 記為**知情的偏離**並指定了補的人：
+單機以外的部署要自己加，位置在 Tool 層前面而不是 `GhCli`——`GhCli` 數的是子進程啟動次數，
+規格講的是 Tool invocation。
 
 ---
 
@@ -649,7 +677,7 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 |------|------|------|
 | Protocol Negotiation | ✓ | 2025-11-25 fully supported |
 | Tool & Annotations | ✓ | Spec compliant, security model correct |
-| Error Handling | ✓ | isError + structuredContent per spec |
+| Error Handling | ✓ | isError + structuredContent per spec（邊界見 ADR-0011） |
 | Features gap (2026-07-28) | ⚠️ | SDK-gated, not project defect |
 
 ### 架構品質
@@ -665,24 +693,100 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 
 | 面向 | 評定 | 備註 |
 |------|------|------|
-| Single-tenant 部署 | ✓ | 可用 (Java 版本除外) |
+| Single-tenant 部署 | ✓ | 五個 Tool 已端到端驅動過，見 §10 |
 | Multi-tenant SaaS | ❌ | Blocker: 無隔離機制 |
 | Distributed deployment | ⚠️ | Blocker: Stdio only |
 | Observability | ⚠️ | 日誌、metrics 缺失 |
-| Dependency maturity | ⚠️ | Java 25 過新 |
+| 規格 MUST 缺口 | ❌ | 無限流（ADR-0012 記為知情偏離） |
+| Dependency maturity | ✓ | Java 25 是 LTS；Spring 兩個版本都很新，見 §6 |
 
 ### 核心結論
 
 **project_mcp 是一個架構設計優良的教學級 MCP Server；以 2025-11-25 為準它是符合規格的，以 2026-07-28（即「MCP 2.0」）為準則尚未符合，而缺口在 SDK 不在它自己。** 其 failure contract、tool 層設計、測試分層都遠超平均水準。
 
-**商用部署前的門檻**：
-1. **技術決策**（HTTP vs. Stdio、多租戶隔離）
-2. **運維補強**（日誌、監控、部署文檔）
-3. **相依版本策略**（Spring 這兩個版本都只有三週大）
+**商用部署前的門檻，按部署形狀分**：
 
-若目標是**單機、單租戶部署**（例如內部 AI Agent 工具），修復三個 blocker 後可上線。
+**單機、單租戶**（例如內部 AI Agent 工具）：§7.1 的三個 blocker 沒有一個適用——
+SDK 天花板只在客戶要求 2026-07-28 時才擋，stdio 與多租戶隔離講的都是別種部署形狀。
+五個 Tool 已端到端驅動過（§10），可以上線。上線前該補的是運維面（結構化日誌、metrics）
+與部署文件，不是架構。
 
-若目標是**多租戶 SaaS**，需重新評估認證與隔離架構。
+**分散式或多租戶 SaaS**：blocker #2 與 #3 都是硬牆，且 #3 的修復成本高——
+要嘛每租戶一個進程，要嘛重新設計認證層。同時限流那條 MUST 在這種形狀下不再是可以記載的偏離，
+必須實作。
+
+**若客戶要求 2026-07-28（「MCP 2.0」）相容**：今天做不到，而且不在這個 repo 手上。
+等 SDK 3.x（規劃 2026 年 9 月，見 §6.3）。
+
+---
+
+## 10. 實測覆蓋（2026-09-09）
+
+**本評審的第 1 到 9 節初稿是讀原始碼寫的。** 那個方法找出了不少東西，也寫錯了兩件
+（見 §1.1、§1.4 的校訂）。2026-09-09 把打包好的 jar 交給官方 MCP Inspector v2.5.0
+與手寫 JSON-RPC 各驅動一輪，以下是實際跑過的範圍。
+
+### 協議層
+
+| 項目 | 結果 |
+|---|---|
+| stdout 純淨度（stdio 唯一的 MUST NOT） | ✓ 4 行 700 bytes，全部合法 JSON-RPC，非 MCP 行數 0，stderr 0 bytes |
+| `protocolVersion` 協商 | ✓ `2025-11-25`（Inspector 標記 era = `LEGACY`） |
+| `tools/list` schema | ✓ 五個都是合法 JSON Schema object、扁平、無 `outputSchema` |
+| `tools/list` 順序穩定性 | 三次獨立 JVM 啟動間一致（規格是 SHOULD，未由建構保證，但實測穩定） |
+| 協議層錯誤與 `isError` 分離 | ✓ 未知 tool → `-32602`，不走結果 |
+| `ping` | ✓ |
+
+### Tool 覆蓋
+
+五個 Tool 全部驅動到成功，失敗側各有樣本。
+
+| Tool | 成功 | 失敗 |
+|---|---|---|
+| `list_issues` | ✓ 含 `state`、`labels` 陣列過濾 | — |
+| `get_issue` | ✓ | ✓ 不存在的 repo、PR 號碼 |
+| `list_labels` | ✓ 含 `search` | — |
+| `list_issue_comments` | ✓ **含分頁往返**（`nextCursor` 原樣送回，第二頁回不同留言） | ✓ 壞掉的 cursor |
+| `add_issue_comment` | ✓ 真的寫進 sandbox | ✓ 空白 body、PR 號碼、逾時 |
+
+參數夾值實測：`limit=999` → 夾到 100；`limit=0` → 夾到 1。
+ADR-0003 的核心承諾（PR 號碼被拒）在讀取與寫入兩條路徑上都驗過。
+
+### Remedy 覆蓋：五個全部實測到
+
+| Remedy | 怎麼provoke 的 |
+|---|---|
+| `FIX_REQUEST` | 不存在的 repo、壞 cursor、PR 號碼、空白 body |
+| `ASK_OPERATOR` | `gh` 不在 PATH；`GH_TOKEN` 無效（stderr 帶 HTTP 401） |
+| `RETRY` | proxy 指到 `127.0.0.1:1`（連線被拒） |
+| `UNKNOWN` | proxy 指到不存在的主機（見下） |
+| `CHECK_BEFORE_RETRY` | 兩段式 CONNECT proxy：放行 lookup、黑洞 mutation |
+
+**`CHECK_BEFORE_RETRY` 那一格值得多說一句。** `add_issue_comment` 打的是兩通不具原子性的
+呼叫（先 `gh.run` 查 issue id，再 `gh.runWrite` 寫入）。黑洞落在第一通時回 `RETRY`，
+落在第二通時回 `CHECK_BEFORE_RETRY`，訊息還點名要用 `list_issue_comments` 去確認。
+證明的不只是「寫入逾時會給對的建議」，而是**這個 Server 分得清是哪一通逾時了**。
+
+### 順帶量到的一件事
+
+`GhStderr` 的註解邀請後人 provoke 網路失敗並貼回實際 stderr。provoke 了，`gh` 吐的是：
+
+```
+error connecting to this-host-does-not-exist.invalid
+check your internet connection or https://githubstatus.com
+```
+
+**這是證據，不是建議。** 一個樣本、一種 provoke。同一句話可能也蓋到 TLS 失敗、
+經過 proxy 的連線被拒、GitHub 掛掉，那幾種的正確 Remedy 不一定都是 `RETRY`。
+用一個樣本撐一個涵蓋整族的 marker，正是 `a748fa4` 刪掉那四行的理由。
+
+### 仍未測到
+
+- rate limit → `RETRY`（要真的打爆 GraphQL 額度；ADR-0002 當年也 provoke 不出來）
+- 超大回應 / OOM
+- 併發、長時間連線
+
+前三項都需要真實流量形狀才測得有意義，現在測等於憑空猜負載。
 
 ---
 
@@ -693,8 +797,10 @@ gh 解析 GH_TOKEN 或 git config 中的登錄狀態
 - [MCP Protocol Versions](https://raw.githubusercontent.com/modelcontextprotocol/java-sdk/main/mcp-core/src/main/java/io/modelcontextprotocol/spec/ProtocolVersions.java) (MCP Java SDK)
 
 ### 專案文檔
+- `docs/mcp-2025-11-25-conformance.html` — 逐條規格對照
+- `docs/mcp-2025-11-25-commercial-primer.html` — 商用門檻的教材版
 - `CONTEXT.md` — 域詞表與設計原理
-- `docs/adr/0001` 至 `docs/adr/0010` — 架構決策記錄
+- `docs/adr/0001` 至 `docs/adr/0012` — 架構決策記錄
 - `README.md` — 概述與啟動指南
 
 ### 依賴版本查詢
