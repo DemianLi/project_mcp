@@ -1,0 +1,675 @@
+<title>MCP 的一問一答</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --surface-2:#E8ECF3;
+  --ink:#141A2E; --ink-2:#3C4560; --muted:#6A7390;
+  --rule:#D3D9E5;
+  --client:#2F54C9; --client-soft:#E3E9FA;
+  --server:#1C7A5B; --server-soft:#DDF0E7;
+  --err:#B3261E; --err-soft:#F8E1DE;
+  --warn:#93620B; --warn-soft:#F6EBD3;
+  --kai:"LXGW WenKai TC","Noto Serif TC","Kaiti TC",serif;
+  --sans:"Noto Sans TC","PingFang TC",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1220; --surface:#151A2B; --surface-2:#1C2236;
+    --ink:#E6E9F2; --ink-2:#B5BCD0; --muted:#8A93AD;
+    --rule:#2A3149;
+    --client:#8EA8FF; --client-soft:#1C2748;
+    --server:#5CCB9F; --server-soft:#14302A;
+    --err:#F08A7E; --err-soft:#3A1C1A;
+    --warn:#E0B254; --warn-soft:#33290F;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1220; --surface:#151A2B; --surface-2:#1C2236;
+  --ink:#E6E9F2; --ink-2:#B5BCD0; --muted:#8A93AD;
+  --rule:#2A3149;
+  --client:#8EA8FF; --client-soft:#1C2748;
+  --server:#5CCB9F; --server-soft:#14302A;
+  --err:#F08A7E; --err-soft:#3A1C1A;
+  --warn:#E0B254; --warn-soft:#33290F;
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.8;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:0 72px}
+code,.mono{font-family:var(--mono);font-size:.88em}
+a{color:var(--client);text-underline-offset:3px}
+a:focus-visible{outline:2px solid var(--client);outline-offset:2px;border-radius:2px}
+
+/* hero */
+.hero{padding-block:56px 36px;border-bottom:1px solid var(--rule)}
+.basis{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.basis li{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--ink-2);border:1px solid var(--rule);background:var(--surface);padding:2px 10px;border-radius:2px}
+h1{font-family:var(--kai);font-weight:700;font-size:clamp(38px,6vw,64px);line-height:1.15;margin:22px 0 0;text-wrap:balance;letter-spacing:.01em}
+h1 .c{color:var(--client)} h1 .s{color:var(--server)}
+.lede{max-width:40em;margin:18px 0 0;font-size:18px;color:var(--ink-2)}
+.legend{display:flex;flex-wrap:wrap;gap:10px 22px;margin:26px 0 0;font-size:14px;color:var(--ink-2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+
+/* strength chips */
+.chip{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.06em;padding:1px 7px;border-radius:2px;white-space:nowrap;line-height:1.6}
+.k-must{background:var(--ink);color:var(--bg)}
+.k-should{border:1px solid var(--ink-2);color:var(--ink)}
+.k-may{border:1px solid var(--rule);color:var(--muted)}
+.k-impl{border:1px dashed var(--muted);color:var(--muted)}
+
+/* sections */
+.sec{padding-block:56px 8px;border-bottom:1px solid var(--rule)}
+.sec:last-of-type{border-bottom:0}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
+h2{font-family:var(--kai);font-weight:700;font-size:clamp(26px,3.4vw,36px);line-height:1.3;margin:6px 0 0;text-wrap:balance}
+.one{font-size:18px;color:var(--ink-2);max-width:38em;margin:10px 0 0}
+
+.row{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:40px;margin-top:28px;align-items:start}
+@media (max-width:900px){.row{grid-template-columns:1fr;gap:24px}}
+
+figure{margin:0}
+.fig-scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:14px 10px}
+.fig-scroll svg{display:block;width:100%;min-width:640px;height:auto}
+figcaption{font-size:14.5px;color:var(--ink-2);margin-top:12px;max-width:44em}
+
+/* svg vocabulary */
+.fig text{fill:var(--ink);font-family:var(--sans);font-size:13px}
+.fig .t-sm{font-size:11px;fill:var(--muted)}
+.fig .t-mono{font-family:var(--mono);font-size:11px;fill:var(--ink-2)}
+.fig .t-head{font-family:var(--kai);font-size:15px;font-weight:700}
+.fig .t-c{fill:var(--client)} .fig .t-s{fill:var(--server)} .fig .t-e{fill:var(--err)} .fig .t-w{fill:var(--warn)}
+.fig .sn{font-family:var(--mono);font-size:9px;fill:var(--client);font-weight:500}
+.fig .t-strong{font-family:var(--mono);font-size:10px;font-weight:500;fill:var(--ink)}
+.box{fill:var(--surface);stroke:var(--rule);stroke-width:1.2}
+.box-2{fill:var(--surface-2);stroke:var(--rule);stroke-width:1.2}
+.box-c{fill:var(--client-soft);stroke:var(--client);stroke-width:1.2}
+.box-s{fill:var(--server-soft);stroke:var(--server);stroke-width:1.2}
+.box-e{fill:var(--err-soft);stroke:var(--err);stroke-width:1.2}
+.box-w{fill:var(--warn-soft);stroke:var(--warn);stroke-width:1.2}
+.box-frame{fill:none;stroke:var(--ink-2);stroke-width:1.2}
+.band-c{fill:var(--client-soft);opacity:.45}
+.band-s{fill:var(--server-soft);opacity:.55}
+.ln{fill:none;stroke:var(--ink-2);stroke-width:1.4}
+.ln-c{stroke:var(--client)} .ln-s{stroke:var(--server)} .ln-e{stroke:var(--err)} .ln-w{stroke:var(--warn)}
+.ln-faint{stroke:var(--rule)}
+.dash{stroke-dasharray:5 4}
+.under{fill:none;stroke:var(--surface);stroke-width:8}
+.faded{opacity:.5}
+.ah{fill:var(--ink-2)} .ah-c{fill:var(--client)} .ah-s{fill:var(--server)} .ah-e{fill:var(--err)}
+.chip-must{fill:var(--ink)} .fig .chip-must-t{fill:var(--bg);font-family:var(--mono);font-size:10px;font-weight:500}
+.chip-should{fill:none;stroke:var(--ink-2);stroke-width:1}
+.sep{stroke:var(--rule);stroke-width:1}
+
+/* takeaways */
+.take{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:12px;max-width:46em}
+.take li{padding-left:22px;position:relative;color:var(--ink)}
+.take li::before{content:"";position:absolute;left:4px;top:.72em;width:8px;height:8px;border-radius:50%;background:var(--client)}
+.sec-server .take li::before{background:var(--server)}
+
+/* wire sample */
+.wire{margin-top:26px}
+.wire h3{font-size:14px;font-weight:500;color:var(--muted);margin:0 0 8px;font-family:var(--mono);letter-spacing:.06em}
+.wire pre{margin:0;overflow-x:auto;background:var(--surface-2);border:1px solid var(--rule);border-radius:4px;padding:14px 16px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink)}
+.wire .dir-c{color:var(--client);font-weight:500}
+.wire .dir-s{color:var(--server);font-weight:500}
+.wire .cm{color:var(--muted)}
+
+/* terms + side notes */
+.term{border-bottom:1px dotted var(--muted)}
+.sn-ref{font-family:var(--mono);font-size:10px;font-weight:500;color:var(--client);text-decoration:none;vertical-align:super;line-height:0;margin-left:1px;padding:0 1px}
+.sn-ref:hover{text-decoration:underline}
+.notes{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:16px 18px 6px}
+.notes h3{margin:0 0 10px;font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.notes ol{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.notes li{padding:10px 0;border-top:1px solid var(--rule);font-size:13.5px;line-height:1.65;color:var(--ink-2);scroll-margin-top:24px}
+.notes li:first-child{border-top:0;padding-top:2px}
+.notes li:target{background:var(--client-soft);margin-inline:-18px;padding-inline:18px}
+.notes .n{font-family:var(--mono);font-size:11px;color:var(--client);font-weight:500;margin-right:6px}
+.notes b{color:var(--ink);font-weight:700;font-family:var(--mono);font-size:12.5px}
+.notes .zh{color:var(--ink);font-weight:500}
+.notes .go{display:block;margin-top:3px;font-size:12.5px}
+.notes .go a{font-family:var(--mono);font-size:11.5px;word-break:break-all}
+.notes .go code{font-size:11.5px;color:var(--ink-2);word-break:break-all}
+
+/* reading path */
+.path{list-style:none;counter-reset:p;margin:24px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.path li{counter-increment:p;background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:14px 16px 14px 52px;position:relative;font-size:14.5px;color:var(--ink-2)}
+.path li::before{content:counter(p);position:absolute;left:16px;top:12px;font-family:var(--kai);font-weight:700;font-size:24px;color:var(--client);line-height:1.2}
+.path a{font-family:var(--mono);font-size:12.5px;font-weight:500;display:inline-block;margin-bottom:2px;word-break:break-all}
+.next{margin:22px 0 0;padding:0;list-style:none;display:grid;gap:6px;font-size:14.5px;color:var(--ink-2)}
+.next code{color:var(--ink)}
+
+.foot{margin-top:48px;padding-top:18px;border-top:1px solid var(--rule);font-size:13px;color:var(--muted);max-width:60em;line-height:1.75}
+.foot p{margin:0 0 8px}
+
+@media (max-width:520px){
+  .lede,.one{font-size:16.5px}
+  .path li{padding-left:46px}
+}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <ul class="basis">
+    <li>規格 2025-11-25</li>
+    <li>範例 project_mcp 0.1.1</li>
+    <li>對照 b94e10b</li>
+    <li>2026-09-14</li>
+  </ul>
+  <h1>MCP 的一問一答：<span class="c">Client</span> 問，<span class="s">Server</span> 答</h1>
+  <p class="lede">兩個程式隔著一條管子講話。這頁用四張圖講完：誰跟誰講話、管子上傳什麼、Client 裡面怎麼轉、Server 裡面怎麼轉。右邊一欄是備注——每個專有名詞寫著白話意思，還有該去哪一頁學。</p>
+  <div class="legend" aria-label="標籤說明">
+    <span><span class="chip k-must">MUST</span>不做就不合規</span>
+    <span><span class="chip k-should">SHOULD</span>可以不做，但要記在案</span>
+    <span><span class="chip k-may">MAY</span>隨你</span>
+    <span><span class="chip k-impl">常見做法</span>不是規格條文</span>
+    <span>強度等級出自 <span class="term">RFC 2119</span><a class="sn-ref" href="#n14">14</a></span>
+  </div>
+</header>
+
+<!-- ===================== 0 · roles ===================== -->
+<section class="sec" id="roles">
+  <p class="kicker">先認角色</p>
+  <h2>誰跟誰講話</h2>
+  <p class="one">你用的 App 叫 <span class="term">Host</span><a class="sn-ref" href="#n1">1</a>。它裡面有一個或多個 <span class="term">Client</span><a class="sn-ref" href="#n2">2</a>，每個 Client 只連一個 <span class="term">Server</span><a class="sn-ref" href="#n3">3</a>。</p>
+
+  <div class="row">
+    <div class="main">
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 780 262" role="img" aria-label="Host 裡面有 LLM 與三個 Client，每個 Client 經 stdio 各連一個 Server；Server 1 是 project_mcp，它再去叫 gh 子進程連到 GitHub。Host 與 Server 之間隔著一道行程邊界。">
+            <defs>
+              <marker id="r-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="r-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-c" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="r-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-s" d="M0 0 L10 5 L0 10 z"/></marker>
+            </defs>
+
+            <!-- user -->
+            <rect class="box-2" x="10" y="100" width="80" height="50" rx="4"/>
+            <text x="50" y="130" text-anchor="middle">使用者</text>
+            <path class="ln" d="M90 125 H128" marker-end="url(#r-a)"/>
+            <text class="t-sm" x="109" y="117" text-anchor="middle">提問</text>
+
+            <!-- host -->
+            <rect class="box-frame" x="112" y="18" width="340" height="222" rx="6"/>
+            <text class="t-head" x="126" y="42">Host<tspan class="sn" dy="-6">1</tspan></text>
+            <text class="t-sm" x="170" y="42">例：Claude Desktop、IDE</text>
+
+            <rect class="box" x="132" y="95" width="116" height="60" rx="4"/>
+            <text x="190" y="122" text-anchor="middle">LLM 模型</text>
+            <text class="t-sm" x="190" y="141" text-anchor="middle">產生回答</text>
+            <text class="t-sm" x="190" y="186" text-anchor="middle">完整對話</text>
+            <text class="t-sm" x="190" y="202" text-anchor="middle">只留在這裡</text>
+
+            <!-- bus LLM -> clients -->
+            <path class="ln" d="M248 125 H274"/>
+            <path class="ln" d="M274 80 V190"/>
+            <path class="ln" d="M274 80 H298" marker-end="url(#r-a)"/>
+            <path class="ln faded" d="M274 135 H298" marker-end="url(#r-a)"/>
+            <path class="ln faded" d="M274 190 H298" marker-end="url(#r-a)"/>
+
+            <rect class="box-c" x="300" y="60" width="132" height="40" rx="4"/>
+            <text x="366" y="85" text-anchor="middle">Client 1<tspan class="sn" dy="-6">2</tspan></text>
+            <g class="faded">
+              <rect class="box-c" x="300" y="115" width="132" height="40" rx="4"/>
+              <text x="366" y="140" text-anchor="middle">Client 2</text>
+              <rect class="box-c" x="300" y="170" width="132" height="40" rx="4"/>
+              <text x="366" y="195" text-anchor="middle">Client 3</text>
+            </g>
+
+            <!-- process boundary -->
+            <path class="ln ln-faint dash" d="M476 14 V236" style="stroke:var(--muted)"/>
+            <text class="t-sm" x="476" y="254" text-anchor="middle">行程邊界<tspan class="sn" dy="-5">4</tspan></text>
+
+            <!-- client -> server -->
+            <path class="ln ln-c" d="M432 80 H498" marker-end="url(#r-c)"/>
+            <text class="t-mono t-c" x="465" y="72" text-anchor="middle">stdio</text>
+            <path class="ln ln-c faded" d="M432 135 H498" marker-end="url(#r-c)"/>
+            <path class="ln ln-c faded" d="M432 190 H498" marker-end="url(#r-c)"/>
+
+            <rect class="box-s" x="500" y="58" width="140" height="44" rx="4"/>
+            <text x="570" y="77" text-anchor="middle">Server 1<tspan class="sn" dy="-6">3</tspan></text>
+            <text class="t-mono" x="570" y="94" text-anchor="middle">project_mcp</text>
+            <g class="faded">
+              <rect class="box-s" x="500" y="113" width="140" height="44" rx="4"/>
+              <text x="570" y="132" text-anchor="middle">Server 2</text>
+              <text class="t-sm" x="570" y="149" text-anchor="middle">資料庫</text>
+              <rect class="box-s" x="500" y="168" width="140" height="44" rx="4"/>
+              <text x="570" y="187" text-anchor="middle">Server 3</text>
+              <text class="t-sm" x="570" y="204" text-anchor="middle">遠端 API</text>
+            </g>
+
+            <!-- downstream -->
+            <path class="ln ln-s" d="M640 80 H670" marker-end="url(#r-s)"/>
+            <rect class="box-2" x="672" y="58" width="100" height="44" rx="4"/>
+            <text x="722" y="77" text-anchor="middle">gh 子進程</text>
+            <text class="t-sm" x="722" y="94" text-anchor="middle">→ GitHub</text>
+          </svg>
+        </div>
+        <figcaption>淡色的 Client 2、3 與 Server 2、3 是規格裡的示意；本頁只追 Client 1 ↔ project_mcp 這一條。Server 只拿到它需要的那一小段，看不到整段對話，也看不到別的 Server——這是規格寫明的設計原則。</figcaption>
+      </figure>
+    </div>
+
+    <aside class="notes" aria-label="備注：角色">
+      <h3>備注</h3>
+      <ol>
+        <li id="n1"><span class="n">1</span><b>Host</b> <span class="zh">宿主程式</span>——使用者直接在用的 App。裡面放 LLM、管一群 Client，也負責「同意」與授權。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/architecture/index.mdx">architecture/index.mdx §Host ↗</a></span></li>
+        <li id="n2"><span class="n">2</span><b>Client</b> <span class="zh">客戶端連線</span>——Host 裡的一條連線，跟 Server 是 1 對 1。負責協商、收發訊息。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/architecture/index.mdx">architecture/index.mdx §Clients ↗</a></span></li>
+        <li id="n3"><span class="n">3</span><b>Server</b> <span class="zh">服務端</span>——提供 tools／resources／prompts 的程式。可以是本機子進程，也可以是遠端服務。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/server/index.mdx">server/index.mdx ↗</a></span></li>
+        <li id="n4"><span class="n">4</span><b>process boundary</b> <span class="zh">行程邊界、隔離</span>——Server 讀不到整段對話，也「看不進」別的 Server。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/architecture/index.mdx">architecture/index.mdx §Design Principles 第 3 條 ↗</a></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 1 · interaction ===================== -->
+<section class="sec" id="wire">
+  <p class="kicker">Client ↔ Server 交互</p>
+  <h2>管子上傳什麼</h2>
+  <p class="one">一條 <span class="term">stdio</span><a class="sn-ref" href="#n6">6</a> 管子，裡面一行一則 <span class="term">JSON-RPC</span><a class="sn-ref" href="#n5">5</a> 訊息。一生分四段：開機、握手、做事、關機。</p>
+
+  <div class="row">
+    <div class="main">
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 760 692" role="img" aria-label="時序圖：Client 啟動 Server 子進程；initialize、InitializeResult、notifications/initialized 三步握手；接著 tools/list、tools/call 與其回應；可選的 notifications/cancelled 與 Server 反向請求；最後 Client 關掉 stdin 結束。">
+            <defs>
+              <marker id="w-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-c" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="w-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-s" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="w-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker>
+            </defs>
+
+            <!-- heads + lifelines -->
+            <rect class="box-c" x="100" y="10" width="140" height="38" rx="4"/>
+            <text class="t-head t-c" x="170" y="35" text-anchor="middle">MCP Client</text>
+            <rect class="box-s" x="530" y="10" width="140" height="38" rx="4"/>
+            <text class="t-head t-s" x="600" y="35" text-anchor="middle">MCP Server</text>
+            <path class="ln ln-c dash" d="M170 48 V676" style="opacity:.45"/>
+            <path class="ln ln-s dash" d="M600 48 V676" style="opacity:.45"/>
+
+            <!-- phase labels -->
+            <text class="t-head" x="14" y="94">開機</text>
+            <text class="t-head" x="14" y="212">握手</text>
+            <text class="t-head" x="14" y="460">做事</text>
+            <text class="t-head" x="14" y="654">關機</text>
+            <line class="sep" x1="10" y1="114" x2="750" y2="114"/>
+            <line class="sep" x1="10" y1="298" x2="750" y2="298"/>
+            <line class="sep" x1="10" y1="612" x2="750" y2="612"/>
+
+            <!-- spawn -->
+            <path class="ln dash" d="M172 90 H596" marker-end="url(#w-a)"/>
+            <text x="385" y="81" text-anchor="middle">把 Server 當子進程叫起來</text>
+
+            <!-- initialize -->
+            <path class="ln ln-c" d="M172 150 H596" marker-end="url(#w-c)"/>
+            <text x="385" y="141" text-anchor="middle">initialize<tspan class="sn" dy="-6">7</tspan></text>
+            <text class="t-mono" x="385" y="167" text-anchor="middle">protocolVersion: "2025-11-25" · capabilities<tspan class="sn" dy="-5">8</tspan></text>
+            <rect class="chip-must" x="684" y="140" width="46" height="18" rx="2"/><text class="chip-must-t" x="707" y="153" text-anchor="middle">MUST</text>
+
+            <!-- InitializeResult -->
+            <path class="ln ln-s" d="M598 210 H174" marker-end="url(#w-s)"/>
+            <text x="385" y="201" text-anchor="middle">InitializeResult</text>
+            <text class="t-mono" x="385" y="227" text-anchor="middle">同一版，或自己會的版本 · capabilities · serverInfo</text>
+            <rect class="chip-must" x="684" y="200" width="46" height="18" rx="2"/><text class="chip-must-t" x="707" y="213" text-anchor="middle">MUST</text>
+
+            <!-- initialized -->
+            <path class="ln ln-c dash" d="M172 266 H596" marker-end="url(#w-c)"/>
+            <text x="385" y="257" text-anchor="middle">notifications/initialized</text>
+            <text class="t-mono" x="385" y="283" text-anchor="middle">通知：沒有 id，不用回</text>
+            <rect class="chip-must" x="684" y="256" width="46" height="18" rx="2"/><text class="chip-must-t" x="707" y="269" text-anchor="middle">MUST</text>
+
+            <!-- tools/list -->
+            <path class="ln ln-c" d="M172 334 H596" marker-end="url(#w-c)"/>
+            <text x="385" y="325" text-anchor="middle">tools/list<tspan class="sn" dy="-6">9</tspan></text>
+            <path class="ln ln-s" d="M598 384 H174" marker-end="url(#w-s)"/>
+            <text x="385" y="375" text-anchor="middle">工具清單</text>
+            <text class="t-mono" x="385" y="401" text-anchor="middle">每個工具：name · description · inputSchema</text>
+
+            <!-- tools/call -->
+            <path class="ln ln-c" d="M172 440 H596" marker-end="url(#w-c)"/>
+            <text x="385" y="431" text-anchor="middle">tools/call<tspan class="sn" dy="-6">10</tspan></text>
+            <text class="t-mono" x="385" y="457" text-anchor="middle">get_issue { owner, repo, number }</text>
+            <path class="ln ln-s" d="M598 494 H174" marker-end="url(#w-s)"/>
+            <text x="385" y="485" text-anchor="middle">CallToolResult</text>
+            <text class="t-mono" x="385" y="511" text-anchor="middle">content · structuredContent · isError</text>
+
+            <!-- cancelled -->
+            <path class="ln ln-c dash" d="M172 548 H596" marker-end="url(#w-c)"/>
+            <text x="385" y="539" text-anchor="middle">notifications/cancelled<tspan class="sn" dy="-6">11</tspan></text>
+            <text class="t-mono" x="385" y="565" text-anchor="middle">等太久才送 · project_mcp 收到會忽略（MAY）</text>
+            <rect class="chip-should" x="672" y="538" width="70" height="18" rx="2"/><text class="t-strong" x="707" y="551" text-anchor="middle">SHOULD</text>
+
+            <!-- reverse requests -->
+            <g class="faded">
+              <path class="ln ln-s" d="M598 592 H174" marker-end="url(#w-s)"/>
+              <text x="385" y="583" text-anchor="middle">sampling · elicitation · roots<tspan class="sn" dy="-6">12</tspan></text>
+            </g>
+            <text class="t-sm" x="385" y="606" text-anchor="middle">反方向：Server 請 Client 幫忙（要先宣告能力；project_mcp 沒用）</text>
+
+            <!-- shutdown -->
+            <path class="ln dash" d="M172 646 H596" marker-end="url(#w-a)"/>
+            <text x="385" y="637" text-anchor="middle">關掉 stdin</text>
+            <text class="t-mono" x="385" y="663" text-anchor="middle">等它結束 → SIGTERM → SIGKILL<tspan class="sn" dy="-5">13</tspan></text>
+            <rect class="chip-should" x="672" y="636" width="70" height="18" rx="2"/><text class="t-strong" x="707" y="649" text-anchor="middle">SHOULD</text>
+          </svg>
+        </div>
+        <figcaption>實線往右是<b>請求</b>（帶 id，對方一定要回），實線往左是<b>回應</b>，虛線是<b>通知</b>（不帶 id，不回）。灰色虛線不是 JSON-RPC 訊息，是作業系統層的動作。</figcaption>
+      </figure>
+
+      <ul class="take">
+        <li><b>先握手，再做事。</b>initialize 還沒收到回覆之前，Client 除了 ping 什麼請求都不該送。版本號是<b>日期</b>，不是 1.0 或 2.0。</li>
+        <li><b>叫工具只要兩句：</b>tools/list 看菜單，tools/call 點菜。</li>
+        <li><b>工具跑失敗，要回 <code>isError: true</code></b>，模型才看得到、才會改；回 JSON-RPC error 就像這通電話沒打過，模型多半看不到。</li>
+      </ul>
+
+      <div class="wire">
+        <h3>管子上真正的一來一回（示意，欄位取自 ToolResults.java）</h3>
+<pre><span class="dir-c">→ Client</span> {"jsonrpc":"2.0","id":7,"method":"tools/call",
+           "params":{"name":"get_issue","arguments":{"owner":"DemianLi","repo":"project_mcp","number":12}}}
+
+<span class="dir-s">← Server</span> {"jsonrpc":"2.0","id":7,"result":{
+           "content":[{"type":"text","text":"{\"number\":12,\"title\":\"…\", …}"}]}}   <span class="cm">成功：一段 JSON 文字</span>
+
+<span class="dir-s">← Server</span> {"jsonrpc":"2.0","id":7,"result":{
+           "content":[{"type":"text","text":"#12 is a pull request, not an issue. …"}],
+           "structuredContent":{"remedy":"FIX_REQUEST","message":"…","stderr":""},
+           "isError":true}}                                    <span class="cm">失敗：還是 result，不是 error</span></pre>
+      </div>
+    </div>
+
+    <aside class="notes" aria-label="備注：交互">
+      <h3>備注</h3>
+      <ol>
+        <li id="n5"><span class="n">5</span><b>JSON-RPC 2.0</b> <span class="zh">訊息格式</span>——request 帶 id、一定要回；notification 不帶 id、不回；回應是 result 或 error 二選一。<span class="go">去哪學：<a href="https://www.jsonrpc.org/specification">jsonrpc.org/specification ↗</a></span></li>
+        <li id="n6"><span class="n">6</span><b>stdio transport</b> <span class="zh">標準輸入輸出傳輸</span>——Client 把 Server 當子進程啟動，stdin 送、stdout 回，一行一則，訊息裡不能有換行。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/transports.mdx">basic/transports.mdx §stdio ↗</a></span></li>
+        <li id="n7"><span class="n">7</span><b>initialize · protocolVersion</b> <span class="zh">初始化、版本協商</span>——第一次互動 MUST 是它。Server 會那一版就回同一版，不會就回自己支援的版本。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx §Initialization ↗</a></span></li>
+        <li id="n8"><span class="n">8</span><b>capabilities</b> <span class="zh">能力宣告</span>——兩邊先說自己會什麼（tools、sampling…），之後只准用談妥的。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx §Capability Negotiation ↗</a></span></li>
+        <li id="n9"><span class="n">9</span><b>tools/list · inputSchema</b> <span class="zh">工具清單、參數表</span>——每個工具附一張 JSON Schema，模型靠它知道要餵什麼參數。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx ↗</a> · <a href="https://json-schema.org/understanding-json-schema">JSON Schema 入門 ↗</a></span></li>
+        <li id="n10"><span class="n">10</span><b>tools/call · CallToolResult · isError</b> <span class="zh">呼叫工具、工具結果</span>——錯誤分兩種：協議錯誤走 JSON-RPC error，工具執行錯誤走 <code>isError: true</code>。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx §Error Handling ↗</a></span></li>
+        <li id="n11"><span class="n">11</span><b>notifications/cancelled</b> <span class="zh">取消通知</span>——「那一通我不等了」。收到的一方 SHOULD 停手；請求未知或已完成時 MAY 忽略。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/utilities/cancellation.mdx">basic/utilities/cancellation.mdx ↗</a></span></li>
+        <li id="n12"><span class="n">12</span><b>sampling · elicitation · roots</b> <span class="zh">反向請求</span>——Server 請 Client 幫忙叫模型、問使用者、告知可用資料夾。Client 要先宣告能力才行。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/client/sampling.mdx">client/sampling.mdx ↗</a> · <a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/client/elicitation.mdx">elicitation.mdx ↗</a> · <a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/client/roots.mdx">roots.mdx ↗</a></span></li>
+        <li id="n13"><span class="n">13</span><b>SIGTERM · SIGKILL</b> <span class="zh">終止訊號</span>——stdio 沒有「再見」訊息：先關 stdin，等不到就 SIGTERM，再等不到就 SIGKILL。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx §Shutdown ↗</a></span></li>
+        <li id="n14"><span class="n">14</span><b>MUST · SHOULD · MAY</b> <span class="zh">規範強度</span>——這是等級，不是語氣。讀規格先看這個字。<span class="go">去哪學：<a href="https://www.rfc-editor.org/rfc/rfc2119">RFC 2119 ↗</a></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 2 · client internals ===================== -->
+<section class="sec" id="client">
+  <p class="kicker">MCP Client 內部資料流</p>
+  <h2>Client 裡面怎麼轉</h2>
+  <p class="one">模型從不直接碰 Server。一個問題會先經過 Host、模型、Client 三站才出門，而且中間有一站是「問人」。</p>
+
+  <div class="row">
+    <div class="main">
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 780 640" role="img" aria-label="泳道圖，由上往下：Client 開機時已取得工具清單；使用者提問；Host 把工具清單交給模型；模型推理決定呼叫 get_issue；Host 問人是否允許；Client 包成 tools/call 並開逾時；Server 執行；Client 收到結果並驗證；模型讀結果，需要時再繞一圈；最後 Host 顯示回答。">
+            <defs>
+              <marker id="c-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="c-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-c" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="c-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-s" d="M0 0 L10 5 L0 10 z"/></marker>
+            </defs>
+
+            <!-- lanes -->
+            <rect class="band-c" x="400" y="44" width="170" height="590"/>
+            <rect class="band-s" x="580" y="44" width="170" height="590"/>
+            <text class="t-head" x="125" y="30" text-anchor="middle">Host／介面</text>
+            <text class="t-head" x="305" y="30" text-anchor="middle">LLM 模型</text>
+            <text class="t-head t-c" x="485" y="30" text-anchor="middle">MCP Client</text>
+            <text class="t-head t-s" x="665" y="30" text-anchor="middle">Server</text>
+            <line class="sep" x1="40" y1="44" x2="750" y2="44"/>
+
+            <!-- arrows (under boxes) -->
+            <path class="ln ln-c dash" d="M485 98 V193 H207" marker-end="url(#c-c)"/>
+            <text class="t-sm t-c" x="300" y="186" text-anchor="middle">工具清單</text>
+            <path class="ln" d="M125 156 V170" marker-end="url(#c-a)"/>
+            <path class="ln" d="M150 214 V251 H223" marker-end="url(#c-a)"/>
+            <path class="ln" d="M305 272 V309 H207" marker-end="url(#c-a)"/>
+            <!-- loop back, drawn before the line that crosses it -->
+            <path class="ln" d="M365 520 V274" marker-end="url(#c-a)"/>
+            <text class="t-sm" x="355" y="432" text-anchor="end">還要工具？</text>
+            <text class="t-sm" x="355" y="448" text-anchor="end">再繞一圈</text>
+            <path class="under" d="M165 330 V367 H403"/>
+            <path class="ln" d="M165 330 V367 H403" marker-end="url(#c-a)"/>
+            <path class="ln ln-c" d="M485 388 V425 H583" marker-end="url(#c-c)"/>
+            <text class="t-mono t-c" x="534" y="418" text-anchor="middle">stdin</text>
+            <path class="ln ln-s" d="M665 446 V483 H567" marker-end="url(#c-s)"/>
+            <text class="t-mono t-s" x="616" y="476" text-anchor="middle">stdout</text>
+            <path class="ln" d="M485 504 V541 H387" marker-end="url(#c-a)"/>
+            <path class="ln" d="M305 562 V599 H207" marker-end="url(#c-a)"/>
+
+            <!-- r0 client -->
+            <rect class="box-c" x="405" y="56" width="160" height="42" rx="4" style="stroke-dasharray:4 3"/>
+            <text x="485" y="73" text-anchor="middle">開機時已做完</text>
+            <text class="t-mono" x="485" y="90" text-anchor="middle">initialize · tools/list</text>
+            <!-- r1 host -->
+            <rect class="box" x="45" y="114" width="160" height="42" rx="4"/>
+            <text x="125" y="131" text-anchor="middle">使用者問一句</text>
+            <text class="t-sm" x="125" y="148" text-anchor="middle">「#12 在講什麼？」</text>
+            <!-- r2 host -->
+            <rect class="box" x="45" y="172" width="160" height="42" rx="4"/>
+            <text x="125" y="189" text-anchor="middle">工具清單交給模型<tspan class="sn" dy="-6">15</tspan></text>
+            <text class="t-sm" x="125" y="206" text-anchor="middle" dy="0">常見做法 · 非規格條文</text>
+            <!-- r3 llm -->
+            <rect class="box" x="225" y="230" width="160" height="42" rx="4"/>
+            <text x="305" y="247" text-anchor="middle">模型推理</text>
+            <text class="t-mono" x="305" y="264" text-anchor="middle">決定叫 get_issue</text>
+            <!-- r4 host -->
+            <rect class="box" x="45" y="288" width="160" height="42" rx="4"/>
+            <text x="125" y="305" text-anchor="middle">問人：允許嗎？<tspan class="sn" dy="-6">16</tspan></text>
+            <text class="t-strong" x="125" y="322" text-anchor="middle">SHOULD</text>
+            <!-- r5 client -->
+            <rect class="box-c" x="405" y="346" width="160" height="42" rx="4"/>
+            <text x="485" y="363" text-anchor="middle">包成 tools/call</text>
+            <text class="t-sm" x="485" y="380" text-anchor="middle">配 id · 開逾時<tspan class="sn" dy="-5">17</tspan><tspan dy="5"> · </tspan><tspan class="t-strong">SHOULD</tspan></text>
+            <!-- r6 server -->
+            <rect class="box-s" x="585" y="404" width="160" height="42" rx="4"/>
+            <text x="665" y="421" text-anchor="middle">Server 執行</text>
+            <text class="t-sm" x="665" y="438" text-anchor="middle">見第 4 張圖</text>
+            <!-- r7 client -->
+            <rect class="box-c" x="405" y="462" width="160" height="42" rx="4"/>
+            <text x="485" y="479" text-anchor="middle">收 CallToolResult</text>
+            <text class="t-sm" x="485" y="496" text-anchor="middle">驗過再交<tspan class="sn" dy="-5">20</tspan><tspan dy="5"> · </tspan><tspan class="t-strong">SHOULD</tspan></text>
+            <!-- r8 llm -->
+            <rect class="box" x="225" y="520" width="160" height="42" rx="4"/>
+            <text x="305" y="537" text-anchor="middle">模型讀結果<tspan class="sn" dy="-6">19</tspan></text>
+            <text class="t-sm" x="305" y="554" text-anchor="middle">isError 也要交 · <tspan class="t-strong">SHOULD</tspan></text>
+            <!-- r9 host -->
+            <rect class="box" x="45" y="578" width="160" height="42" rx="4"/>
+            <text x="125" y="595" text-anchor="middle">顯示回答</text>
+            <text class="t-sm" x="125" y="612" text-anchor="middle">給使用者</text>
+          </svg>
+        </div>
+        <figcaption>時間由上往下走，每一格落在「誰負責」的那一欄。藍色欄才是 MCP Client 本身；左邊兩欄是 Host 的事，規格只規定要做到什麼，不規定程式怎麼寫。</figcaption>
+      </figure>
+
+      <ul class="take">
+        <li><b>這一段本 repo 沒有程式碼。</b>project_mcp 只是 Server；以上依規格 <code>architecture</code>、<code>lifecycle</code>、<code>server/tools</code> 三頁畫成，標「常見做法」的那一格不是條文。</li>
+        <li><b>人可以在中間按「不要」。</b>規格建議：讓人看得到有哪些工具、呼叫當下看得見、敏感操作先確認、參數先給人看。</li>
+        <li><b>別太相信 Server 的自我介紹。</b>工具附的 <span class="term">annotations</span><a class="sn-ref" href="#n18">18</a>（例如「我是唯讀的」），Client MUST 當成不可信，除非那個 Server 本身可信。</li>
+      </ul>
+    </div>
+
+    <aside class="notes" aria-label="備注：Client 內部">
+      <h3>備注</h3>
+      <ol start="15">
+        <li id="n15"><span class="n">15</span><b>tool use · function calling</b> <span class="zh">工具定義與呼叫</span>——Host 把 tools/list 的結果轉成模型 API 的工具格式；模型回「要叫哪個、參數多少」。MCP 規格不管這段。<span class="go">去哪學：搜尋 <code>function calling</code>、<code>tool use</code>＋你用的模型 API</span></li>
+        <li id="n16"><span class="n">16</span><b>human in the loop</b> <span class="zh">人在迴路中</span>——規格要求 SHOULD 永遠有人能拒絕工具呼叫。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx 開頭的 Warning ↗</a></span></li>
+        <li id="n17"><span class="n">17</span><b>request timeout</b> <span class="zh">請求逾時</span>——每個送出的請求 SHOULD 有逾時；逾時後 SHOULD 送取消通知並停止等待。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx §Timeouts ↗</a></span></li>
+        <li id="n18"><span class="n">18</span><b>tool annotations</b> <span class="zh">工具提示標註</span>——<code>readOnlyHint</code>、<code>destructiveHint</code> 等。只是提示，不能拿來當權限依據。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx §Tool ↗</a></span></li>
+        <li id="n19"><span class="n">19</span><b>self-correction</b> <span class="zh">模型自我修正</span>——把 isError 的內容交給模型，它才有機會改參數再試。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx §Error Handling ↗</a></span></li>
+        <li id="n20"><span class="n">20</span><b>Client 安全建議</b> <span class="zh">全是 SHOULD</span>——敏感操作要確認、先給人看參數、結果驗過再交模型、有逾時、留稽核紀錄（audit log）。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx §Security Considerations ↗</a></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 3 · server internals ===================== -->
+<section class="sec sec-server" id="server">
+  <p class="kicker">MCP Server 內部資料流</p>
+  <h2>Server 裡面怎麼轉</h2>
+  <p class="one">中間一條直線是任何 MCP Server 都會走的路；右邊寫 project_mcp 怎麼做；左邊是會提早離開的出口。</p>
+
+  <div class="row">
+    <div class="main">
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 780 668" role="img" aria-label="Server 內部流程：從 stdin 讀一行，JSON-RPC 解碼與分派，拿 inputSchema 驗參數，這三步屬於框架；之後進入工具方法、失敗契約入口、驗輸入、叫 gh 子進程、翻譯回應、包成 CallToolResult、寫到 stdout。未知工具走 JSON-RPC error；schema 擋下的走沒有 remedy 的 isError；工具內的失敗全部匯入 ToolFailure，再以 isError 加 structuredContent 回傳。">
+            <defs>
+              <marker id="s-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="s-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-s" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="s-e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-e" d="M0 0 L10 5 L0 10 z"/></marker>
+            </defs>
+
+            <text class="t-sm" x="90" y="24" text-anchor="middle">提早離開</text>
+            <text class="t-sm" x="300" y="24" text-anchor="middle">一通 tools/call 走過的路</text>
+            <text class="t-sm" x="445" y="24">project_mcp 怎麼做</text>
+
+            <!-- spine arrows -->
+            <path class="ln" d="M300 84 V102" marker-end="url(#s-a)"/>
+            <path class="ln" d="M300 144 V162" marker-end="url(#s-a)"/>
+            <path class="ln ln-s" d="M300 204 V246" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 288 V306" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 348 V366" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 408 V426" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 468 V486" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 528 V546" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 588 V606" marker-end="url(#s-s)"/>
+
+            <!-- framework / your code boundary -->
+            <line x1="20" y1="226" x2="760" y2="226" class="ln dash" style="stroke:var(--muted)"/>
+            <text class="t-sm" x="760" y="219" text-anchor="end">↑ 框架做的（本 repo 零行）</text>
+            <text class="t-sm t-s" x="760" y="241" text-anchor="end">↓ 你寫的程式</text>
+
+            <!-- spine: framework -->
+            <rect class="box" x="180" y="44" width="240" height="40" rx="4" style="stroke-dasharray:4 3"/>
+            <text x="300" y="69" text-anchor="middle">從 stdin 讀一行</text>
+            <rect class="box" x="180" y="104" width="240" height="40" rx="4" style="stroke-dasharray:4 3"/>
+            <text x="300" y="129" text-anchor="middle">JSON-RPC 解碼 · 依 method 分派<tspan class="sn" dy="-6">22</tspan></text>
+            <rect class="box" x="180" y="164" width="240" height="40" rx="4" style="stroke-dasharray:4 3"/>
+            <text x="300" y="189" text-anchor="middle">拿 inputSchema 驗參數<tspan class="sn" dy="-6">23</tspan></text>
+
+            <!-- spine: your code -->
+            <rect class="box-s" x="180" y="248" width="240" height="40" rx="4"/>
+            <text x="300" y="273" text-anchor="middle">進到工具方法<tspan class="sn" dy="-6">24</tspan></text>
+            <rect class="box-s" x="180" y="308" width="240" height="40" rx="4"/>
+            <text x="300" y="333" text-anchor="middle">套上失敗契約<tspan class="sn" dy="-6">25</tspan><tspan dy="6"> · 配 callId</tspan><tspan class="sn" dy="-6">26</tspan></text>
+            <rect class="box-s" x="180" y="368" width="240" height="40" rx="4"/>
+            <text x="300" y="393" text-anchor="middle">驗輸入</text>
+            <rect class="box-s" x="180" y="428" width="240" height="40" rx="4"/>
+            <text x="300" y="453" text-anchor="middle">叫下游：起 gh 子進程<tspan class="sn" dy="-6">27</tspan></text>
+            <rect class="box-s" x="180" y="488" width="240" height="40" rx="4"/>
+            <text x="300" y="513" text-anchor="middle">把回應翻成欄位</text>
+            <rect class="box-s" x="180" y="548" width="240" height="40" rx="4"/>
+            <text x="300" y="573" text-anchor="middle">包成 CallToolResult</text>
+            <rect class="box-s" x="180" y="608" width="240" height="40" rx="4"/>
+            <text x="300" y="633" text-anchor="middle">寫一行到 stdout<tspan class="sn" dy="-6">29</tspan></text>
+
+            <!-- early exits -->
+            <path class="ln ln-e" d="M180 124 H162" marker-end="url(#s-e)"/>
+            <rect class="box-e" x="20" y="104" width="140" height="40" rx="4"/>
+            <text class="t-mono t-e" x="90" y="120" text-anchor="middle">JSON-RPC error</text>
+            <text class="t-sm" x="90" y="136" text-anchor="middle">未知工具・格式壞</text>
+
+            <path class="ln ln-w" d="M180 184 H162" marker-end="url(#s-a)"/>
+            <rect class="box-w" x="20" y="164" width="140" height="40" rx="4"/>
+            <text class="t-mono t-w" x="90" y="180" text-anchor="middle">isError: true</text>
+            <text class="t-sm" x="90" y="196" text-anchor="middle">沒 remedy・沒紀錄</text>
+
+            <!-- ToolFailure collector -->
+            <path class="ln ln-e" d="M180 388 H162" marker-end="url(#s-e)"/>
+            <path class="ln ln-e" d="M180 448 H162" marker-end="url(#s-e)"/>
+            <path class="ln ln-e" d="M180 508 H162" marker-end="url(#s-e)"/>
+            <rect class="box-e" x="20" y="368" width="140" height="160" rx="4"/>
+            <text class="t-mono t-e" x="90" y="390" text-anchor="middle" style="font-size:12px;font-weight:500">ToolFailure</text>
+            <text class="t-sm" x="90" y="408" text-anchor="middle">帶一個 Remedy：</text>
+            <text class="t-mono" x="90" y="430" text-anchor="middle">RETRY</text>
+            <text class="t-mono" x="90" y="448" text-anchor="middle">CHECK_BEFORE_RETRY</text>
+            <text class="t-mono" x="90" y="466" text-anchor="middle">FIX_REQUEST</text>
+            <text class="t-mono" x="90" y="484" text-anchor="middle">ASK_OPERATOR</text>
+            <text class="t-mono" x="90" y="502" text-anchor="middle">UNKNOWN</text>
+            <path class="ln ln-e" d="M90 528 V568 H178" marker-end="url(#s-e)"/>
+            <text class="t-mono t-e" x="22" y="602" style="font-size:10px">isError＋</text>
+            <text class="t-mono t-e" x="22" y="616" style="font-size:10px">structuredContent</text>
+
+            <!-- right notes -->
+            <text class="t-sm" x="445" y="68">一行＝一則訊息（換行分隔）</text>
+            <text class="t-sm" x="445" y="120">MCP Java SDK＋Spring AI 2.0.1<tspan class="sn" dy="-5">21</tspan></text>
+            <text class="t-sm" x="445" y="136" dy="0">協議版本上限也由它決定</text>
+            <text class="t-sm" x="445" y="180">漏參數、型別錯都停在這裡（實測）</text>
+            <text class="t-sm" x="445" y="196">錯誤訊息語言跟著機器 LANG 走</text>
+            <text class="t-sm" x="445" y="264"><tspan class="t-mono">@McpTool</tspan> 方法：參數表＝對外 schema</text>
+            <text class="t-sm" x="445" y="280">所以簽章要保持扁平</text>
+            <text class="t-sm" x="445" y="324"><tspan class="t-mono">ToolResults.attempt</tspan>：計時、記一行 log</text>
+            <text class="t-sm" x="445" y="340">之後所有失敗都從這一個出口出去</text>
+            <text class="t-sm" x="445" y="384"><tspan class="t-mono">Repos.slug</tspan> 擋斜線 · <tspan class="t-mono">Limits</tspan> 夾 1–100</text>
+            <text class="t-sm" x="445" y="400"><tspan class="t-mono">Cursors</tspan> 驗游標</text>
+            <text class="t-sm" x="445" y="444"><tspan class="t-mono">GhCli</tspan>：兩條管道一起抽乾 · 30 秒逾時</text>
+            <text class="t-sm" x="445" y="460">看退出碼 · 回應上限 8 MB</text>
+            <text class="t-sm" x="445" y="504"><tspan class="t-mono">*Mapper</tspan>：挑欄位 → record → JSON</text>
+            <text class="t-sm" x="445" y="520">gh 失敗時 <tspan class="t-mono">GhStderr</tspan> 查表 → Remedy</text>
+            <text class="t-sm" x="445" y="564">成功：content 放一段 JSON 文字</text>
+            <text class="t-sm" x="445" y="580">失敗：isError＋{remedy, message, stderr}</text>
+            <text class="t-sm" x="445" y="624">stdout 只准走 JSON-RPC</text>
+            <text class="t-sm" x="445" y="640">log 另寫 logs/project-mcp.log（ECS<tspan class="sn" dy="-5">28</tspan><tspan dy="5">）</tspan></text>
+          </svg>
+        </div>
+        <figcaption>虛線框是框架替你做的三步，實線綠框才是你寫的程式。左邊三個出口顏色不同：紅色的 JSON-RPC error 等於這通沒發生；黃色那格雖然是 isError，卻沒有 remedy；ToolFailure 那格才是你設計的失敗回覆。</figcaption>
+      </figure>
+
+      <ul class="take">
+        <li><b>最容易漏看的是黃色那格。</b>被 schema 擋下的呼叫根本進不到你的程式：它是 isError，但沒有 remedy、也不留 log。偏偏漏參數、型別錯正是模型最常犯的錯。</li>
+        <li><b>你的程式裡，失敗只有一個出口。</b>所有會失敗的工作都放進 <code>ToolResults.attempt(…)</code> 裡；丟在外面的失敗會被框架接走，remedy 就不見了。</li>
+        <li><b>stdout 是給 JSON-RPC 用的。</b>一行 print、一個開機 banner，對方的解析器就壞了。log 一律寫檔。</li>
+      </ul>
+    </div>
+
+    <aside class="notes" aria-label="備注：Server 內部">
+      <h3>備注</h3>
+      <ol start="21">
+        <li id="n21"><span class="n">21</span><b>MCP SDK</b> <span class="zh">協議函式庫</span>——替你做握手、分派、schema 推導。本例是 MCP Java SDK，外面包 Spring AI。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/java-sdk">modelcontextprotocol/java-sdk ↗</a> · <a href="https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html">Spring AI MCP Server ↗</a></span></li>
+        <li id="n22"><span class="n">22</span><b>dispatch · JSON-RPC error code</b> <span class="zh">分派、錯誤碼</span>——依 method 找處理者；找不到工具、格式壞，就回 JSON-RPC error（例如 <code>-32602</code>）。<span class="go">去哪學：<a href="https://www.jsonrpc.org/specification">jsonrpc.org/specification §5.1 Error object ↗</a></span></li>
+        <li id="n23"><span class="n">23</span><b>schema validation</b> <span class="zh">參數驗證</span>——框架先拿 inputSchema 驗，在你的方法體之前就擋下。<span class="go">去哪學：本 repo <code>docs/adr/0011-the-failure-contract-begins-at-the-tool-method.md</code>、<code>docs/mcp-2025-11-25-commercial-primer.html</code> 第 04 條</span></li>
+        <li id="n24"><span class="n">24</span><b>@McpTool</b> <span class="zh">工具註解</span>——Spring AI 把一個 Java 方法變成一個 MCP 工具，參數表自動變成 inputSchema。<span class="go">去哪學：<a href="https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html">Spring AI MCP Server ↗</a></span></li>
+        <li id="n25"><span class="n">25</span><b>failure contract · Remedy</b> <span class="zh">失敗契約、補救分類</span>——本 repo 的規矩：失敗按「你現在該做什麼」分五類。不是規格條文。<span class="go">去哪學：本 repo <code>docs/adr/0002-failure-contract-for-gh-calls.md</code></span></li>
+        <li id="n26"><span class="n">26</span><b>MDC · correlation ID</b> <span class="zh">診斷上下文、關聯編號</span>——把 callId 貼在同一通呼叫的每一行 log 上，事後才串得起來。<span class="go">去哪學：<a href="https://www.slf4j.org/manual.html">SLF4J manual §MDC ↗</a></span></li>
+        <li id="n27"><span class="n">27</span><b>ProcessBuilder · pipe draining</b> <span class="zh">起子進程、抽乾管道</span>——stdout 與 stderr 要同時讀，否則緩衝區滿了兩邊互等，形成 deadlock。<span class="go">去哪學：<a href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/ProcessBuilder.html">ProcessBuilder (Java 25) ↗</a></span></li>
+        <li id="n28"><span class="n">28</span><b>ECS</b> <span class="zh">結構化日誌格式</span>——Elastic Common Schema，一套公開的 JSON log 欄位命名，收集器不用翻譯就能讀。<span class="go">去哪學：<a href="https://www.elastic.co/guide/en/ecs/current/index.html">Elastic ECS ↗</a></span></li>
+        <li id="n29"><span class="n">29</span><b>stdout purity</b> <span class="zh">stdout 純淨</span>——stdio 下 Server MUST NOT 往 stdout 寫任何不是 MCP 訊息的東西；寫 stderr 則 MAY。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/transports.mdx">basic/transports.mdx §stdio ↗</a></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== reading path ===================== -->
+<section class="sec" id="read">
+  <p class="kicker">接著讀</p>
+  <h2>照這個順序讀規格</h2>
+  <p class="one">六頁，由外往內。每一頁都對應上面的一張圖。</p>
+  <ol class="path">
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/architecture/index.mdx">architecture/index.mdx</a><br>Host、Client、Server 三個角色，和四條設計原則。對應第 1 張圖。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx</a><br>握手、版本協商、能力宣告、關機、逾時。對應第 2 張圖的上下兩段。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/transports.mdx">basic/transports.mdx</a><br>stdio 與 Streamable HTTP。stdout 那條 MUST NOT 在這裡。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx</a><br>tools/list、tools/call、兩種錯誤、安全條款。對應第 3、4 張圖。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/basic/utilities/cancellation.mdx">basic/utilities/cancellation.mdx</a><br>「不等了」怎麼講，收到的一方可以做什麼。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2025-11-25/client/sampling.mdx">client/sampling.mdx</a>（再讀 elicitation、roots）<br>反方向：Server 請 Client 幫忙。</li>
+  </ol>
+  <ul class="next">
+    <li>同一個 repo 裡往下讀：<code>docs/mcp-2025-11-25-commercial-primer.html</code>（商用門檻）</li>
+    <li><code>docs/mcp-2025-11-25-conformance.html</code>（逐條對照）· <code>docs/architecture-tour.html</code>（五個工具一根管子）</li>
+  </ul>
+
+  <footer class="foot">
+    <p>規格條文取自 <code>modelcontextprotocol/modelcontextprotocol</code> main 分支的 <code>docs/specification/2025-11-25/</code>（architecture、lifecycle、transports、server/tools、client/*），2026-09-14 讀取；本頁所有外部連結已於同日確認可開啟。</p>
+    <p>project_mcp 的行為對照 <code>b94e10b</code> 的 <code>src/main</code>。「schema 驗證在方法體之前、沒有 remedy、錯誤訊息跟著 LANG 走」與「notifications/cancelled 會被忽略」兩點是實測結果，出自同倉庫的 commercial-primer 與 conformance 兩份文件（2026-09-09，MCP Inspector v2.5.0），不是讀原始碼推論的。SDK 的協議版本上限 2025-11-25 也取自 conformance 文件（對照 <code>99ba0b3</code>）；Spring AI 2.0.1 取自 <code>pom.xml</code>。</p>
+    <p>Client 內部那一段：本 repo 沒有 Client 程式碼，內容依規格條文畫成；標「常見做法」的步驟不是條文。</p>
+  </footer>
+</section>
+
+</div>

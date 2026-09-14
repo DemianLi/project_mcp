@@ -157,6 +157,12 @@ that write itself, which it decided against.
   six the specification states and five it never mentions but a customer asks about, each
   with the professional terms beside it. Written from this Server, including the places it
   is measurably not clean
+- [docs/mcp-client-server-dataflow.html](./docs/mcp-client-server-dataflow.html) — the
+  conversation itself, in four pictures: who talks to whom, what crosses the stdio pipe from
+  spawn to shutdown, how a question moves through a Client (drawn from the specification,
+  since this repo has no Client), and how a `tools/call` moves through this Server,
+  including the exits it can leave by early. Every term carries a side note saying where to
+  read up on it
 - [docs/deploying.md](./docs/deploying.md) — what a deployment has to provide and what it
   has to decide: the identity every call shares, where `gh` looks for a credential and why
   rotating it needs a restart in one arrangement and not the other, the `gh` output that
