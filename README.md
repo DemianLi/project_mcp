@@ -163,6 +163,12 @@ that write itself, which it decided against.
   since this repo has no Client), and how a `tools/call` moves through this Server,
   including the exits it can leave by early. Every term carries a side note saying where to
   read up on it
+- [docs/mcp-2026-07-28-dataflow.html](./docs/mcp-2026-07-28-dataflow.html) — the same four
+  pictures redrawn for the 2026-07-28 revision, each set against the one above: the
+  handshake gone and every request carrying its own version and capabilities, a server that
+  asks for more by returning `input_required` rather than sending a request, and a column
+  saying which of the new requirements this Server cannot meet yet — every one of them
+  waiting on the SDK, not on this repository
 - [docs/deploying.md](./docs/deploying.md) — what a deployment has to provide and what it
   has to decide: the identity every call shares, where `gh` looks for a credential and why
   rotating it needs a restart in one arrangement and not the other, the `gh` output that

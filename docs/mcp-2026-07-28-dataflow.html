@@ -1,0 +1,794 @@
+<title>MCP 一問一答 2026-07-28</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700;900&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F4F2F7; --surface:#FFFFFF; --surface-2:#ECE8F2;
+  --ink:#1B1530; --ink-2:#463E5C; --muted:#756C8C;
+  --rule:#DAD4E4;
+  --client:#6236C9; --client-soft:#ECE5FB;
+  --server:#0B7A83; --server-soft:#DDF1F2;
+  --err:#B42318; --err-soft:#FBE3E0;
+  --warn:#8F5E00; --warn-soft:#F6ECD4;
+  --new:#B98A00; --new-soft:#FFF1B8;
+  --serif:"Noto Serif TC","Songti TC",serif;
+  --sans:"Noto Sans TC","PingFang TC",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#120F1C; --surface:#1A1628; --surface-2:#221D33;
+    --ink:#ECE8F5; --ink-2:#C0B8D6; --muted:#9389AD;
+    --rule:#2F2944;
+    --client:#B39BFF; --client-soft:#2A2150;
+    --server:#4FD1D9; --server-soft:#10323A;
+    --err:#F2877A; --err-soft:#3D1C1A;
+    --warn:#E6B454; --warn-soft:#362A10;
+    --new:#F2CF4A; --new-soft:#3A3212;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#120F1C; --surface:#1A1628; --surface-2:#221D33;
+  --ink:#ECE8F5; --ink-2:#C0B8D6; --muted:#9389AD;
+  --rule:#2F2944;
+  --client:#B39BFF; --client-soft:#2A2150;
+  --server:#4FD1D9; --server-soft:#10323A;
+  --err:#F2877A; --err-soft:#3D1C1A;
+  --warn:#E6B454; --warn-soft:#362A10;
+  --new:#F2CF4A; --new-soft:#3A3212;
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.8;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:0 72px}
+code,.mono{font-family:var(--mono);font-size:.88em}
+a{color:var(--client);text-underline-offset:3px}
+a:focus-visible{outline:2px solid var(--client);outline-offset:2px;border-radius:2px}
+b{font-weight:700}
+
+/* hero */
+.hero{padding-block:52px 34px;border-bottom:1px solid var(--rule)}
+.basis{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.basis li{font-family:var(--mono);font-size:12px;letter-spacing:.03em;color:var(--ink-2);border:1px solid var(--rule);background:var(--surface);padding:2px 10px;border-radius:2px}
+.basis li.hot{border-color:var(--client);color:var(--client)}
+.gone{margin:26px 0 0;font-family:var(--mono);font-size:14px;color:var(--muted);text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--err)}
+h1{font-family:var(--serif);font-weight:900;font-size:clamp(36px,5.8vw,62px);line-height:1.18;margin:6px 0 0;text-wrap:balance;letter-spacing:.01em}
+h1 em{font-style:normal;background:linear-gradient(transparent 58%,var(--new-soft) 58%);padding-inline:.05em}
+.lede{max-width:40em;margin:18px 0 0;font-size:18px;color:var(--ink-2)}
+.legend{display:flex;flex-wrap:wrap;gap:10px 20px;margin:24px 0 0;font-size:14px;color:var(--ink-2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+
+.chip{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.06em;padding:1px 7px;border-radius:2px;white-space:nowrap;line-height:1.6}
+.k-must{background:var(--ink);color:var(--bg)}
+.k-should{border:1px solid var(--ink-2);color:var(--ink)}
+.k-may{border:1px solid var(--rule);color:var(--muted)}
+.k-impl{border:1px dashed var(--muted);color:var(--muted)}
+.k-new{background:var(--new-soft);color:var(--ink);border:1px solid var(--new)}
+.k-del{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--err);border:1px solid var(--rule)}
+.k-dep{border:1px dashed var(--warn);color:var(--warn)}
+
+/* sections */
+.sec{padding-block:54px 8px;border-bottom:1px solid var(--rule)}
+.sec:last-of-type{border-bottom:0}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
+h2{font-family:var(--serif);font-weight:900;font-size:clamp(26px,3.4vw,36px);line-height:1.3;margin:6px 0 0;text-wrap:balance}
+.one{font-size:18px;color:var(--ink-2);max-width:38em;margin:10px 0 0}
+
+/* changed / unchanged */
+.delta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:26px}
+@media (max-width:720px){.delta{grid-template-columns:1fr}}
+.delta div{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:16px 20px}
+.delta h3{margin:0 0 10px;font-family:var(--serif);font-size:19px;font-weight:900}
+.delta .chg h3{color:var(--client)}
+.delta ul{margin:0;padding-left:1.1em;display:grid;gap:8px;font-size:15px;color:var(--ink-2)}
+.delta li::marker{color:var(--muted)}
+
+.row{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:40px;margin-top:28px;align-items:start}
+@media (max-width:900px){.row{grid-template-columns:1fr;gap:24px}}
+
+figure{margin:0}
+.fig-scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:14px 10px}
+.fig-scroll svg{display:block;width:100%;min-width:640px;height:auto}
+figcaption{font-size:14.5px;color:var(--ink-2);margin-top:12px;max-width:44em}
+
+/* svg vocabulary (all scoped under .fig so text classes beat the base rule) */
+.fig text{fill:var(--ink);font-family:var(--sans);font-size:13px}
+.fig .t-sm{font-size:11px;fill:var(--muted)}
+.fig .t-mono{font-family:var(--mono);font-size:11px;fill:var(--ink-2)}
+.fig .t-head{font-family:var(--serif);font-size:15px;font-weight:900}
+.fig .t-c{fill:var(--client)} .fig .t-s{fill:var(--server)} .fig .t-e{fill:var(--err)} .fig .t-w{fill:var(--warn)} .fig .t-n{fill:var(--new)} .fig .t-mu{fill:var(--muted)}
+.fig .sn{font-family:var(--mono);font-size:9px;fill:var(--client);font-weight:500}
+.fig .t-strong{font-family:var(--mono);font-size:10px;font-weight:500;fill:var(--ink)}
+.fig .t-badge{font-family:var(--mono);font-size:9px;font-weight:500;fill:var(--ink)}
+.box{fill:var(--surface);stroke:var(--rule);stroke-width:1.2}
+.box-2{fill:var(--surface-2);stroke:var(--rule);stroke-width:1.2}
+.box-c{fill:var(--client-soft);stroke:var(--client);stroke-width:1.2}
+.box-s{fill:var(--server-soft);stroke:var(--server);stroke-width:1.2}
+.box-e{fill:var(--err-soft);stroke:var(--err);stroke-width:1.2}
+.box-w{fill:var(--warn-soft);stroke:var(--warn);stroke-width:1.2}
+.box-n{fill:var(--new-soft);stroke:var(--new);stroke-width:1.6}
+.box-frame{fill:none;stroke:var(--ink-2);stroke-width:1.2}
+.new-ring{fill:none;stroke:var(--new);stroke-width:2.2}
+.badge{fill:var(--new-soft);stroke:var(--new);stroke-width:1}
+.ln{fill:none;stroke:var(--ink-2);stroke-width:1.4}
+.ln-c{stroke:var(--client)} .ln-s{stroke:var(--server)} .ln-e{stroke:var(--err)} .ln-w{stroke:var(--warn)} .ln-n{stroke:var(--new)}
+.ln-mu{stroke:var(--muted)}
+.dash{stroke-dasharray:5 4}
+.strike{stroke:var(--err);stroke-width:1.6}
+.faded{opacity:.5}
+.ah{fill:var(--ink-2)} .ah-c{fill:var(--client)} .ah-s{fill:var(--server)} .ah-e{fill:var(--err)} .ah-w{fill:var(--warn)} .ah-n{fill:var(--new)}
+.sep{stroke:var(--rule);stroke-width:1}
+.pipe{stroke:var(--rule);stroke-width:1.4;fill:none}
+
+/* takeaways */
+.take{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:12px;max-width:46em}
+.take li{padding-left:22px;position:relative}
+.take li::before{content:"";position:absolute;left:4px;top:.72em;width:8px;height:8px;background:var(--client);transform:rotate(45deg)}
+.sec-server .take li::before{background:var(--server)}
+
+/* tables */
+.tbl{margin-top:24px;overflow-x:auto}
+.tbl h3{font-size:14px;font-weight:500;color:var(--muted);margin:0 0 8px;font-family:var(--mono);letter-spacing:.06em}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14.5px;background:var(--surface);border:1px solid var(--rule)}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--muted);letter-spacing:.04em;background:var(--surface-2)}
+td.ok{color:var(--server);font-weight:700;white-space:nowrap}
+td.no{color:var(--err);font-weight:700;white-space:nowrap}
+td.na{color:var(--muted);font-weight:700;white-space:nowrap}
+
+/* wire sample */
+.wire{margin-top:26px}
+.wire h3{font-size:14px;font-weight:500;color:var(--muted);margin:0 0 8px;font-family:var(--mono);letter-spacing:.06em}
+.wire pre{margin:0;overflow-x:auto;background:var(--surface-2);border:1px solid var(--rule);border-radius:4px;padding:14px 16px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink)}
+.wire .dir-c{color:var(--client);font-weight:500}
+.wire .dir-s{color:var(--server);font-weight:500}
+.wire .hl{background:var(--new-soft);outline:1px solid var(--new);border-radius:2px}
+.wire .cm{color:var(--muted)}
+
+/* terms + side notes */
+.term{border-bottom:1px dotted var(--muted)}
+.sn-ref{font-family:var(--mono);font-size:10px;font-weight:500;color:var(--client);text-decoration:none;vertical-align:super;line-height:0;margin-left:1px;padding:0 1px}
+.sn-ref:hover{text-decoration:underline}
+.notes{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:16px 18px 6px}
+.notes h3{margin:0 0 10px;font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.notes ol{list-style:none;margin:0;padding:0}
+.notes li{padding:10px 0;border-top:1px solid var(--rule);font-size:13.5px;line-height:1.65;color:var(--ink-2);scroll-margin-top:24px}
+.notes li:first-child{border-top:0;padding-top:2px}
+.notes li:target{background:var(--client-soft);margin-inline:-18px;padding-inline:18px}
+.notes .n{font-family:var(--mono);font-size:11px;color:var(--client);font-weight:500;margin-right:6px}
+.notes b{color:var(--ink);font-family:var(--mono);font-size:12.5px}
+.notes .zh{color:var(--ink);font-weight:500}
+.notes .go{display:block;margin-top:3px;font-size:12.5px}
+.notes .go a{font-family:var(--mono);font-size:11.5px;word-break:break-all}
+.notes .go code{font-size:11.5px;color:var(--ink-2);word-break:break-all}
+
+/* reading path */
+.path{list-style:none;counter-reset:p;margin:24px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.path li{counter-increment:p;background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:14px 16px 14px 52px;position:relative;font-size:14.5px;color:var(--ink-2)}
+.path li::before{content:counter(p);position:absolute;left:16px;top:10px;font-family:var(--serif);font-weight:900;font-size:24px;color:var(--client);line-height:1.3}
+.path a{font-family:var(--mono);font-size:12.5px;font-weight:500;display:inline-block;margin-bottom:2px;word-break:break-all}
+
+.foot{margin-top:48px;padding-top:18px;border-top:1px solid var(--rule);font-size:13px;color:var(--muted);max-width:60em;line-height:1.75}
+.foot p{margin:0 0 8px}
+
+@media (max-width:520px){.lede,.one{font-size:16.5px}.path li{padding-left:46px}}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <ul class="basis">
+    <li class="hot">規格 2026-07-28</li>
+    <li>對照前版 2025-11-25</li>
+    <li>範例 project_mcp 0.1.1（仍是舊版 Server）</li>
+    <li>2026-09-15</li>
+  </ul>
+  <p class="gone" aria-label="已刪除：initialize、InitializeResult、notifications/initialized">initialize → InitializeResult → notifications/initialized</p>
+  <h1>MCP 的一問一答，這一版<em>不握手</em></h1>
+  <p class="lede">還是 Client 問、Server 答，還是一條管子。差別在：每一則問題都自己講清楚「我講哪一版、我會什麼」，Server 不再記得上一則。這頁用同樣的四張圖，把新舊兩版的差別畫出來。右邊一欄是備注——白話意思，加上去哪一頁學。</p>
+  <div class="legend" aria-label="標籤說明">
+    <span><span class="chip k-must">MUST</span>不做就不合規</span>
+    <span><span class="chip k-should">SHOULD</span>可不做，要記在案</span>
+    <span><span class="chip k-may">MAY</span>隨你</span>
+    <span><span class="chip k-impl">常見做法</span>非規格條文</span>
+    <span><span class="chip k-new">新增</span>這一版才有</span>
+    <span><span class="chip k-del">刪除</span>這一版拿掉</span>
+    <span><span class="chip k-dep">棄用</span>還能用，排定移除</span>
+  </div>
+</header>
+
+<!-- ===================== summary ===================== -->
+<section class="sec" id="summary">
+  <p class="kicker">先講結論</p>
+  <h2>變了什麼、沒變什麼</h2>
+  <div class="delta">
+    <div class="chg">
+      <h3>變了</h3>
+      <ul>
+        <li><b>沒有握手。</b>initialize 那三步整段刪除，版本與能力改放在每一則請求的 <code>_meta</code>。</li>
+        <li><b>Server 不再反問。</b>要更多資料時，回一個「還缺這些」，由 Client 帶著答案重送。</li>
+        <li><b>每個結果都要標 <code>resultType</code>。</b>正常結果是 <code>"complete"</code>。</li>
+        <li><b>Server 必須會回答 <code>server/discover</code>。</b>「你會哪幾版、會什麼」隨時可以問。</li>
+      </ul>
+    </div>
+    <div>
+      <h3>沒變</h3>
+      <ul>
+        <li>一個 Client 只連一個 Server（1:1）。</li>
+        <li>stdio：Client 啟動子進程，一行一則，stdout 只准走 MCP 訊息。</li>
+        <li><code>tools/list</code> 看菜單、<code>tools/call</code> 點菜。</li>
+        <li>兩種錯誤：協議錯誤走 JSON-RPC error，工具失敗走 <code>isError: true</code>。</li>
+        <li>工具安全條款：Server 四條 MUST、Client 五條 SHOULD，原封不動。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 1 · roles ===================== -->
+<section class="sec" id="roles">
+  <p class="kicker">角色</p>
+  <h2>連線不等於對話</h2>
+  <p class="one">角色沒變：Host 裡的每個 Client 只連一個 Server。變的是這條連線的意義——MCP 現在是 <span class="term">stateless</span><a class="sn-ref" href="#n1">1</a>，同一條管子上可以交錯跑好幾段不相干的對話。</p>
+
+  <div class="row">
+    <div class="main">
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 780 240" role="img" aria-label="Host 裡有對話 A 與對話 B，都交給同一個 Client；同一條 stdio 管子上依序送出 A1、B1、A2 三則請求，每一則都帶自己的 _meta；Server 一則一則獨立處理，不能靠同一條連線推斷是同一段對話。">
+            <defs>
+              <marker id="r-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="r-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-c" d="M0 0 L10 5 L0 10 z"/></marker>
+            </defs>
+
+            <rect class="box-frame" x="10" y="18" width="320" height="204" rx="6"/>
+            <text class="t-head" x="24" y="42">Host<tspan class="sn" dy="-6">3</tspan></text>
+
+            <rect class="box-2" x="30" y="62" width="120" height="40" rx="4"/>
+            <text x="90" y="87" text-anchor="middle">對話 A</text>
+            <rect class="box-2" x="30" y="142" width="120" height="40" rx="4"/>
+            <text x="90" y="167" text-anchor="middle">對話 B</text>
+
+            <path class="ln" d="M150 82 H170 V110 H188" marker-end="url(#r-a)"/>
+            <path class="ln" d="M150 162 H170 V134 H188" marker-end="url(#r-a)"/>
+
+            <rect class="box-c" x="190" y="96" width="120" height="52" rx="4"/>
+            <text x="250" y="119" text-anchor="middle">Client</text>
+            <text class="t-sm" x="250" y="137" text-anchor="middle">1:1 沒變</text>
+
+            <!-- pipe -->
+            <line class="pipe" x1="330" y1="108" x2="600" y2="108"/>
+            <line class="pipe" x1="330" y1="136" x2="600" y2="136"/>
+            <text class="t-mono" x="465" y="96" text-anchor="middle">同一條 stdio</text>
+            <path class="ln ln-c" d="M580 122 H606" marker-end="url(#r-c)"/>
+
+            <rect class="box" x="346" y="113" width="58" height="18" rx="2"/>
+            <text class="t-mono" x="375" y="126" text-anchor="middle">A1</text>
+            <rect class="box" x="424" y="113" width="58" height="18" rx="2"/>
+            <text class="t-mono" x="453" y="126" text-anchor="middle">B1</text>
+            <rect class="box" x="502" y="113" width="58" height="18" rx="2"/>
+            <text class="t-mono" x="531" y="126" text-anchor="middle">A2</text>
+
+            <rect class="badge" x="352" y="146" width="46" height="15" rx="2"/>
+            <text class="t-badge" x="375" y="157" text-anchor="middle">_meta</text>
+            <rect class="badge" x="430" y="146" width="46" height="15" rx="2"/>
+            <text class="t-badge" x="453" y="157" text-anchor="middle">_meta</text>
+            <rect class="badge" x="508" y="146" width="46" height="15" rx="2"/>
+            <text class="t-badge" x="531" y="157" text-anchor="middle">_meta</text>
+            <text class="t-sm" x="453" y="184" text-anchor="middle">每一則都自己帶：版本・能力・身分<tspan class="sn" dy="-5">2</tspan></text>
+
+            <rect class="box-s" x="610" y="92" width="160" height="60" rx="4"/>
+            <text x="690" y="117" text-anchor="middle">Server</text>
+            <text class="t-sm" x="690" y="136" text-anchor="middle">一則一則獨立處理</text>
+            <text class="t-sm" x="690" y="180" text-anchor="middle">不能靠「同一條連線」</text>
+            <text class="t-sm" x="690" y="196" text-anchor="middle">推斷是同一段對話<tspan class="sn" dy="-5">4</tspan></text>
+          </svg>
+        </div>
+        <figcaption>前一版的 Client 是「一條有狀態的 session」；這一版改成「只跟一個 Server 溝通，並在每一則請求附上版本與能力」。管子還在，只是管子不再代表對話。</figcaption>
+      </figure>
+    </div>
+
+    <aside class="notes" aria-label="備注：角色">
+      <h3>備注</h3>
+      <ol>
+        <li id="n1"><span class="n">1</span><b>stateless</b> <span class="zh">無狀態</span>——處理一則請求需要的資訊全在那一則裡。Server MUST NOT 靠前面的請求建立上下文。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §Statelessness ↗</a></span></li>
+        <li id="n2"><span class="n">2</span><b>_meta</b> <span class="zh">請求附帶的中繼資料</span>——<code>io.modelcontextprotocol/protocolVersion</code> 與 <code>clientCapabilities</code> 每則必帶；<code>clientInfo</code> SHOULD 帶。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §_meta ↗</a></span></li>
+        <li id="n3"><span class="n">3</span><b>Host · Client · Server</b> <span class="zh">三個角色</span>——每一版都寫著 Client 與 Server 是 1:1。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/architecture/index.mdx">architecture/index.mdx ↗</a></span></li>
+        <li id="n4"><span class="n">4</span><b>connection ≠ session</b> <span class="zh">連線不是對話</span>——stdio 行程不是對話；Server 不可把「同一條連線／同一個行程」當成同一段對話的依據。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §Statelessness 的 Note ↗</a></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 2 · wire ===================== -->
+<section class="sec" id="wire">
+  <p class="kicker">Client ↔ Server 交互</p>
+  <h2>管子上傳什麼：新舊對照</h2>
+  <p class="one">左邊是 2025-11-25，右邊是 2026-07-28，同一個階段排在同一列。握手那一列，右邊整段刪掉。</p>
+
+  <div class="row">
+    <div class="main">
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 780 650" role="img" aria-label="新舊時序對照。開機兩版相同。握手：舊版三步 initialize；新版刪除，改為可選的 server/discover。做事：新版每個請求帶 _meta，結果帶 resultType，tools/list 多了 ttlMs 與 cacheScope；舊版 Server 反問 Client，新版改成回 input_required，Client 用新 id 帶答案重送。取消：新版 stdio 上 Client MUST 送取消通知。關機兩版相同。">
+            <defs>
+              <marker id="w-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-c" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="w-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-s" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="w-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="w-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-n" d="M0 0 L10 5 L0 10 z"/></marker>
+            </defs>
+
+            <!-- column heads -->
+            <text class="t-sm" x="180" y="16" text-anchor="middle">2025-11-25（前版）</text>
+            <text class="t-head t-c" x="600" y="17" text-anchor="middle">2026-07-28</text>
+            <g class="faded">
+              <rect class="box-c" x="22" y="28" width="76" height="28" rx="4"/>
+              <text x="60" y="47" text-anchor="middle">Client</text>
+              <rect class="box-s" x="262" y="28" width="76" height="28" rx="4"/>
+              <text x="300" y="47" text-anchor="middle">Server</text>
+              <path class="ln ln-c dash" d="M60 56 V636"/>
+              <path class="ln ln-s dash" d="M300 56 V636"/>
+            </g>
+            <rect class="box-c" x="442" y="28" width="76" height="28" rx="4"/>
+            <text x="480" y="47" text-anchor="middle">Client</text>
+            <rect class="box-s" x="682" y="28" width="76" height="28" rx="4"/>
+            <text x="720" y="47" text-anchor="middle">Server</text>
+            <path class="ln ln-c dash" d="M480 56 V636" style="opacity:.45"/>
+            <path class="ln ln-s dash" d="M720 56 V636" style="opacity:.45"/>
+
+            <!-- phase gutter -->
+            <text class="t-head" x="390" y="96" text-anchor="middle">開機</text>
+            <text class="t-head" x="390" y="182" text-anchor="middle">握手</text>
+            <text class="t-sm" x="390" y="200" text-anchor="middle">新版沒有</text>
+            <text class="t-head" x="390" y="356" text-anchor="middle">做事</text>
+            <text class="t-sm" x="390" y="470" text-anchor="middle">要更多資料時</text>
+            <text class="t-head" x="390" y="562" text-anchor="middle">取消</text>
+            <text class="t-head" x="390" y="618" text-anchor="middle">關機</text>
+            <line class="sep" x1="10" y1="112" x2="770" y2="112"/>
+            <line class="sep" x1="10" y1="262" x2="770" y2="262"/>
+            <line class="sep" x1="10" y1="530" x2="770" y2="530"/>
+            <line class="sep" x1="10" y1="588" x2="770" y2="588"/>
+
+            <!-- 開機 -->
+            <g class="faded"><path class="ln dash" d="M62 92 H296" marker-end="url(#w-a)"/><text x="180" y="84" text-anchor="middle">叫起子進程</text></g>
+            <path class="ln dash" d="M482 92 H716" marker-end="url(#w-a)"/>
+            <text x="600" y="84" text-anchor="middle">叫起子進程（沒變）</text>
+
+            <!-- 握手 · old -->
+            <g class="faded">
+              <path class="ln ln-c" d="M62 144 H296" marker-end="url(#w-c)"/>
+              <text x="180" y="136" text-anchor="middle">initialize</text>
+              <path class="ln ln-s" d="M298 190 H64" marker-end="url(#w-s)"/>
+              <text x="180" y="182" text-anchor="middle">InitializeResult</text>
+              <path class="ln ln-c dash" d="M62 236 H296" marker-end="url(#w-c)"/>
+              <text x="180" y="228" text-anchor="middle">notifications/initialized</text>
+            </g>
+            <!-- 握手 · new -->
+            <rect x="430" y="122" width="340" height="94" rx="4" fill="none" style="stroke:var(--new);stroke-dasharray:4 3"/>
+            <text class="t-sm t-n" x="440" y="136">可選：Client MAY 先問</text>
+            <path class="ln ln-c" d="M482 158 H716" marker-end="url(#w-c)"/>
+            <text x="600" y="151" text-anchor="middle">server/discover<tspan class="sn" dy="-6">5</tspan></text>
+            <path class="ln ln-s" d="M718 196 H484" marker-end="url(#w-s)"/>
+            <text x="600" y="189" text-anchor="middle">DiscoverResult</text>
+            <text class="t-mono" x="600" y="210" text-anchor="middle">supportedVersions · capabilities</text>
+            <text class="t-mono t-mu" x="600" y="244" text-anchor="middle">initialize 交握</text>
+            <line class="strike" x1="548" y1="240" x2="652" y2="240"/>
+            <text class="t-sm t-e" x="660" y="244">整段刪除</text>
+
+            <!-- 做事 · tools/list -->
+            <g class="faded">
+              <path class="ln ln-c" d="M62 292 H296" marker-end="url(#w-c)"/>
+              <text x="180" y="284" text-anchor="middle">tools/list</text>
+              <path class="ln ln-s" d="M298 322 H64" marker-end="url(#w-s)"/>
+              <text x="180" y="315" text-anchor="middle">工具清單</text>
+            </g>
+            <path class="ln ln-c" d="M482 292 H716" marker-end="url(#w-c)"/>
+            <rect class="badge" x="490" y="285" width="40" height="14" rx="2"/><text class="t-badge" x="510" y="295" text-anchor="middle">_meta</text>
+            <text x="620" y="284" text-anchor="middle">tools/list</text>
+            <path class="ln ln-s" d="M718 322 H484" marker-end="url(#w-s)"/>
+            <text x="600" y="315" text-anchor="middle">工具清單 ＋ttlMs・cacheScope<tspan class="sn" dy="-6">8</tspan></text>
+
+            <!-- 做事 · tools/call -->
+            <g class="faded">
+              <path class="ln ln-c" d="M62 366 H296" marker-end="url(#w-c)"/>
+              <text x="180" y="358" text-anchor="middle">tools/call</text>
+              <path class="ln ln-s" d="M298 398 H64" marker-end="url(#w-s)"/>
+              <text x="180" y="391" text-anchor="middle">CallToolResult</text>
+            </g>
+            <path class="ln ln-c" d="M482 366 H716" marker-end="url(#w-c)"/>
+            <rect class="badge" x="490" y="359" width="40" height="14" rx="2"/><text class="t-badge" x="510" y="369" text-anchor="middle">_meta</text>
+            <text x="620" y="358" text-anchor="middle">tools/call</text>
+            <path class="ln ln-s" d="M718 398 H484" marker-end="url(#w-s)"/>
+            <text class="t-mono" x="600" y="391" text-anchor="middle">resultType: "complete"<tspan class="sn" dy="-6">7</tspan></text>
+
+            <!-- 做事 · more input -->
+            <g class="faded">
+              <path class="ln ln-s" d="M298 446 H64" marker-end="url(#w-s)"/>
+              <text x="180" y="439" text-anchor="middle">Server 反問 Client</text>
+              <text class="t-mono" x="180" y="460" text-anchor="middle">sampling · elicitation · roots</text>
+              <path class="ln ln-c" d="M62 492 H296" marker-end="url(#w-c)"/>
+              <text x="180" y="485" text-anchor="middle">Client 回答</text>
+            </g>
+            <path class="ln ln-s" d="M718 432 H484" marker-end="url(#w-s)"/>
+            <text class="t-mono" x="600" y="425" text-anchor="middle">resultType: "input_required"<tspan class="sn" dy="-6">9</tspan></text>
+            <path class="ln ln-c" d="M482 474 H716" marker-end="url(#w-c)"/>
+            <rect class="badge" x="490" y="467" width="40" height="14" rx="2"/><text class="t-badge" x="510" y="477" text-anchor="middle">_meta</text>
+            <text x="620" y="466" text-anchor="middle">重送：新 id＋答案<tspan class="sn" dy="-6">10</tspan></text>
+            <path class="ln ln-s" d="M718 512 H484" marker-end="url(#w-s)"/>
+            <text class="t-mono" x="600" y="505" text-anchor="middle">resultType: "complete"</text>
+
+            <!-- 取消 -->
+            <g class="faded">
+              <path class="ln ln-c dash" d="M62 558 H296" marker-end="url(#w-c)"/>
+              <text x="180" y="550" text-anchor="middle">notifications/cancelled</text>
+              <text class="t-sm" x="180" y="575" text-anchor="middle">SHOULD</text>
+            </g>
+            <path class="ln ln-c dash" d="M482 558 H716" marker-end="url(#w-c)"/>
+            <text x="600" y="550" text-anchor="middle">notifications/cancelled<tspan class="sn" dy="-6">11</tspan></text>
+            <text class="t-strong" x="600" y="575" text-anchor="middle">stdio 上 Client MUST 送</text>
+
+            <!-- 關機 -->
+            <g class="faded"><path class="ln dash" d="M62 614 H296" marker-end="url(#w-a)"/><text x="180" y="606" text-anchor="middle">關掉 stdin</text></g>
+            <path class="ln dash" d="M482 614 H716" marker-end="url(#w-a)"/>
+            <text x="600" y="606" text-anchor="middle">關掉 stdin（沒變）<tspan class="sn" dy="-6">13</tspan></text>
+          </svg>
+        </div>
+        <figcaption>右邊每一支往 Server 的箭頭都貼著 <code>_meta</code>：版本與能力不再「講一次記一輩子」，而是每則都講。黃框是新增的東西；灰色刪除線是拿掉的東西。</figcaption>
+      </figure>
+
+      <ul class="take">
+        <li><b>握手沒了，1:1 還在。</b>想先知道對方會哪幾版，就問 <code>server/discover</code>；不問也行，直接送，版本不合會收到 <code>-32022</code><a class="sn-ref" href="#n6">6</a>，挑一個雙方都會的再送。</li>
+        <li><b>Server 不再往 stdout 寫請求。</b>要更多資料時，它把問題裝在結果裡回給你；你帶著答案、用<b>新的 id</b> 重送同一個請求。</li>
+        <li><b>拿掉的：</b><code>ping</code>、<code>logging/setLevel</code>、<code>notifications/roots/list_changed</code>。<b>棄用但還能用的：</b>Roots、Sampling、Logging<a class="sn-ref" href="#n12">12</a>——最早要到 2027-07-28 以後的版本才可能移除。</li>
+      </ul>
+
+      <div class="tbl">
+        <h3>今天拿新版 Client 接 project_mcp 會怎樣（依規格相容矩陣<a class="sn-ref" href="#n14">14</a>）</h3>
+        <table>
+          <thead><tr><th>Client</th><th>Server</th><th>結果</th></tr></thead>
+          <tbody>
+            <tr><td>只會新版（Modern）</td><td>project_mcp（Legacy）</td><td>失敗。stdio 上 Client SHOULD 先送 <code>server/discover</code>，讓失敗變得確定，再給使用者看得懂的錯誤。</td></tr>
+            <tr><td>新舊都會（Dual-era）</td><td>project_mcp（Legacy）</td><td>可用。探測拿到的不是新版錯誤、或逾時，就退回 <code>initialize</code>。</td></tr>
+            <tr><td>只會舊版（Legacy）</td><td>只會新版的 Server</td><td>失敗。舊 Client 沒有往前升級的機制；新版 Server SHOULD 在錯誤裡寫出自己支援的版本。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="wire">
+        <h3>新版管子上的一來一回（取自規格 server/tools 範例的形狀，換成 get_issue）</h3>
+<pre><span class="dir-c">→ Client</span> {"jsonrpc":"2.0","id":7,"method":"tools/call","params":{
+           "name":"get_issue","arguments":{"owner":"DemianLi","repo":"project_mcp","number":12},
+           <span class="hl">"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28",
+                   "io.modelcontextprotocol/clientCapabilities":{}}</span>}}
+
+<span class="dir-s">← Server</span> {"jsonrpc":"2.0","id":7,"result":{<span class="hl">"resultType":"complete"</span>,
+           "content":[{"type":"text","text":"{\"number\":12, …}"}],"isError":false}}</pre>
+      </div>
+    </div>
+
+    <aside class="notes" aria-label="備注：交互">
+      <h3>備注</h3>
+      <ol start="5">
+        <li id="n5"><span class="n">5</span><b>server/discover</b> <span class="zh">探詢</span>——回傳支援的版本、能力、身分。Server MUST 實作；Client MAY 先呼叫，stdio 上也拿它當新舊版探測。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/discover.mdx">server/discover.mdx ↗</a></span></li>
+        <li id="n6"><span class="n">6</span><b>UnsupportedProtocolVersionError</b> <span class="zh">版本不支援（-32022）</span>——Server 不會那一版就 MUST 回這個，並列出自己會的版本。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/versioning.mdx">basic/versioning.mdx ↗</a></span></li>
+        <li id="n7"><span class="n">7</span><b>resultType</b> <span class="zh">結果種類</span>——每個 result MUST 帶。<code>"complete"</code> 是正常結果；舊版 Server 沒帶，Client MUST 當成 <code>"complete"</code>。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §ResultType ↗</a></span></li>
+        <li id="n8"><span class="n">8</span><b>ttlMs · cacheScope</b> <span class="zh">快取提示</span>——清單類結果 MUST 附上：幾毫秒內算新鮮、能不能給共用代理快取（public／private）。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/utilities/caching.mdx">server/utilities/caching.mdx ↗</a></span></li>
+        <li id="n9"><span class="n">9</span><b>MRTR · InputRequiredResult</b> <span class="zh">多趟請求</span>——取代 Server 主動發問。Server 回 <code>input_required</code>，裡面列出要問的事（elicitation、sampling、roots）。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/patterns/mrtr.mdx">basic/patterns/mrtr.mdx ↗</a></span></li>
+        <li id="n10"><span class="n">10</span><b>inputResponses · requestState</b> <span class="zh">答案、Server 的便條</span>——重送時帶答案；<code>requestState</code> 原樣奉還、不准拆看。重送的 JSON-RPC id MUST 跟第一次不同。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/patterns/mrtr.mdx">mrtr.mdx §Client Requirements ↗</a></span></li>
+        <li id="n11"><span class="n">11</span><b>notifications/cancelled</b> <span class="zh">取消通知</span>——stdio 沒有「每則一條」的通道可關，所以 Client MUST 用它取消；Server 取消後 MUST NOT 再為那一則送任何訊息。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/transports/stdio.mdx">basic/transports/stdio.mdx §Cancellation ↗</a></span></li>
+        <li id="n12"><span class="n">12</span><b>Deprecated</b> <span class="zh">棄用</span>——Roots、Sampling、Logging 仍可用但排定移除。替代：路徑走工具參數、直接接 LLM API、log 寫 stderr 或 OpenTelemetry。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/deprecated.mdx">deprecated.mdx ↗</a></span></li>
+        <li id="n13"><span class="n">13</span><b>stdio shutdown</b> <span class="zh">關機</span>——Client 關 stdin、等它結束，逾時再強制終止。Server SHOULD 在 stdin 關閉時馬上結束；意外結束時 Client SHOULD 重啟它。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/transports/stdio.mdx">basic/transports/stdio.mdx §Shutdown ↗</a></span></li>
+        <li id="n14"><span class="n">14</span><b>Modern · Legacy · Dual-era</b> <span class="zh">新版、舊版、雙版</span>——2026-07-28 起叫 Modern；2025-11-25 以前靠握手的叫 Legacy。上面那張表就是規格的相容矩陣。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/versioning.mdx">basic/versioning.mdx §Compatibility Matrix ↗</a></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 3 · client ===================== -->
+<section class="sec" id="client">
+  <p class="kicker">MCP Client 內部資料流</p>
+  <h2>Client 裡面怎麼轉</h2>
+  <p class="one">和前一版一樣，一個問題要經過 Host、模型、Client 才出門。多出來的是中間那一段：Server 說「還缺資料」，Client 就去問人，再重送一次。</p>
+
+  <div class="row">
+    <div class="main">
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 780 868" role="img" aria-label="泳道圖，由上往下：工具清單依 ttlMs 快取；使用者提問；工具清單交給模型；模型決定叫 get_issue；問人允許；Client 包 tools/call 並附 _meta；Server 第一次執行；Client 看到 input_required；Host 問使用者補資料；Client 用新 id 帶答案重送；Server 第二次執行；Client 看到 complete；模型讀結果；Host 顯示回答。">
+            <defs>
+              <marker id="c-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="c-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-c" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="c-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-s" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="c-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-n" d="M0 0 L10 5 L0 10 z"/></marker>
+            </defs>
+
+            <rect x="400" y="44" width="170" height="818" style="fill:var(--client-soft);opacity:.45"/>
+            <rect x="580" y="44" width="170" height="818" style="fill:var(--server-soft);opacity:.55"/>
+            <text class="t-head" x="125" y="30" text-anchor="middle">Host／介面</text>
+            <text class="t-head" x="305" y="30" text-anchor="middle">LLM 模型</text>
+            <text class="t-head t-c" x="485" y="30" text-anchor="middle">MCP Client</text>
+            <text class="t-head t-s" x="665" y="30" text-anchor="middle">Server</text>
+            <line class="sep" x1="40" y1="44" x2="750" y2="44"/>
+
+            <!-- MRTR bracket -->
+            <path class="ln ln-n" d="M756 462 H764 V678 H756"/>
+            <text class="t-mono t-n" x="665" y="552" text-anchor="middle" style="font-weight:500">MRTR</text>
+            <text class="t-sm" x="665" y="568" text-anchor="middle">多一趟來回</text>
+
+            <!-- arrows -->
+            <path class="ln ln-c dash" d="M485 98 V193 H207" marker-end="url(#c-c)"/>
+            <text class="t-sm t-c" x="300" y="186" text-anchor="middle">工具清單</text>
+            <path class="ln" d="M125 156 V170" marker-end="url(#c-a)"/>
+            <path class="ln" d="M150 214 V251 H223" marker-end="url(#c-a)"/>
+            <path class="ln" d="M305 272 V309 H207" marker-end="url(#c-a)"/>
+            <path class="ln" d="M165 330 V367 H403" marker-end="url(#c-a)"/>
+            <path class="ln ln-c" d="M485 388 V425 H583" marker-end="url(#c-c)"/>
+            <text class="t-mono t-c" x="534" y="418" text-anchor="middle">stdin</text>
+            <path class="ln ln-s" d="M665 446 V483 H567" marker-end="url(#c-s)"/>
+            <text class="t-mono t-s" x="616" y="476" text-anchor="middle">stdout</text>
+            <path class="ln ln-n" d="M445 504 V541 H207" marker-end="url(#c-n)"/>
+            <text class="t-mono t-n" x="325" y="534" text-anchor="middle">input_required</text>
+            <path class="ln" d="M165 562 V599 H403" marker-end="url(#c-a)"/>
+            <path class="ln ln-c" d="M485 620 V657 H583" marker-end="url(#c-c)"/>
+            <text class="t-mono t-c" x="534" y="650" text-anchor="middle">stdin</text>
+            <path class="ln ln-s" d="M665 678 V715 H567" marker-end="url(#c-s)"/>
+            <text class="t-mono t-s" x="616" y="708" text-anchor="middle">stdout</text>
+            <path class="ln" d="M445 736 V773 H387" marker-end="url(#c-a)"/>
+            <path class="ln" d="M305 794 V831 H207" marker-end="url(#c-a)"/>
+
+            <!-- r0 client -->
+            <rect class="box-c" x="405" y="56" width="160" height="42" rx="4"/>
+            <rect class="new-ring" x="405" y="56" width="160" height="42" rx="4"/>
+            <text x="485" y="73" text-anchor="middle">工具清單已快取</text>
+            <text class="t-sm" x="485" y="90" text-anchor="middle">依 ttlMs 決定何時重抓</text>
+            <!-- r1 -->
+            <rect class="box" x="45" y="114" width="160" height="42" rx="4"/>
+            <text x="125" y="131" text-anchor="middle">使用者問一句</text>
+            <text class="t-sm" x="125" y="148" text-anchor="middle">「#12 在講什麼？」</text>
+            <!-- r2 -->
+            <rect class="box" x="45" y="172" width="160" height="42" rx="4"/>
+            <text x="125" y="189" text-anchor="middle">工具清單交給模型</text>
+            <text class="t-sm" x="125" y="206" text-anchor="middle">常見做法 · 非規格條文</text>
+            <!-- r3 -->
+            <rect class="box" x="225" y="230" width="160" height="42" rx="4"/>
+            <text x="305" y="247" text-anchor="middle">模型推理</text>
+            <text class="t-mono" x="305" y="264" text-anchor="middle">決定叫 get_issue</text>
+            <!-- r4 -->
+            <rect class="box" x="45" y="288" width="160" height="42" rx="4"/>
+            <text x="125" y="305" text-anchor="middle">問人：允許嗎？<tspan class="sn" dy="-6">17</tspan></text>
+            <text class="t-strong" x="125" y="322" text-anchor="middle">SHOULD</text>
+            <!-- r5 -->
+            <rect class="box-c" x="405" y="346" width="160" height="42" rx="4"/>
+            <rect class="new-ring" x="405" y="346" width="160" height="42" rx="4"/>
+            <text x="485" y="363" text-anchor="middle">包 tools/call＋_meta<tspan class="sn" dy="-6">15</tspan></text>
+            <text class="t-sm" x="485" y="380" text-anchor="middle">版本・能力 <tspan class="t-strong">MUST</tspan></text>
+            <!-- r6 -->
+            <rect class="box-s" x="585" y="404" width="160" height="42" rx="4"/>
+            <text x="665" y="421" text-anchor="middle">Server 執行</text>
+            <text class="t-sm" x="665" y="438" text-anchor="middle">第一次</text>
+            <!-- r7 -->
+            <rect class="box-c" x="405" y="462" width="160" height="42" rx="4"/>
+            <rect class="new-ring" x="405" y="462" width="160" height="42" rx="4"/>
+            <text x="485" y="479" text-anchor="middle">看 resultType</text>
+            <text class="t-mono t-n" x="485" y="496" text-anchor="middle">"input_required"</text>
+            <!-- r8 -->
+            <rect class="box" x="45" y="520" width="160" height="42" rx="4"/>
+            <rect class="new-ring" x="45" y="520" width="160" height="42" rx="4"/>
+            <text x="125" y="537" text-anchor="middle">問使用者補資料<tspan class="sn" dy="-6">16</tspan></text>
+            <text class="t-sm" x="125" y="554" text-anchor="middle">例：一張表單</text>
+            <!-- r9 -->
+            <rect class="box-c" x="405" y="578" width="160" height="42" rx="4"/>
+            <rect class="new-ring" x="405" y="578" width="160" height="42" rx="4"/>
+            <text x="485" y="595" text-anchor="middle">重送 tools/call</text>
+            <text class="t-sm" x="485" y="612" text-anchor="middle">新 id＋答案＋便條 <tspan class="t-strong">MUST</tspan></text>
+            <!-- r10 -->
+            <rect class="box-s" x="585" y="636" width="160" height="42" rx="4"/>
+            <text x="665" y="653" text-anchor="middle">Server 執行</text>
+            <text class="t-sm" x="665" y="670" text-anchor="middle">第二次，不記得第一次</text>
+            <!-- r11 -->
+            <rect class="box-c" x="405" y="694" width="160" height="42" rx="4"/>
+            <text x="485" y="711" text-anchor="middle">看 resultType</text>
+            <text class="t-mono" x="485" y="728" text-anchor="middle">"complete"</text>
+            <!-- r12 -->
+            <rect class="box" x="225" y="752" width="160" height="42" rx="4"/>
+            <text x="305" y="769" text-anchor="middle">模型讀結果<tspan class="sn" dy="-6">19</tspan></text>
+            <text class="t-sm" x="305" y="786" text-anchor="middle">isError 也交 · <tspan class="t-strong">SHOULD</tspan></text>
+            <!-- r13 -->
+            <rect class="box" x="45" y="810" width="160" height="42" rx="4"/>
+            <text x="125" y="827" text-anchor="middle">顯示回答</text>
+            <text class="t-sm" x="125" y="844" text-anchor="middle">還要工具就回到「模型推理」</text>
+          </svg>
+        </div>
+        <figcaption>黃框是這一版新增的步驟。第一次就拿到 <code>"complete"</code> 的話，中間那一圈（MRTR）整段跳過，直接到「模型讀結果」。這一段本 repo 沒有程式碼，依規格條文畫成。</figcaption>
+      </figure>
+
+      <ul class="take">
+        <li><b>Client 變成要記更多事的一方。</b>版本、能力、身分每則都要附；Server 發的「便條」（<code>requestState</code>）要原樣帶回去，不能打開看。</li>
+        <li><b>快取交給 Client 決定。</b>清單類結果附了 <code>ttlMs</code>，Client 在期限內可以不必再問；但規格說 SHOULD NOT 把 TTL 當成定時輪詢的鬧鐘。</li>
+        <li><b>Server 的自我介紹還是不能當真。</b>工具 annotations 照舊 MUST 當不可信；新增的 <code>serverInfo</code> 也 SHOULD NOT 拿來做安全判斷<a class="sn-ref" href="#n18">18</a>。</li>
+      </ul>
+    </div>
+
+    <aside class="notes" aria-label="備注：Client 內部">
+      <h3>備注</h3>
+      <ol start="15">
+        <li id="n15"><span class="n">15</span><b>per-request fields</b> <span class="zh">逐請求欄位</span>——<code>protocolVersion</code>、<code>clientCapabilities</code> 必帶，少一個就是格式錯，Server MUST 回 <code>-32602</code>。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §_meta ↗</a></span></li>
+        <li id="n16"><span class="n">16</span><b>elicitation</b> <span class="zh">向使用者索取資料</span>——這一版由 Server 裝在 <code>inputRequests</code> 裡；Client 要先宣告能力，Server 才能這樣問。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/client/elicitation.mdx">client/elicitation.mdx ↗</a></span></li>
+        <li id="n17"><span class="n">17</span><b>human in the loop</b> <span class="zh">人在迴路中</span>——SHOULD 永遠有人能拒絕工具呼叫。這條沒變。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/tools.mdx">server/tools.mdx §User Interaction Model ↗</a></span></li>
+        <li id="n18"><span class="n">18</span><b>clientInfo · serverInfo</b> <span class="zh">自報身分</span>——雙方自己報的，協議不驗證；只供顯示、log、除錯，SHOULD NOT 用來改變行為或做安全判斷。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §_meta 的 Note ↗</a></span></li>
+        <li id="n19"><span class="n">19</span><b>self-correction</b> <span class="zh">模型自我修正</span>——工具執行錯誤 SHOULD 交給模型，它才有機會改參數再試。這條沒變。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/tools.mdx">server/tools.mdx §Error Handling ↗</a></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 4 · server ===================== -->
+<section class="sec sec-server" id="server">
+  <p class="kicker">MCP Server 內部資料流</p>
+  <h2>Server 裡面怎麼轉</h2>
+  <p class="one">中間是新版 Server 處理一則 <code>tools/call</code> 的路；左邊是提早離開的出口；右邊是 project_mcp <b>今天</b>做得到嗎——多數做不到的，卡在它用的 SDK，不是這份程式碼。</p>
+
+  <div class="row">
+    <div class="main">
+      <figure class="fig">
+        <div class="fig-scroll">
+          <svg viewBox="0 0 780 640" role="img" aria-label="新版 Server 內部流程：從 stdin 讀一行、JSON-RPC 解碼、查 _meta、依 method 分派、驗參數，這幾步屬於框架；之後進工具方法、判斷是否還缺資料、做事、包成帶 resultType 的結果、寫到 stdout。出口有：_meta 錯誤、未知工具、schema 擋下、input_required、ToolFailure。右欄列出 project_mcp 今天是否做得到。">
+            <defs>
+              <marker id="s-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="s-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-s" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="s-e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-e" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="s-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-w" d="M0 0 L10 5 L0 10 z"/></marker>
+              <marker id="s-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-n" d="M0 0 L10 5 L0 10 z"/></marker>
+            </defs>
+
+            <text class="t-sm" x="90" y="24" text-anchor="middle">提早離開</text>
+            <text class="t-sm" x="300" y="24" text-anchor="middle">一則 tools/call 走過的路</text>
+            <text class="t-sm" x="444" y="24">project_mcp 今天（SDK 2.0.x）</text>
+
+            <!-- spine arrows -->
+            <path class="ln" d="M300 84 V100" marker-end="url(#s-a)"/>
+            <path class="ln" d="M300 142 V158" marker-end="url(#s-a)"/>
+            <path class="ln" d="M300 200 V216" marker-end="url(#s-a)"/>
+            <path class="ln" d="M300 258 V274" marker-end="url(#s-a)"/>
+            <path class="ln ln-s" d="M300 316 V344" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 386 V402" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 444 V460" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 502 V518" marker-end="url(#s-s)"/>
+            <path class="ln ln-s" d="M300 560 V576" marker-end="url(#s-s)"/>
+
+            <!-- boundary -->
+            <line x1="20" y1="330" x2="770" y2="330" class="ln ln-mu dash"/>
+            <text class="t-sm" x="430" y="325" text-anchor="end">↑ 框架</text>
+            <text class="t-sm t-s" x="430" y="344" text-anchor="end">↓ 你寫的程式</text>
+
+            <!-- spine: framework -->
+            <rect class="box" x="180" y="44" width="240" height="40" rx="4" style="stroke-dasharray:4 3"/>
+            <text x="300" y="69" text-anchor="middle">從 stdin 讀一行</text>
+            <rect class="box" x="180" y="102" width="240" height="40" rx="4" style="stroke-dasharray:4 3"/>
+            <text x="300" y="127" text-anchor="middle">JSON-RPC 解碼</text>
+            <rect class="box-n" x="180" y="160" width="240" height="40" rx="4"/>
+            <text x="300" y="185" text-anchor="middle">查 _meta：版本・能力<tspan class="sn" dy="-6">20</tspan></text>
+            <rect class="box" x="180" y="218" width="240" height="40" rx="4" style="stroke-dasharray:4 3"/>
+            <text x="300" y="243" text-anchor="middle">依 method 分派</text>
+            <rect class="box" x="180" y="276" width="240" height="40" rx="4" style="stroke-dasharray:4 3"/>
+            <text x="300" y="301" text-anchor="middle">拿 inputSchema 驗參數<tspan class="sn" dy="-6">22</tspan></text>
+
+            <!-- spine: your code -->
+            <rect class="box-s" x="180" y="346" width="240" height="40" rx="4"/>
+            <text x="300" y="371" text-anchor="middle">進到工具方法</text>
+            <rect class="box-n" x="180" y="404" width="240" height="40" rx="4"/>
+            <text x="300" y="429" text-anchor="middle">還缺資料嗎？</text>
+            <rect class="box-s" x="180" y="462" width="240" height="40" rx="4"/>
+            <text x="300" y="487" text-anchor="middle">驗輸入・叫下游・翻譯</text>
+            <rect class="box-n" x="180" y="520" width="240" height="40" rx="4"/>
+            <text x="300" y="545" text-anchor="middle">包成結果＋resultType</text>
+            <rect class="box-s" x="180" y="578" width="240" height="40" rx="4"/>
+            <text x="300" y="603" text-anchor="middle">寫一行到 stdout<tspan class="sn" dy="-6">26</tspan></text>
+
+            <!-- exits -->
+            <path class="ln ln-e" d="M180 180 H162" marker-end="url(#s-e)"/>
+            <rect class="box-e" x="20" y="160" width="140" height="40" rx="4"/>
+            <text class="t-mono t-e" x="90" y="176" text-anchor="middle">JSON-RPC error</text>
+            <text class="t-mono" x="90" y="192" text-anchor="middle">-32602・-32022・-32021</text>
+
+            <path class="ln ln-e" d="M180 238 H162" marker-end="url(#s-e)"/>
+            <rect class="box-e" x="20" y="218" width="140" height="40" rx="4"/>
+            <text class="t-mono t-e" x="90" y="234" text-anchor="middle">未知工具</text>
+            <text class="t-mono" x="90" y="250" text-anchor="middle">-32602</text>
+
+            <path class="ln ln-w" d="M180 296 H162" marker-end="url(#s-w)"/>
+            <rect class="box-w" x="20" y="276" width="140" height="40" rx="4"/>
+            <text class="t-sm t-w" x="90" y="292" text-anchor="middle" style="font-size:12px">框架代答</text>
+            <text class="t-sm" x="90" y="308" text-anchor="middle">沒有你的 remedy</text>
+
+            <path class="ln ln-n" d="M180 424 H162" marker-end="url(#s-n)"/>
+            <rect class="box-n" x="20" y="404" width="140" height="40" rx="4"/>
+            <text class="t-mono" x="90" y="420" text-anchor="middle">input_required</text>
+            <text class="t-sm" x="90" y="436" text-anchor="middle">＋便條，不存狀態<tspan class="sn" dy="-5">23</tspan></text>
+
+            <path class="ln ln-e" d="M180 482 H162" marker-end="url(#s-e)"/>
+            <rect class="box-e" x="20" y="462" width="140" height="40" rx="4"/>
+            <text class="t-mono t-e" x="90" y="478" text-anchor="middle">ToolFailure</text>
+            <text class="t-sm" x="90" y="494" text-anchor="middle">帶一個 Remedy</text>
+            <path class="ln ln-e" d="M90 502 V540 H178" marker-end="url(#s-e)"/>
+            <text class="t-mono t-e" x="22" y="558" style="font-size:10px">isError: true</text>
+
+            <!-- project_mcp today -->
+            <text class="t-sm" x="444" y="68"><tspan class="t-s" style="font-weight:700">✓</tspan> 不變</text>
+            <text class="t-sm" x="444" y="126"><tspan class="t-s" style="font-weight:700">✓</tspan> 不變</text>
+            <text class="t-sm" x="444" y="176"><tspan class="t-e" style="font-weight:700">✗</tspan> 還在走 initialize 握手</text>
+            <text class="t-sm" x="444" y="192">SDK 2.0.x 協議上限 2025-11-25<tspan class="sn" dy="-5">25</tspan></text>
+            <text class="t-sm" x="444" y="234"><tspan class="t-e" style="font-weight:700">✗</tspan> 沒有 server/discover（MUST）</text>
+            <text class="t-sm" x="444" y="250">SDK 天花板</text>
+            <text class="t-sm" x="444" y="292"><tspan class="t-s" style="font-weight:700">✓</tspan> 同前版：框架先驗</text>
+            <text class="t-sm" x="444" y="308">被擋下的一樣沒有 remedy（實測）</text>
+            <text class="t-sm" x="444" y="370"><tspan class="t-s" style="font-weight:700">✓</tspan> 工具層預期不用改（評審推估）</text>
+            <text class="t-sm" x="444" y="420"><tspan class="t-mu" style="font-weight:700">—</tspan> 不適用：五個工具都不用</text>
+            <text class="t-sm" x="444" y="436">中途向使用者要資料</text>
+            <text class="t-sm" x="444" y="478"><tspan class="t-s" style="font-weight:700">✓</tspan> 不變：Repos・Limits・GhCli・Mapper</text>
+            <text class="t-sm" x="444" y="494">留言分頁 cursor 本來就是明確 handle<tspan class="sn" dy="-5">24</tspan></text>
+            <text class="t-sm" x="444" y="536"><tspan class="t-e" style="font-weight:700">✗</tspan> 沒有 resultType、ttlMs、cacheScope</text>
+            <text class="t-sm" x="444" y="552">SDK 天花板</text>
+            <text class="t-sm" x="444" y="594"><tspan class="t-s" style="font-weight:700">✓</tspan> stdout 乾淨，log 寫檔</text>
+            <text class="t-sm" x="444" y="610">規格改建議 stderr 或 OpenTelemetry</text>
+          </svg>
+        </div>
+        <figcaption>黃框是新增的關卡。紅色出口都是協議錯誤；「查 _meta」那一格的三個錯誤碼分別是格式錯、版本不支援、缺少必要能力<a class="sn-ref" href="#n21">21</a>。右欄 ✗ 的四項，成因都在 SDK，不在 project_mcp 的程式碼。</figcaption>
+      </figure>
+
+      <ul class="take">
+        <li><b>「你是誰、講哪一版」從握手搬進每一則請求。</b>Server 讀 <code>_meta</code> 決定怎麼回，MUST NOT 靠上一則請求。</li>
+        <li><b>要更多資料就回 <code>input_required</code>，自己什麼都不存。</b>要記的東西寫進 <code>requestState</code> 交給 Client 帶回來——但它會經過 Client，所以 MUST 當成攻擊者可改的輸入；影響授權時要做完整性保護（HMAC、AEAD）。</li>
+        <li><b>跨請求的狀態，用明確的 handle 當參數傳。</b>規格的非條文建議；project_mcp 留言分頁的 <code>cursor</code> 就是這個形狀。</li>
+      </ul>
+
+      <div class="tbl">
+        <h3>2026-07-28 對 project_mcp（取自 docs/reviews/commercial-readiness.md §1.5）</h3>
+        <table>
+          <thead><tr><th></th><th>項目</th><th>為什麼</th></tr></thead>
+          <tbody>
+            <tr><td class="no">SDK 天花板</td><td>無狀態核心、<code>server/discover</code>、<code>resultType</code>、<code>ttlMs</code>／<code>cacheScope</code></td><td>四項都落在 SDK 層。Java SDK 3.x 才實作 2026-07-28。</td></tr>
+            <tr><td class="na">不受影響</td><td>MRTR、移除 session、錯誤碼分區</td><td>它不發 Server 請求、stdio 沒有 session header、失敗只走 <code>isError</code> 不自訂錯誤碼。</td></tr>
+            <tr><td class="ok">可自行處理</td><td><code>tools/list</code> 順序固定（SHOULD）</td><td>今天依 Spring AI 掃描順序，沒有明確保證。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <aside class="notes" aria-label="備注：Server 內部">
+      <h3>備注</h3>
+      <ol start="20">
+        <li id="n20"><span class="n">20</span><b>_meta validation</b> <span class="zh">檢查逐請求欄位</span>——少必帶欄位回 <code>-32602</code>；Server MUST NOT 依賴 Client 沒宣告的能力。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §_meta ↗</a></span></li>
+        <li id="n21"><span class="n">21</span><b>error code allocation</b> <span class="zh">錯誤碼分區</span>——<code>-32020</code>～<code>-32099</code> 保留給規格：<code>-32021</code> 缺能力、<code>-32022</code> 版本不支援。<code>-32000</code>～<code>-32019</code> 是舊區，新實作 SHOULD NOT 用。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §Error Codes ↗</a></span></li>
+        <li id="n22"><span class="n">22</span><b>JSON Schema 2020-12</b> <span class="zh">參數表</span>——這一版放寬 inputSchema／outputSchema，允許 2020-12 的任何關鍵字；structuredContent 可以是任何 JSON 值。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §JSON Schema Usage ↗</a> · <a href="https://json-schema.org/understanding-json-schema">JSON Schema 入門 ↗</a></span></li>
+        <li id="n23"><span class="n">23</span><b>requestState</b> <span class="zh">Server 的便條</span>——不透明字串，Server 自己定格式。MUST 視為攻擊者可控；影響授權或商業邏輯時 MUST 做完整性保護。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/patterns/mrtr.mdx">mrtr.mdx §Server Requirements ↗</a></span></li>
+        <li id="n24"><span class="n">24</span><b>stateful tools · handle</b> <span class="zh">有狀態的工具</span>——協議沒有 session，要跨請求記東西就回一個 id，之後當參數傳回來。非條文的設計建議。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/tools.mdx">server/tools.mdx §Stateful Tools ↗</a></span></li>
+        <li id="n25"><span class="n">25</span><b>SDK ceiling</b> <span class="zh">SDK 天花板</span>——Java SDK 3.x 才會實作這一版；roadmap 寫 3.0.0 milestone 規劃在 2026 年 9 月。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/java-sdk/blob/main/ROADMAP.md">java-sdk ROADMAP.md §3.x ↗</a></span></li>
+        <li id="n26"><span class="n">26</span><b>stdout purity</b> <span class="zh">stdout 純淨</span>——Server MUST NOT 往 stdout 寫非 MCP 訊息，這一版還加上 MUST NOT 寫 JSON-RPC 請求。log 可寫 stderr。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/transports/stdio.mdx">basic/transports/stdio.mdx ↗</a></span></li>
+      </ol>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== reading path ===================== -->
+<section class="sec" id="read">
+  <p class="kicker">接著讀</p>
+  <h2>照這個順序讀這一版</h2>
+  <p class="one">先讀 changelog 知道改了什麼，再一頁一頁往裡走。</p>
+  <ol class="path">
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/changelog.mdx">changelog.mdx</a><br>九條重大變更與棄用清單。這頁的「變了什麼」就是從這裡來的。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx</a><br>Statelessness、<code>_meta</code>、<code>resultType</code>、錯誤碼分區。對應第 1 張圖與第 4 張圖的上半。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/versioning.mdx">basic/versioning.mdx</a><br>沒有握手之後怎麼講好版本，還有新舊版相容矩陣。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/transports/stdio.mdx">basic/transports/stdio.mdx</a><br>取消改成 MUST、關機、意外結束、怎麼探測對方是新版還是舊版。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/patterns/mrtr.mdx">basic/patterns/mrtr.mdx</a><br>Server 不再反問之後，怎麼跟使用者要資料。對應第 2、3 張圖的中段。</li>
+    <li><a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/tools.mdx">server/tools.mdx</a>（再讀 discover、caching）<br>工具清單、呼叫、兩種錯誤、有狀態工具的設計建議。</li>
+  </ol>
+
+  <footer class="foot">
+    <p>規格條文取自 <code>modelcontextprotocol/modelcontextprotocol</code> main 分支的 <code>docs/specification/2026-07-28/</code>（changelog、architecture、basic/index、versioning、transports/stdio、patterns/mrtr、patterns/cancellation、server/discover、server/tools、server/utilities/caching、deprecated），2026-09-15 讀取；本頁所有外部連結已於同日確認可開啟。新舊對照的左半取自同 repo 的 <code>docs/mcp-client-server-dataflow.html</code>（2025-11-25 版）。</p>
+    <p>project_mcp 那一欄與表格取自 <code>docs/reviews/commercial-readiness.md</code> §1.5、§6.3（2026-09-08）；「被擋下的一樣沒有 remedy」是 2026-09-09 以 MCP Inspector v2.5.0 實測的結果，「工具層預期不用改」是評審的推估，不是實測。SDK：2026-09-15 查 <code>modelcontextprotocol/java-sdk</code> 的 releases，最新是 v2.0.1（2026-08-19），尚無 3.x；ROADMAP 寫 3.0.0 milestone 規劃在 2026 年 9 月——這是對方的計畫，本頁不預測它何時出。</p>
+    <p>Client 內部那一段：本 repo 沒有 Client 程式碼，內容依規格條文畫成；標「常見做法」的步驟不是條文。新版範例 JSON 的形狀取自規格 <code>server/tools.mdx</code> 的範例，不是從 project_mcp 實際跑出來的——它今天還不會講這一版。</p>
+  </footer>
+</section>
+
+</div>
