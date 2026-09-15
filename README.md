@@ -1,131 +1,120 @@
 # project_mcp
 
-An [MCP](https://modelcontextprotocol.io) server that exposes **GitHub issues and labels**
-as Tools. It wraps the `gh` CLI: a Client gets five declared operations with typed inputs
-and never needs shell access. It wraps `gh`, not `git` — local version control is out of
-scope.
+以 Tool 形式提供 **GitHub issue 與 label** 的 [MCP](https://modelcontextprotocol.io) Server。
+它包裝 `gh` CLI：Client 取得五個事先宣告、輸入有型別的操作，完全不需要 shell 權限。
+它包裝的是 `gh` 而不是 `git`，本機版本控制不在範圍內。
 
-## Architecture
+## 架構
 
 ```
-+----------------------------------+                +----------------------------------+
-|           MCP Client             |                |          project_mcp             |
-|  (e.g. the MCP Inspector, or an  |      stdio     |     (Spring Boot + Spring AI)    |
-|   AI application's host)         | <------------> |                                  |
-|                                  |     JSON-RPC   |  - Declares five Tools           |
-|  - Starts the Server as a        |                |  - Shells out to the `gh` CLI    |
-|    subprocess                    |                |  - Logs to a file, never stdout  |
-+----------------------------------+                +----------------------------------+
+MCP Client（例如 MCP Inspector，或 AI 應用程式的 host）
+  └─ 以子行程啟動 Server
+        ▲
+        │  stdio 上的 JSON-RPC
+        ▼
+project_mcp（Spring Boot + Spring AI）
+  ├─ 宣告五個 Tool
+  ├─ 呼叫 `gh` CLI
+  └─ log 只寫入檔案，從不寫到 stdout
 ```
 
-The Server is launched _by_ the Client as a subprocess, which inverts the usual web meaning
-of "server". [CONTEXT.md](./CONTEXT.md) defines each role precisely.
+Server 由 Client 以子行程啟動，與 Web 世界裡「server」的一般意思相反。各角色的精確定義見
+[CONTEXT.md](./CONTEXT.md)（英文）。
 
-**Stack:** Maven, Java 25, Spring Boot 4.1, Spring AI 2.0 (`spring-ai-starter-mcp-server`),
-MCP Java SDK 2.0. **Protocol revision:** 2025-11-25. **Transport:** stdio only.
+**技術堆疊：** Maven、Java 25、Spring Boot 4.1、Spring AI 2.0（`spring-ai-starter-mcp-server`）、
+MCP Java SDK 2.0。**協定版本：** 2025-11-25。**傳輸方式：** 僅 stdio。
 
-## Tools
+## Tool
 
-| Tool | Kind | What it does |
+| Tool | 類型 | 功能 |
 | --- | --- | --- |
-| `list_issues` | read | Lists a repository's issues, newest first, filtered by state |
-| `get_issue` | read | One issue in full, including its body; a pull request number is rejected |
-| `list_labels` | read | A repository's labels |
-| `list_issue_comments` | read | One issue's comments, newest first, paged with a cursor |
-| `add_issue_comment` | write | Adds a comment to an issue and returns its permalink |
+| `list_issues` | 讀取 | 依狀態篩選，列出 repository 的 issue，由新到舊 |
+| `get_issue` | 讀取 | 單一 issue 的完整內容，包含內文；pull request 編號會被拒絕 |
+| `list_labels` | 讀取 | repository 的 label |
+| `list_issue_comments` | 讀取 | 單一 issue 的留言，由新到舊，以 cursor 分頁 |
+| `add_issue_comment` | 寫入 | 在 issue 新增一則留言，並回傳其永久連結 |
 
-Pull requests are not served: GitHub numbers issues and pull requests from one sequence,
-and a pull request number is refused rather than half-answered. There are no Resources,
-because reading a Resource has no way to report a failure. Parameters and result shapes are
-in [docs/design.md](./docs/design.md#tools).
+不提供 pull request：GitHub 的 issue 與 pull request 共用同一組編號，遇到 pull request 編號時
+直接拒絕，而不是只回答一半。沒有 Resource，因為讀取 Resource 無法回報失敗。參數與結果格式見
+[docs/design.md](./docs/design.md#tools)（英文）。
 
-## When a call fails
+## 呼叫失敗時
 
-Every failure comes back as a Tool result with `isError: true`, never as a JSON-RPC error,
-so the model sees it. Its `structuredContent` carries a **Remedy** — what the caller should
-do next:
+每個失敗都以 `isError: true` 的 Tool result 回傳，而不是 JSON-RPC error，因此模型看得到。
+其 `structuredContent` 帶有一個 **Remedy**，說明呼叫者下一步該做什麼：
 
-| Remedy | Meaning |
+| Remedy | 意義 |
 | --- | --- |
-| `RETRY` | Try the same call again, after `retryAfterSeconds` if present |
-| `CHECK_BEFORE_RETRY` | A write whose result could not be read: check whether it landed first |
-| `FIX_REQUEST` | The call cannot succeed as written; change the arguments |
-| `ASK_OPERATOR` | Nothing the caller can change; a person has to fix the environment |
-| `UNKNOWN` | An unrecognised failure; `stderr` is all there is to go on |
+| `RETRY` | 再呼叫一次相同的請求；有 `retryAfterSeconds` 時，等待該秒數後再試 |
+| `CHECK_BEFORE_RETRY` | 寫入的結果無法讀取：先確認是否已經寫入 |
+| `FIX_REQUEST` | 照原樣呼叫不可能成功；須修改參數 |
+| `ASK_OPERATOR` | 呼叫者無法改變任何事；須由人修正環境 |
+| `UNKNOWN` | 無法辨識的失敗；只能依 `stderr` 判斷 |
 
-See [docs/design.md](./docs/design.md#failure-contract).
+見 [docs/design.md](./docs/design.md#failure-contract)（英文）。
 
-## Bounds
+## 上限
 
-| Bound | Value |
+| 項目 | 值 |
 | --- | --- |
-| One `gh` invocation | 30 s (`add_issue_comment` makes two, so up to ~60 s per call) |
-| One `gh` response | 8 MB; larger is refused with `FIX_REQUEST` |
-| `limit` on a list | default 30, clamped to 1–100 |
-| Writes (`add_issue_comment`) | 80 per minute and 500 per hour per process, GitHub's published limit for content-generating requests; over it, `RETRY` with `retryAfterSeconds` |
+| 單次 `gh` 呼叫 | 30 秒（`add_issue_comment` 會呼叫兩次，因此一次 Tool 呼叫最多約 60 秒） |
+| 單次 `gh` 回應 | 8 MB；超過時以 `FIX_REQUEST` 拒絕 |
+| 列表的 `limit` | 預設 30，限制在 1–100 |
+| 寫入（`add_issue_comment`） | 每個行程每分鐘 80 次、每小時 500 次，即 GitHub 公布的內容產生類請求上限；超過時回傳 `RETRY` 與 `retryAfterSeconds` |
 
-## Security notes
+## 安全注意事項
 
-- **GitHub content is returned verbatim.** Issue bodies, comments and label descriptions
-  are written by whoever can write to the repository, and reach the model unchanged. Text
-  crafted as instructions (prompt injection) arrives with them. A Client must treat Tool
-  output as untrusted data, not as instructions.
-- **One process is one identity.** Authentication is `gh`'s: every call uses the login `gh`
-  resolves, and the Server never holds a token. What a Client can write is whatever that
-  login can write. A read-only deployment means pointing `gh` at a login without write
-  access; a multi-tenant deployment means one process per tenant.
-- **Reads are not rate limited.** Only writes are. A read's cost to GitHub depends on the
-  query, so there is no published per-call number to apply; GitHub's own limits still apply
-  and come back as `RETRY`.
+- **GitHub 內容原樣回傳。** Issue 內文、留言與 label 說明由任何能寫入該 repository 的人撰寫，
+  原封不動送到模型。偽裝成指令的文字（prompt injection）也會一併送達。Client 必須把 Tool
+  輸出視為不可信的資料，而不是指令。
+- **一個行程就是一個身分。** 認證由 `gh` 負責：每次呼叫都使用 `gh` 解析出的登入身分，Server
+  從不持有 token。Client 能寫入什麼，取決於該登入身分能寫入什麼。唯讀部署就是讓 `gh` 使用
+  沒有寫入權限的登入身分；多租戶部署就是每個租戶一個行程。
+- **讀取不受 rate limit。** 只有寫入受限。讀取對 GitHub 的成本取決於查詢內容，沒有公布的
+  單次呼叫數字可以套用；GitHub 自身的限制依然存在，觸發時回傳 `RETRY`。
 
-## Stability
+<a id="stability"></a>
 
-From 1.0.0 this Server follows [semantic versioning](https://semver.org). The public
-contract is:
+## 相容性承諾
 
-- the five Tool names and their input schemas
-- the shape of each successful result
-- the five Remedy values, and that every failure is reported with `isError: true`
+從 1.0.0 起，本 Server 遵循[語意化版本](https://semver.org/lang/zh-TW/)。公開契約包括：
 
-Not part of the contract: the human-readable sentences, the `stderr` text passed through
-from `gh`, and the log line format.
+- 五個 Tool 的名稱及其輸入 schema
+- 每種成功結果的格式
+- 五個 Remedy 值，以及每個失敗都以 `isError: true` 回報
 
-## Building and running
+不屬於契約：給人閱讀的句子、從 `gh` 轉傳的 `stderr` 文字，以及 log 行的格式。
 
-Requires JDK 25, Maven, and a `gh` on `PATH` that is logged in.
+## 建置與執行
+
+需要 JDK 25、Maven，以及 `PATH` 上已登入的 `gh`。
 
 ```bash
 mvn package
-java -jar target/project-mcp-1.0.0.jar
+java -jar target/project-mcp-1.0.1.jar
 ```
 
-**Do not use `mvn spring-boot:run`.** Maven writes its own output to stdout before the
-application starts, and a Client will try to parse it as JSON-RPC and fail. Always run the
-packaged jar.
+**不要使用 `mvn spring-boot:run`。** Maven 會在應用程式啟動前把自己的輸出寫到 stdout，Client
+會試圖把它當成 JSON-RPC 解析而失敗。一律執行打包好的 jar。
 
-Logs go to `logs/project-mcp.log` — one JSON line per Tool call, never the content of an
-issue or comment — and never to the console, because stdout is the protocol channel.
+Log 寫入 `logs/project-mcp.log`：每次 Tool 呼叫一行 JSON，從不包含 issue 或留言的內容；
+也從不寫到 console，因為 stdout 是協定通道。
 
-## Documentation
+## 文件
 
-- [docs/design.md](./docs/design.md) — how the Server works: each Tool's parameters and
-  result shape, the failure contract, bounds, logging, and the known departures from the
-  specification
-- [docs/deploying.md](./docs/deploying.md) — what a deployment has to provide and decide.
-  The [`Dockerfile`](./Dockerfile) beside it meets every condition in it
-- [docs/architecture-tour.html](./docs/architecture-tour.html) — a plain-language tour of
-  the whole Server on one page
-- [docs/mcp-2025-11-25-conformance.html](./docs/mcp-2025-11-25-conformance.html) — what
-  the 2025-11-25 specification requires of a stdio server, and where each requirement is met
-- [docs/mcp-2025-11-25-commercial-primer.html](./docs/mcp-2025-11-25-commercial-primer.html)
-  — the same ground for someone learning to build one, with the professional terms beside
-  each clause
-- [docs/mcp-client-server-dataflow.html](./docs/mcp-client-server-dataflow.html) — the
-  conversation between a Client and this Server in four pictures, each term with a note
-  saying where to read up on it
-- [docs/mcp-2026-07-28-dataflow.html](./docs/mcp-2026-07-28-dataflow.html) — the same four
-  pictures for the 2026-07-28 revision, and which of its requirements this Server does not
-  meet yet
-- [CONTEXT.md](./CONTEXT.md) — glossary: Server, Client, Tool, Resource, Remedy and the
-  transports
-- [CHANGELOG.md](./CHANGELOG.md) — what this release contains and what it is compatible with
+- [docs/design.md](./docs/design.md)（英文）：Server 如何運作，包括每個 Tool 的參數與結果格式、
+  失敗契約、上限、logging，以及已知與規格不一致之處
+- [docs/deploying.md](./docs/deploying.md)（英文）：部署必須提供與決定的事項。專案根目錄的
+  [`Dockerfile`](./Dockerfile) 滿足其中每個條件
+- [docs/architecture-tour.html](./docs/architecture-tour.html)：用一頁白話導覽整個 Server
+- [docs/mcp-2025-11-25-conformance.html](./docs/mcp-2025-11-25-conformance.html)：2025-11-25
+  規格對 stdio server 的要求，以及每項要求在哪裡實現
+- [docs/mcp-2025-11-25-commercial-primer.html](./docs/mcp-2025-11-25-commercial-primer.html)：
+  同樣的內容，寫給正在學習打造 MCP server 的人，每條規定旁附上專業術語
+- [docs/mcp-client-server-dataflow.html](./docs/mcp-client-server-dataflow.html)：用四張圖呈現
+  Client 與本 Server 之間的對話，每個術語都附註該去哪裡深入了解
+- [docs/mcp-2026-07-28-dataflow.html](./docs/mcp-2026-07-28-dataflow.html)：同樣四張圖，對應
+  2026-07-28 版本，並列出本 Server 尚未符合的要求
+- [CONTEXT.md](./CONTEXT.md)（英文）：詞彙表，包括 Server、Client、Tool、Resource、Remedy 與
+  各種傳輸方式
+- [CHANGELOG.md](./CHANGELOG.md)：各版本的內容與相容性

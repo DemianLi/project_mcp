@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 — 2026-09-15
+
+README 改為繁體中文。程式、公開契約與相容性都與 1.0.0 相同；英文版 README 見
+[1.0.0](https://github.com/DemianLi/project_mcp/blob/v1.0.0/README.md)。
+
 ## 1.0.0 — 2026-09-15
 
 First stable release. From this version on, changes to the public contract described in
