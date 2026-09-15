@@ -1,0 +1,3 @@
+# Left out of release archives: CI configuration, and this file itself.
+.github/        export-ignore
+.gitattributes  export-ignore

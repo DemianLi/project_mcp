@@ -1,149 +1,75 @@
 # Changelog
 
-Notable changes to this Server. The reasoning behind them lives in
-[docs/adr/](docs/adr/) — this file records what changed and what it is compatible with,
-not why.
+## 1.0.0 — 2026-09-15
 
-## 0.1.1 — 2026-09-10
-
-Two fixes. The first is worth taking if a Client of this Server ever passes it parameters
-that came from anywhere but a person typing them; the second is why this release says
-0.1.1 when you ask it.
-
-### Fixed
-
-- **`owner` and `repo` may no longer contain a slash.** `gh`'s `--repo` takes
-  `[HOST/]OWNER/REPO`, so a slash in `owner` promoted its first segment to a hostname and
-  the caller chose where this Server made its next request — measured through the Tool
-  interface against 0.1.0. Worse, the resulting connection failure matched `GhStderr`'s
-  network row and came back as `RETRY`, "the network looks unavailable", sending a Client
-  that followed the advice at the same host again. Both halves are now refused with
-  `FIX_REQUEST` before any subprocess starts.
-  [#37](https://github.com/DemianLi/project_mcp/issues/37),
-  [ADR-0017](docs/adr/0017-owner-and-repo-may-not-contain-a-slash.md).
-
-  Not measured, and stated in the ADR: whether that request carried a credential. `gh`
-  documents `GH_TOKEN` as github.com's and `GH_ENTERPRISE_TOKEN` as other hosts', which
-  suggests not, and until someone measures it the severity is undetermined rather than low.
-
-- **The version a Client is told is now the version that was built.**
-  `spring.ai.mcp.server.version` was a hand-maintained literal in `application.yml`, so
-  0.1.1 built cleanly and introduced itself over the wire as 0.1.0. It is now filled in
-  from `@project.version@` at package time. Caught by driving the packaged jar before
-  tagging, which is the only reason that step exists.
-
-**Who should take this.** Anyone whose `owner` and `repo` reach this Server from a model,
-a config file, or any other party that is not the person running it. On one desk, with a
-person typing both halves, the defect is unreachable.
-
-Nothing else changed: same five Tools, same bounds, same protocol revision, same
-compatibility table below.
-
-## 0.1.0 — 2026-09-09
-
-First release. Five Tools over stdio, driven end to end against real GitHub.
+First stable release. From this version on, changes to the public contract described in
+the [README](README.md#stability) follow semantic versioning.
 
 ### Tools
 
-| Tool | Reads or writes | Route |
-| --- | --- | --- |
-| `list_issues` | reads | `gh issue list` |
-| `get_issue` | reads | `gh issue view` |
-| `list_labels` | reads | `gh label list` |
-| `list_issue_comments` | reads | `gh api graphql`, paged by cursor |
-| `add_issue_comment` | **writes** | `gh api graphql`, two calls |
-
-Pull requests are refused rather than half-answered: GitHub numbers issues and pull
-requests from one sequence, and a pull request number is turned away
-([ADR-0003](docs/adr/0003-get-issue-parameters-and-return-shape.md)). There are no
-Resources, and that is a result rather than a gap — a Resource read has no way to report a
-failure ([ADR-0004](docs/adr/0004-list-labels-tool-shape-parameters-and-return.md)).
+Five, exposed over stdio: four that read — `list_issues`, `get_issue`, `list_labels`,
+`list_issue_comments` — and one that writes, `add_issue_comment`. Pull request numbers are
+refused, and there are no Resources. Parameters and result shapes are in
+[docs/design.md](docs/design.md#tools).
 
 ### Failure contract
 
-Every Tool call returns either a result or a failure carrying one of five Remedies —
-`RETRY`, `CHECK_BEFORE_RETRY`, `FIX_REQUEST`, `ASK_OPERATOR`, `UNKNOWN` — classified by the
-action available to the caller rather than by the cause
-([ADR-0002](docs/adr/0002-failure-contract-for-gh-calls.md)). A write that could not be
-confirmed carries `CHECK_BEFORE_RETRY` rather than advice to call again, because GitHub
-offers no idempotency key ([ADR-0008](docs/adr/0008-failure-contract-for-writes.md)).
+Every failure is a Tool result with `isError: true` carrying one of five Remedies —
+`RETRY`, `CHECK_BEFORE_RETRY`, `FIX_REQUEST`, `ASK_OPERATOR`, `UNKNOWN` — chosen by what
+the caller can do next rather than by the cause. A write that could not be confirmed
+carries `CHECK_BEFORE_RETRY`, because GitHub offers no idempotency key
+([docs/design.md](docs/design.md#failure-contract)).
 
 ### Bounds
 
-| Bound | Value | Where |
-| --- | --- | --- |
-| One `gh` invocation | 30 s (`add_issue_comment` makes two, so ~60 s per call) | `GhCli.TIMEOUT_SECONDS` |
-| One `gh` response | 8 MB, refused above with `FIX_REQUEST` | `GhCli.MAX_RESPONSE_BYTES` |
-| `limit` on a list | default 30, clamped to 1–100 | `Limits` |
+| Bound | Value |
+| --- | --- |
+| One `gh` invocation | 30 s (`add_issue_comment` makes two, so ~60 s per call) |
+| One `gh` response | 8 MB, refused above with `FIX_REQUEST` |
+| `limit` on a list | default 30, clamped to 1–100 |
+| Writes | 80 per minute and 500 per hour per process, refused above with `RETRY` and `retryAfterSeconds` |
 
-All three are constants with an ADR behind them rather than configuration
-([ADR-0015](docs/adr/0015-a-ceiling-on-one-response.md),
-[docs/deploying.md](docs/deploying.md)).
+All are constants rather than configuration ([docs/design.md](docs/design.md#bounds)).
 
 ### Observability
 
 One JSON line per Tool call in `logs/project-mcp.log` — which Tool, which repository, how
 long, how it ended, how many bytes — and a second line with the permalink when a comment is
-written. No content of any kind on the paths this Server controls: no issue body, no comment
-text, no label name ([ADR-0013](docs/adr/0013-what-a-call-leaves-behind.md)). Nothing ships
-the file anywhere; it rotates at 10 MB with a 100 MB cap.
+written. No issue, comment or label content is logged. The file rotates at 10 MB with a
+100 MB cap ([docs/design.md](docs/design.md#logging)).
 
 ### Deployment
 
-A [`Dockerfile`](Dockerfile) that was built and driven before it was committed, and
-[docs/deploying.md](docs/deploying.md) for what a deployment has to provide and decide.
+A [`Dockerfile`](Dockerfile), and [docs/deploying.md](docs/deploying.md) for what a
+deployment has to provide and decide.
 
 ## Compatibility
 
 | | |
 | --- | --- |
-| Protocol revision | **2025-11-25** — the ceiling of the SDK this release depends on |
-| Transport | stdio only; Streamable HTTP is not implemented |
+| Protocol revision | **2025-11-25**, except that reads are not rate limited (see below) |
+| Transport | stdio only |
 | Java | 25 |
 | Spring Boot | 4.1.1 |
 | Spring AI | 2.0.1 (`spring-ai-starter-mcp-server`) |
 | MCP Java SDK | 2.0.0 |
-| `gh` | measured against **2.91.0** on the host and **2.100.0** in the container image |
+| `gh` | tested with 2.91.0 and 2.100.0 |
 
-Unchanged in 0.1.1 — the fix touched this Server's own parameters, not anything it asks of
-`gh`.
+`gh` failures are recognised by the wording of its stderr. A `gh` release that rephrases a
+message does not break the Server; the failure is reported as `UNKNOWN`, without recovery
+advice.
 
-**The `gh` row is the one that can bite.** `GhStderr.classify()` recognises `gh`'s failures
-by matching the wording of its stderr. A `gh` release that rephrases a message does not
-break this Server loudly — the marker stops matching, the failure lands in `UNKNOWN`, and
-the caller gets a correct response with no recovery advice in it. That risk is accepted by
-design and recorded in
-[ADR-0002](docs/adr/0002-failure-contract-for-gh-calls.md); the versions above are the ones
-it has actually been exercised against, and
-[`docs/measurements/gh-compatibility.sh`](docs/measurements/gh-compatibility.sh) re-checks
-them against whatever `gh` is installed: it provokes seven of the ten rows and exits
-non-zero if one stops matching.
-
-Moving to protocol revision 2026-07-28 waits on the MCP Java SDK, not on this repository.
+Protocol revision 2026-07-28 needs a newer MCP Java SDK than this release depends on.
 
 ## Known departures
 
-Named because a departure without an owner is an oversight with better prose.
-
-- **No rate limiting.** A knowing departure from a `MUST` in the 2025-11-25 Security
-  Considerations, with the owner named
-  ([ADR-0012](docs/adr/0012-no-rate-limiting-and-why.md)). GitHub's own rate limiting comes
-  back as a `RETRY`, which is not the same thing.
-- **No metrics and no health endpoint.** Under stdio there is nowhere to put one
-  ([ADR-0014](docs/adr/0014-no-metrics-and-who-would-have-to.md)).
-- **Cancellation is ignored.** `notifications/cancelled` is not implemented anywhere in the
-  stack; the specification permits a receiver to ignore it, and the cost is a `gh` that runs
-  to its own budget after the Client has gone
-  ([ADR-0016](docs/adr/0016-a-cancelled-call-is-not-cancelled-here.md)).
-- **One process is one identity.** Every call uses the same resolved `gh` login. There is no
-  per-caller identity and no read-only switch; multi-tenant means one process per tenant
-  ([ADR-0009](docs/adr/0009-writes-are-gated-outside-this-server.md)).
-- **GitHub's content is not sanitised.** Issue bodies and comments cross the wire as GitHub
-  returned them; a Client that renders them owns that.
-
-## Not measured yet
-
-Stated so that the untested is not mistaken for the tested: the rate-limit branch of
-`GhStderr.classify()` has never been provoked against real GitHub, and concurrency has only
-been measured for head-of-line blocking on a single session — not under load. See
-`docs/reviews/commercial-readiness.md`.
+- **Reads are not rate limited.** The 2025-11-25 specification says servers MUST rate limit
+  tool invocations; only writes are limited here, because a read's cost to GitHub depends
+  on the query and there is no published per-call number to apply.
+- **GitHub content is not sanitised.** Issue bodies and comments cross the wire as GitHub
+  returned them; a Client must treat them as untrusted.
+- **Cancellation is ignored.** The specification permits a receiver to ignore
+  `notifications/cancelled`; a `gh` already running finishes within its own 30 s budget.
+- **No metrics and no health endpoint.** Under stdio there is nowhere to put one.
+- **One process is one identity.** Every call uses the same `gh` login; multi-tenant means
+  one process per tenant.
