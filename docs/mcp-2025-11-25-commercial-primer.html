@@ -446,7 +446,7 @@ a:focus-visible,:focus-visible{outline:2px solid var(--accent);outline-offset:3p
       給只會讀文字的舊 Client。要偏離可以——但理由和代價要寫在案。
     </p>
     <div class="eg m">
-      <b>實測補充 · 這條線上有一個框架挖的洞</b>
+      <b>框架層的輸入驗證</b>
       上面那套讀起來很乾淨，但真的把 server 跑起來、送一個<strong>缺必填參數</strong>的呼叫進去——
       而這正是模型最常犯的錯——回來的是這個：
       <div class="snip">{"content":[{"type":"text","text":
@@ -757,12 +757,9 @@ a:focus-visible,:focus-visible{outline:2px solid var(--accent);outline-offset:3p
 <footer>
   基準為 MCP 規格 <code>2025-11-25</code>。第一部每一條的規格文字都出自
   <code>modelcontextprotocol/modelcontextprotocol</code> 的
-  <code>docs/specification/2025-11-25/</code>，逐條核對於 2026-09-08。
-  第二部取自本 repo 的商用就緒評審，非規格條文。
-  文中標示「實測」的段落，是 2026-09-09 以 MCP Inspector v2.5.0 與手寫 JSON-RPC
-  各驅動一次本 repo 的 server 所得，不是讀原始碼推論的。<br>
-  同倉庫的兩份來源文件：<code>docs/mcp-2025-11-25-conformance.html</code>（逐條對照與驗證結果）、
-  <code>docs/reviews/commercial-readiness.md</code>（含對 2026-07-28 的差距分析）。
+  <code>docs/specification/2025-11-25/</code>。
+  第二部取自本 repo 的實務考量。<br>
+  同倉庫的相關文件：<code>docs/mcp-2025-11-25-conformance.html</code>（逐條對照與驗證結果）。
 </footer>
 
 </div>

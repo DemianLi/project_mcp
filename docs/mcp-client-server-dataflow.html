@@ -156,9 +156,7 @@ figcaption{font-size:14.5px;color:var(--ink-2);margin-top:12px;max-width:44em}
 <header class="hero">
   <ul class="basis">
     <li>規格 2025-11-25</li>
-    <li>範例 project_mcp 0.1.1</li>
-    <li>對照 b94e10b</li>
-    <li>2026-09-14</li>
+    <li>範例 project_mcp 1.0.0</li>
   </ul>
   <h1>MCP 的一問一答：<span class="c">Client</span> 問，<span class="s">Server</span> 答</h1>
   <p class="lede">兩個程式隔著一條管子講話。這頁用四張圖講完：誰跟誰講話、管子上傳什麼、Client 裡面怎麼轉、Server 裡面怎麼轉。右邊一欄是備注——每個專有名詞寫著白話意思，還有該去哪一頁學。</p>
@@ -602,7 +600,7 @@ figcaption{font-size:14.5px;color:var(--ink-2);margin-top:12px;max-width:44em}
             <text class="t-sm" x="445" y="68">一行＝一則訊息（換行分隔）</text>
             <text class="t-sm" x="445" y="120">MCP Java SDK＋Spring AI 2.0.1<tspan class="sn" dy="-5">21</tspan></text>
             <text class="t-sm" x="445" y="136" dy="0">協議版本上限也由它決定</text>
-            <text class="t-sm" x="445" y="180">漏參數、型別錯都停在這裡（實測）</text>
+            <text class="t-sm" x="445" y="180">漏參數、型別錯都停在這裡</text>
             <text class="t-sm" x="445" y="196">錯誤訊息語言跟著機器 LANG 走</text>
             <text class="t-sm" x="445" y="264"><tspan class="t-mono">@McpTool</tspan> 方法：參數表＝對外 schema</text>
             <text class="t-sm" x="445" y="280">所以簽章要保持扁平</text>
@@ -627,6 +625,7 @@ figcaption{font-size:14.5px;color:var(--ink-2);margin-top:12px;max-width:44em}
         <li><b>最容易漏看的是黃色那格。</b>被 schema 擋下的呼叫根本進不到你的程式：它是 isError，但沒有 remedy、也不留 log。偏偏漏參數、型別錯正是模型最常犯的錯。</li>
         <li><b>你的程式裡，失敗只有一個出口。</b>所有會失敗的工作都放進 <code>ToolResults.attempt(…)</code> 裡；丟在外面的失敗會被框架接走，remedy 就不見了。</li>
         <li><b>stdout 是給 JSON-RPC 用的。</b>一行 print、一個開機 banner，對方的解析器就壞了。log 一律寫檔。</li>
+        <li><b>寫入操作受速率限制。</b><code>add_issue_comment</code> 限制在每分鐘 80 次、每小時 500 次（GitHub 公開限制），超過時回 <code>isError: true</code> 加 <code>Remedy: RETRY</code> 與 <code>retryAfterSeconds</code>，讀取操作無限制。</li>
       </ul>
     </div>
 
@@ -635,9 +634,9 @@ figcaption{font-size:14.5px;color:var(--ink-2);margin-top:12px;max-width:44em}
       <ol start="21">
         <li id="n21"><span class="n">21</span><b>MCP SDK</b> <span class="zh">協議函式庫</span>——替你做握手、分派、schema 推導。本例是 MCP Java SDK，外面包 Spring AI。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/java-sdk">modelcontextprotocol/java-sdk ↗</a> · <a href="https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html">Spring AI MCP Server ↗</a></span></li>
         <li id="n22"><span class="n">22</span><b>dispatch · JSON-RPC error code</b> <span class="zh">分派、錯誤碼</span>——依 method 找處理者；找不到工具、格式壞，就回 JSON-RPC error（例如 <code>-32602</code>）。<span class="go">去哪學：<a href="https://www.jsonrpc.org/specification">jsonrpc.org/specification §5.1 Error object ↗</a></span></li>
-        <li id="n23"><span class="n">23</span><b>schema validation</b> <span class="zh">參數驗證</span>——框架先拿 inputSchema 驗，在你的方法體之前就擋下。<span class="go">去哪學：本 repo <code>docs/adr/0011-the-failure-contract-begins-at-the-tool-method.md</code>、<code>docs/mcp-2025-11-25-commercial-primer.html</code> 第 04 條</span></li>
+        <li id="n23"><span class="n">23</span><b>schema validation</b> <span class="zh">參數驗證</span>——框架先拿 inputSchema 驗，在你的方法體之前就擋下。<span class="go">去哪學：<a href="design.md#input-validation">design.md#input-validation ↗</a>、<code>docs/mcp-2025-11-25-commercial-primer.html</code> 第 04 條</span></li>
         <li id="n24"><span class="n">24</span><b>@McpTool</b> <span class="zh">工具註解</span>——Spring AI 把一個 Java 方法變成一個 MCP 工具，參數表自動變成 inputSchema。<span class="go">去哪學：<a href="https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html">Spring AI MCP Server ↗</a></span></li>
-        <li id="n25"><span class="n">25</span><b>failure contract · Remedy</b> <span class="zh">失敗契約、補救分類</span>——本 repo 的規矩：失敗按「你現在該做什麼」分五類。不是規格條文。<span class="go">去哪學：本 repo <code>docs/adr/0002-failure-contract-for-gh-calls.md</code></span></li>
+        <li id="n25"><span class="n">25</span><b>failure contract · Remedy</b> <span class="zh">失敗契約、補救分類</span>——失敗按「你現在該做什麼」分五類。<span class="go">去哪學：<a href="design.md#failure-contract">design.md#failure-contract ↗</a></span></li>
         <li id="n26"><span class="n">26</span><b>MDC · correlation ID</b> <span class="zh">診斷上下文、關聯編號</span>——把 callId 貼在同一通呼叫的每一行 log 上，事後才串得起來。<span class="go">去哪學：<a href="https://www.slf4j.org/manual.html">SLF4J manual §MDC ↗</a></span></li>
         <li id="n27"><span class="n">27</span><b>ProcessBuilder · pipe draining</b> <span class="zh">起子進程、抽乾管道</span>——stdout 與 stderr 要同時讀，否則緩衝區滿了兩邊互等，形成 deadlock。<span class="go">去哪學：<a href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/ProcessBuilder.html">ProcessBuilder (Java 25) ↗</a></span></li>
         <li id="n28"><span class="n">28</span><b>ECS</b> <span class="zh">結構化日誌格式</span>——Elastic Common Schema，一套公開的 JSON log 欄位命名，收集器不用翻譯就能讀。<span class="go">去哪學：<a href="https://www.elastic.co/guide/en/ecs/current/index.html">Elastic ECS ↗</a></span></li>
@@ -666,9 +665,8 @@ figcaption{font-size:14.5px;color:var(--ink-2);margin-top:12px;max-width:44em}
   </ul>
 
   <footer class="foot">
-    <p>規格條文取自 <code>modelcontextprotocol/modelcontextprotocol</code> main 分支的 <code>docs/specification/2025-11-25/</code>（architecture、lifecycle、transports、server/tools、client/*），2026-09-14 讀取；本頁所有外部連結已於同日確認可開啟。</p>
-    <p>project_mcp 的行為對照 <code>b94e10b</code> 的 <code>src/main</code>。「schema 驗證在方法體之前、沒有 remedy、錯誤訊息跟著 LANG 走」與「notifications/cancelled 會被忽略」兩點是實測結果，出自同倉庫的 commercial-primer 與 conformance 兩份文件（2026-09-09，MCP Inspector v2.5.0），不是讀原始碼推論的。SDK 的協議版本上限 2025-11-25 也取自 conformance 文件（對照 <code>99ba0b3</code>）；Spring AI 2.0.1 取自 <code>pom.xml</code>。</p>
-    <p>Client 內部那一段：本 repo 沒有 Client 程式碼，內容依規格條文畫成；標「常見做法」的步驟不是條文。</p>
+    <p>規格條文取自 <code>modelcontextprotocol/modelcontextprotocol</code> 的 <code>docs/specification/2025-11-25/</code>（architecture、lifecycle、transports、server/tools、client/*）。</p>
+    <p>Client 內部那一段：依規格條文繪製；標「常見做法」的步驟不是規格條文。</p>
   </footer>
 </section>
 

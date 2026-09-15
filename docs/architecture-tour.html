@@ -216,28 +216,6 @@ figcaption{
 .remedy span{font-family:var(--font-body);font-size:14.5px;color:var(--ink-soft);line-height:1.5;}
 @media (max-width:600px){.remedy{grid-template-columns:1fr;gap:4px;}}
 
-/* ---------- mass bar ---------- */
-.mass{display:flex;height:64px;border:1px solid var(--rule);overflow:hidden;}
-.mass div{
-  display:flex;align-items:center;justify-content:center;
-  font-family:var(--font-mono);font-size:11px;font-variant-numeric:tabular-nums;
-  border-right:1px solid var(--rule);overflow:hidden;white-space:nowrap;
-}
-.mass div:last-child{border-right:0;}
-.m-code{background:var(--pipe);color:#FBFCFA;}
-.m-cmt{background:var(--pipe-wash);color:var(--pipe);}
-.m-test{background:var(--panel);color:var(--ink-soft);}
-.m-doc{background:var(--warn-wash);color:var(--warn);}
-.mass-key{
-  display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;
-  font-family:var(--font-mono);font-size:11.5px;color:var(--ink-soft);
-  font-variant-numeric:tabular-nums;
-}
-.mass-key i{
-  display:inline-block;width:9px;height:9px;margin-right:6px;
-  border:1px solid var(--rule);vertical-align:baseline;
-}
-
 /* ---------- flaws ---------- */
 .flaws{display:grid;gap:0;border-top:1px solid var(--rule);}
 .flaw{
@@ -313,7 +291,6 @@ a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pipe);outline-o
       <div class="fact"><b>5</b><span>个 Tool</span></div>
       <div class="fact"><b>1</b><span>条通往 GitHub 的路</span></div>
       <div class="fact"><b>1,869</b><span>行正文代码</span></div>
-      <div class="fact"><b>10</b><span>份 ADR 决策记录</span></div>
     </div>
   </header>
 
@@ -501,41 +478,16 @@ a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pipe);outline-o
       </div>
 
       <p style="font-size:15px;color:var(--ink-soft);margin:22px 0 0;max-width:38em;">
-        中间那张 10 行的对照表只认识 <code>gh</code> 说过的几种话，而且每一行都得附上一句
-        <strong style="color:var(--ink)">真的见过的</strong>错误原文当证据。没见过的措辞不许写进去——
-        猜一句进去，就等于让系统对着一个它没验证过的情况，自信地给出一个可能是错的建议。
+        中间那张对照表只认识 <code>gh</code> 的几种固定说法。认不出的措辞一律归到
+        <strong style="color:var(--ink)"><code>UNKNOWN</code></strong>，原话原样带回——
+        宁可说「不知道」，也不对一个没把握的情况给出可能是错的建议。
       </p>
     </section>
 
     <!-- 5 -->
     <section>
-      <h2>真正的代码只占七分之一</h2>
-      <p class="sub">把整个仓库按行数摊开，会看到一件挺极端的事。</p>
-
-      <div class="mass" role="img" aria-label="行数构成（均已扣除空行）：正文逻辑 882 行，正文注释 987 行，测试 2199 行，文档 1989 行">
-        <div class="m-code" style="flex:882 1 0">15%</div>
-        <div class="m-cmt"  style="flex:987 1 0">16%</div>
-        <div class="m-test" style="flex:2199 1 0">36%</div>
-        <div class="m-doc"  style="flex:1989 1 0">33%</div>
-      </div>
-      <div class="mass-key">
-        <span><i style="background:var(--pipe)"></i>正文逻辑 882 行</span>
-        <span><i style="background:var(--pipe-wash)"></i>正文注释 987 行</span>
-        <span><i style="background:var(--panel)"></i>测试 2,199 行</span>
-        <span><i style="background:var(--warn-wash)"></i>文档 1,989 行</span>
-      </div>
-
-      <p style="font-size:15px;color:var(--ink-soft);margin:22px 0 0;max-width:38em;">
-        六千行里，真正在干活的只有八百多。正文里<strong style="color:var(--ink)">注释比逻辑还多</strong>，
-        另外还有十份决策记录、两万多字。
-        这到底是臃肿还是严谨，取决于你问谁——但数字本身没有争议。
-      </p>
-    </section>
-
-    <!-- 6 -->
-    <section>
       <h2>哪里确实不对劲</h2>
-      <p class="sub">按「会不会咬到人」排，不按好不好看排。多数问题项目自己已经记下来了。</p>
+      <p class="sub">按「会不会咬到人」排，不按好不好看排。</p>
 
       <div class="flaws">
 
@@ -546,15 +498,15 @@ a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pipe);outline-o
             先问「这条 issue 的内部编号是多少」，再拿编号去贴。两步之间如果 issue 被关掉、被锁上，
             失败发生在第二步。更糟的是：第二步超时的时候，程序<strong>不知道评论到底贴进去没有</strong>。
           </p>
-          <div class="says">项目的处理：不重试，改成告诉模型「先去查一下有没有」。这是那个第二种回答存在的唯一理由。</div>
+          <div class="says">处理方式：不叫模型重试，而是告诉它「先去查一下有没有」。这就是第二种回答存在的理由。</div>
         </div>
 
         <div class="flaw">
           <span class="sev a">会咬人</span>
           <h3>看不懂的错误，就变成一句「我不认识」</h3>
           <p>
-            对照表只有 10 行。任何 <code>gh</code> 没被记录过的抱怨都会掉到 <code>UNKNOWN</code>，
-            模型拿到一句原始英文报错，得自己猜怎么办。表能认多少，取决于有人真的撞见过多少。
+            对照表只认识有限的几种说法。任何表里没有的 <code>gh</code> 抱怨都会掉到 <code>UNKNOWN</code>，
+            模型拿到一句原始英文报错，得自己判断怎么办。
           </p>
           <div class="says">这是设计上的取舍，不是遗漏：宁可说不知道，也不给一个自信的错答案。</div>
         </div>
@@ -567,7 +519,7 @@ a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pipe);outline-o
             然后紧接着就有一句写死的提示语，里面点名了 <code>list_issue_comments</code>。
             改名字不会有任何编译错误，只会让那句话悄悄变成谎话。
           </p>
-          <div class="says">项目自己承认了：第二个写工具出现时就是该改的时候，现在还不到。</div>
+          <div class="says">目前只有一个写工具，所以这句话仍然成立；加第二个写工具时，这里要改成参数。</div>
         </div>
 
         <div class="flaw">
@@ -590,12 +542,12 @@ a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pipe);outline-o
 
         <div class="flaw">
           <span class="sev c">够不着</span>
-          <h3>有一种失败，这个项目量不出来</h3>
+          <h3>锁定的 issue 没有自己的失败分类</h3>
           <p>
-            issue 被「锁定」时会发生什么，表里没有对应的行。今天实测过：锁对仓库主人根本不生效，
-            而没权限的身份在锁生效之前就已经被拒了。要撞到这一格，需要第二个 GitHub 账号。
+            issue 被「锁定」时会发生什么，表里没有对应的行。锁对仓库主人根本不生效，
+            而没权限的身份在锁生效之前就已经被拒了。
           </p>
-          <div class="says">从「还没量」改写成了「够不着」——这不是待办事项，是一条边界。</div>
+          <div class="says">这不是待办事项，是一条边界。</div>
         </div>
 
       </div>
@@ -606,12 +558,10 @@ a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pipe);outline-o
       <h2>一句话总结</h2>
       <div class="kicker">
         <p>
-          五个很薄的工具，一根很厚的管子，外加一本厚得离谱的说明书。
+          五个很薄的工具，一根很厚的管子。
         </p>
         <p>
           薄和厚都是故意的：工具薄，所以加第六个几乎不花钱；管子厚，所以坏掉的方式只需要想明白一次。
-          说明书厚，是因为这个项目有条铁律——<strong style="color:var(--ink)">凡是没亲眼见过的，不许写进代码里当事实</strong>。
-          代价就是上面那张图：真正干活的代码只占七分之一。
         </p>
       </div>
     </section>
@@ -619,9 +569,7 @@ a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pipe);outline-o
   </div>
 
   <footer>
-    行数与参数实测于 <code>8ac7c76</code>：四块口径一致，均已扣除空行；文档一块计入仓库里全部 .md（含 README、CONTEXT、AGENTS）。<br>
-    工具与失败分类取自 src/main/java 与 docs/adr/0001–0010。<br>
-    「锁定」一格的结论来自 2026-09-07 对 sandbox 的一次实测，已记入 ADR-0009 的 Amendments。
+    工具与失败分类取自 src/main/java 与 <a href="design.md">design.md</a>。
   </footer>
 
 </div>

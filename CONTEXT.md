@@ -1,223 +1,97 @@
-# project_mcp
+# CONTEXT.md — Server domain and architecture terms
 
-An MCP server that exposes GitHub platform operations as Tools. It is written in Java
-on Spring Boot, and during development is exercised by the MCP Inspector acting as its
-client.
+An MCP server that exposes GitHub platform operations as Tools. Written in Java on Spring Boot with stdio transport.
 
-## Language
+## Domain
 
-### Domain
+**GitHub operation:**
+An action on the GitHub platform — issues, pull requests, labels, comments. Local git work (commits, branches, merges) is outside this Server's scope.
 
-**GitHub operation**:
-An action against the GitHub platform — issues, pull requests, labels, reviews. This is
-what the Server's Tools wrap. It is _not_ version control: local git work (commit,
-branch, merge) is deliberately outside this Server.
-_Avoid_: version control, git operation, 版控
+**Pull request:**
+A GitHub pull request. Shares the same number space as issues; GitHub's data model makes every PR an issue, but this Server treats them as distinct. Passing a PR number to an issue Tool is a rejected request, not an alternate read.
 
-**Pull request**:
-A GitHub pull request. It shares one number space with issues, and GitHub's data model
-makes every pull request an issue — though not the reverse. In this Server's vocabulary
-the two are nevertheless distinct: an issue is never a pull request. Handing a pull request
-number to any issue Tool is a rejected request, not a variant read — on a read, allowing it
-costs the wrong thing returned; on a write, an irreversible side effect on an object nobody
-asked for.
-_Avoid_: treating a PR as a kind of issue, 把 PR 当成 issue 的一种
+**Label:**
+A named tag on an issue. Has two roles: as an issue attribute it is just its name; as a choice object when filtering, the description distinguishes similar labels. The Server returns Labels in different shapes for these two roles.
 
-**Label**:
-A named tag a repository can put on an issue. A Label plays two roles here, and they are
-not interchangeable. As an **attribute** of an issue it is just its name — that name is
-also what a Client passes back to filter by, so nothing else about it is load-bearing. As
-an **object of choice**, when a Client is deciding which label to filter on, the name alone
-is often not enough to tell two labels apart, and the description is what distinguishes
-them. The Server therefore reports a Label in two shapes depending on which role it is
-in; that asymmetry is deliberate, not an inconsistency to be tidied away. See ADR-0004.
-_Avoid_: tag, category, 分类
+**Comment:**
+A remark written on an issue. Distinct from timeline events (label added, issue closed) and from review comments (which belong to pull requests and are not covered here).
 
-**Comment**:
-A remark someone wrote on an issue. Three different things on GitHub answer to the word, and
-only this one is a Comment here. A **timeline event** — a label added, an assignee set, the
-issue closed — is not a remark and is not one. A **review comment** hangs off a line of a
-diff and belongs to the pull request side of GitHub, which this Server's read Tools do not
-cover. See ADR-0006.
-_Avoid_: event, activity, note, 留言
+## Roles
 
-### Roles
+**Server:**
+The Java program in this repo. Declares Tools and Resources, answers JSON-RPC requests over stdio. Started by its Client as a subprocess (inverted from web server terminology).
 
-**Server**:
-The Java program in this repo. It declares Tools and Resources and answers JSON-RPC
-requests. Note the inversion from ordinary web vocabulary: an MCP Server is normally
-started _by_ its Client as a subprocess, not a long-lived host that clients dial into.
-_Avoid_: service, backend, API server
+**Client:**
+Connects to the Server and invokes its Tools over stdin/stdout.
 
-**Client**:
-Whatever connects to the Server and invokes its Tools. In this project that is always
-the Inspector.
-_Avoid_: consumer, caller, frontend
+**Inspector:**
+The official MCP Inspector — a UI for testing Servers by hand-sending requests and reading Tool output. A Client, not a debugger.
 
-**Inspector**:
-The official MCP Inspector, used here as the test Client — a UI for hand-sending
-requests and reading Tool output. It is a Client, not a debugger attached to the Server.
-_Avoid_: test tool, debugger, test harness
+## Primitives
 
-### Primitives
+**Tool:**
+An operation the Server declares for the Client to invoke. Named, with typed inputs, returning a result.
 
-**Tool**:
-An operation the Server declares that a Client can invoke to _do_ something. Named,
-with typed inputs, returning a result.
-_Avoid_: function, endpoint, command, API
+**Resource:**
+Data the Server exposes for the Client to read. Contrast: a Resource is fetched, a Tool is called.
 
-**Resource**:
-Data the Server exposes for a Client to _read_. Contrast with Tool: a Resource is
-fetched, a Tool is called.
+This Server declares no Resources. Every read operation is a Tool instead because Resources have no failure reporting. A Resource fetch cannot carry a Remedy, so a failure would have to corrupt the protocol stream or masquerade as data. This Server's read operations are Tools.
 
-This Server declares none, and that is a measured result rather than a gap yet to be
-filled. Read literally, the definition above fits several things here — a repository's
-label set most of all. What rules it out is that fetching a Resource has no way to
-report a failure: there is no equivalent of the Remedy every Tool call carries, so a
-failure would have to travel as a protocol error the model never sees, or be disguised
-as ordinary content. Every read operation here is therefore a Tool. See
-[#15](https://github.com/DemianLi/project_mcp/issues/15).
-_Avoid_: document, file, context, asset
+**Annotations:**
+What a Tool declares about itself: whether it reads or writes, destructiveness, idempotency, scope. A Client should not trust these declarations; nothing verifies them, and the Server does not enforce them. See the writeOnlyHint / readOnlyHint specification.
 
-**Annotations**:
-What a Tool declares about itself: whether it reads or writes, whether the write is
-destructive, whether calling it twice differs from calling it once, whether it touches an
-open world beyond this Server. They are the Server talking about its own Tools, and the
-protocol's one requirement of a Client is that it **not** trust them — nothing verifies an
-annotation, so a Client gating on one is gating on an assertion. See
-[#26](https://github.com/DemianLi/project_mcp/issues/26).
+The `readOnlyHint` field serves multiple roles:
+- **Declaration:** Tells a Client whether this Tool reads or writes.
+- **Switch:** Controls whether the other hints (`destructiveHint`, `idempotentHint`) have meaning.
+- **Partition:** Marks which Tools the Server classifies as writes (for testing and auditing).
 
-`readOnlyHint` plays three roles here and they are not interchangeable. As a
-**declaration** it is what a Client is told about one Tool. As a **switch** it is what
-gives the other two hints meaning at all — `destructiveHint` and `idempotentHint` say
-nothing until it is false (see ADR-0007). And this Server reads its own **partition** off
-it: which Tools count as writes is that field, not a second list kept alongside — a way of
-naming the writes, not a switch anything acts on (ADR-0009). The first role is a claim about
-a Tool; a Read-only instance is a claim about something else entirely, so neither is a
-stronger grade of the other.
+A Tool declaring itself read-only should not write to GitHub. The test suite verifies this; if a Tool claims read-only but calls the write path, tests catch it. This check is internal auditing, not Server enforcement — the Server does not act on annotations.
 
-That third role is checked rather than merely stated: the Acceptance layer reads the
-partition off this field and drives every Tool in it into an abandoned call, so a Tool that
-declares a write here and then takes the read route through `GhCli` goes red
-(`WritePartitionAcceptanceTest`). It is a test reading the partition, not the Server acting
-on it — nothing in the Server's own behaviour turns on this field, and the check keeps no
-list of its own.
-_Avoid_: guarantee, permission, enforcement, 保证
+## Server design
 
-### Server design
+**Envelope:**
+The standard structure returned by every `list_*` Tool. Contains `items`, `count`, and `truncated` with fixed meanings across all list operations. A Tool may add keys but not remove or redefine these three. Server-specific, not part of MCP protocol.
 
-**Envelope**:
-The outer structure every `list_*` Tool returns. `items`, `count` and `truncated` are on all
-of them, with fixed meanings; a Tool may add keys beside those three, but never remove or
-redefine one — so a Client learns the core once and it holds across Tools. It is this
-Server's own design, _not_ part of the MCP protocol, which is why it sits here rather than
-under Primitives. See `docs/adr/0001-list-issues-parameters-and-return-shape.md` and its
-amendment.
-_Avoid_: wrapper, response object, payload, 外层
+**Remedy:**
+What a caller should do next about a failure. One of: retry, check whether a write landed before retrying, fix the request, or ask a human. Classifies by available action, not by cause — two different failures with the same remedy share a Remedy type.
 
-**Remedy**:
-What a caller should _do next_ about a failure — retry, check whether a write landed before
-retrying it, fix the request, or ask a human. Every failure this Server reports carries one. It classifies by the action available, not
-by the cause: two failures with different causes and the same action share a Remedy. Like
-the Envelope it is this Server's own design, learned once and holding across every Tool.
-See `docs/adr/0002-failure-contract-for-gh-calls.md`.
-_Avoid_: error code, error type, failure kind, 错误码
+**Shape vs. Content:**
+A call has two aspects:
+- **Shape:** Which Tool ran, against which repository, how long it took, response size, outcome. Logged.
+- **Content:** Issue bodies, comments, label names — text from Client or GitHub. Not logged.
 
-**Shape** (against **Content**):
-The two halves of a call, and the line between them is where this Server's log stops. The
-_shape_ of a call is which Tool ran, against which repository, how long it took, how large
-the answer was, and how it ended. The _content_ is the text on either side of it: an issue's
-title or body, a comment, a label's name — whether a Client sent it or GitHub returned it.
+The log records shape only. Content is not deleted by the Server; if content appears in logs, it persists on disk outside the protocol with filesystem-level access control. This is an accident to prevent. Comment bodies are elided from logged argv by name.
 
-The log records shape and never content. Not a convention but a boundary: content in the log
-is a copy of GitHub's text on a disk outside the protocol, that nothing here deletes, whose
-access controls are the filesystem's rather than GitHub's. It would be a disclosure surface
-created by accident. The one argument that is content — a comment's `body` — is elided from
-the argv line by name, and the distinction is what `TraceContractAcceptanceTest` exists to
-hold. See `docs/adr/0013-what-a-call-leaves-behind.md`.
-_Avoid_: payload, data, metadata, 资料, 内容
+## Deployment
 
-### Deployment
+**Read-only instance:**
+A running Server from which no write reaches GitHub. The unit is the instance, not the Server itself — the same Server binary can run twice, one instance writing and one not.
 
-**Read-only instance**:
-A running Server from which no write reaches GitHub. The unit is the instance, not the
-Server: the Server can be running twice, one instance writing and one not.
+A read-only instance makes a promise about the deployment, not about the Server or its Tools. The term means one of two different constraints, depending on where the boundary is:
 
-Neither promise is what a Tool's `readOnlyHint` declares. That is one Tool telling a
-Client it does not write; this is a claim about a whole instance, made to whoever deploys
-it. A deployer reading `readOnlyHint = true` has not been handed a weaker grade of either
-promise below — they have been handed a promise about a different thing. See Annotations.
+1. **Ungranted:** The authenticated login lacks write permission at GitHub. GitHub refuses the write. The Server cannot enforce this; it is a property of the login and external to the Server.
 
-The word names **two different promises**, and which one is meant depends on where the
-constraint lives.
+2. **Withheld:** The instance holds a login with write permission, but the Server refuses to use it. The Server enforces this boundary. It covers all writes the Server makes, but not writes that bypass the Server.
 
-**Ungranted**: the ability to write was never handed to this instance. Whatever login
-`gh` resolves lacks the scope, so GitHub refuses — a bug in this Server, or a caller
-arriving by a path nobody anticipated, still produces no comment. The constraint sits
-outside the Server, which can only report having run into it.
+These are not grades of the same promise. An "ungranted" read-only instance protects against every route to GitHub but requires the login to lack permission — a choice the deployer makes outside this Server. A "withheld" read-only instance protects only what goes through this Server.
 
-**Withheld**: the instance holds a login that could write, and does not. The constraint is
-the Server's own, so it covers everything the Server does — and nothing that goes around
-the Server.
+This Server does not offer either promise. Ungranted read-only is reachable (deploy with a login that lacks permission), but the Server does not implement withheld read-only (the Server makes no choice to refuse writes if the login could write).
 
-The two are not grades of one promise. `Ungranted` covers every route to GitHub but was
-never this Server's to hand out; `Withheld` is this Server's to hand out but covers only
-what travels through it.
+## Testing
 
-This Server hands out neither promise, and since ADR-0009 that is a decision rather than a
-description of today. `Ungranted` is reachable through it anyway — anyone deploying this
-Server can pick a login without the permission — and since
-[#36](https://github.com/DemianLi/project_mcp/issues/36) it is described truthfully: the
-refusal carries `ASK_OPERATOR` and says the login is authenticated and not permitted, rather
-than the `UNKNOWN` it used to land on beside advice to log in again. Reaching it still costs
-the deployer a login chosen outside this Server, which is what makes it a promise this Server
-does not itself hand out. `Withheld` is not offered: it would have this Server hold a login
-that can write and decline to use it, which is a promise it cannot keep against anything that
-goes around its own check.
-_Avoid_: read-only mode, safe mode, sandboxed, 只读模式 — an instance's identity is fixed
-when it starts, not a mode it can be put into. Also avoid the bare "the Server is
-read-only" without saying which of the two is meant: it read as true while every Tool
-read, and ADR-0001, ADR-0003 and ADR-0004 still carry it frozen as a constraint of their
-day.
+**Acceptance layer:**
+The thin outer layer of the test suite. Drives the Server across its wire boundary as a real Client would. Tests protocol behavior (what a Client actually sees), and the complete set of Tools (only visible through `listTools()` at the wire boundary). Some rules can only be tested here because they have no existence below the wire.
 
-### Testing
+**Coverage layer:**
+The inner layer of the test suite. Walks every case without crossing the wire boundary. A division of labor with the Acceptance layer, not a second name for the same tests.
 
-**Acceptance layer**:
-The thin outer layer of the test suite, which drives the Server across its wire boundary
-as a real Client would. It exists for two reasons, and only the first is about shape. The
-shape of a result — whether it is an error, and what the Client actually receives — has no
-existence below that boundary, so no test beneath it can observe the shape. Neither does
-the **set of Tools**: a test that has to cover *every* Tool has nowhere else to stand, and
-that holds even when its subject does exist further down. An argv is invisible to a Client
-and `ArgvFlagAcceptanceTest` is up here regardless, because `listTools()` is the only place
-the Server says what its Tools are — placement follows the enumeration, not the visibility.
-Either way it proves that a rule holds; it is not where coverage lives.
-_Avoid_: end-to-end test, integration test, e2e
+## Transport
 
-**Coverage layer**:
-The inner layer of the test suite, which walks every case without crossing the wire
-boundary. Named as a counterpart to the Acceptance layer: the two are a division of
-labour, not two names for the same tests.
-_Avoid_: unit test, fast test
+**Transport:**
+How Client and Server exchange JSON-RPC messages. JSON-RPC is the protocol; the Transport is the pipe.
 
-### Transport
+**Stdio:**
+The Transport where the Client launches the Server as a subprocess and speaks over stdin/stdout. This Server implements stdio only.
 
-**Transport**:
-How Client and Server exchange JSON-RPC messages. JSON-RPC is the protocol; the
-Transport is the pipe it travels down. This Server currently speaks Stdio only.
-_Avoid_: protocol, connection
-
-**Stdio**:
-The Transport where the Client launches the Server as a subprocess and speaks over
-stdin/stdout. The only Transport this Server implements.
-
-**Streamable HTTP**:
-The Transport where the Server runs as an HTTP process. In `java-sdk` 2.x this is
-`HttpServletStreamableServerTransportProvider`. Not implemented here — the term is
-defined so it stays consistent if it lands.
-
-**SSE**:
-The deprecated predecessor to Streamable HTTP, using Server-Sent Events. Defined here
-only because older tutorials and 1.x-era `java-sdk` code are full of it — recognise it,
-don't reach for it.
-_Avoid_: using it for new work; say Streamable HTTP instead.
+**Streamable HTTP:**
+The Transport where the Server runs as an HTTP process. Not implemented here. MCP Java SDK provides `HttpServletStreamableServerTransportProvider` for this.

@@ -181,8 +181,7 @@ td.na{color:var(--muted);font-weight:700;white-space:nowrap}
   <ul class="basis">
     <li class="hot">規格 2026-07-28</li>
     <li>對照前版 2025-11-25</li>
-    <li>範例 project_mcp 0.1.1（仍是舊版 Server）</li>
-    <li>2026-09-15</li>
+    <li>範例 project_mcp 1.0.0</li>
   </ul>
   <p class="gone" aria-label="已刪除：initialize、InitializeResult、notifications/initialized">initialize → InitializeResult → notifications/initialized</p>
   <h1>MCP 的一問一答，這一版<em>不握手</em></h1>
@@ -721,7 +720,7 @@ td.na{color:var(--muted);font-weight:700;white-space:nowrap}
             <text class="t-sm" x="444" y="234"><tspan class="t-e" style="font-weight:700">✗</tspan> 沒有 server/discover（MUST）</text>
             <text class="t-sm" x="444" y="250">SDK 天花板</text>
             <text class="t-sm" x="444" y="292"><tspan class="t-s" style="font-weight:700">✓</tspan> 同前版：框架先驗</text>
-            <text class="t-sm" x="444" y="308">被擋下的一樣沒有 remedy（實測）</text>
+            <text class="t-sm" x="444" y="308">被擋下的一樣沒有 remedy</text>
             <text class="t-sm" x="444" y="370"><tspan class="t-s" style="font-weight:700">✓</tspan> 工具層預期不用改（評審推估）</text>
             <text class="t-sm" x="444" y="420"><tspan class="t-mu" style="font-weight:700">—</tspan> 不適用：五個工具都不用</text>
             <text class="t-sm" x="444" y="436">中途向使用者要資料</text>
@@ -740,14 +739,15 @@ td.na{color:var(--muted);font-weight:700;white-space:nowrap}
         <li><b>「你是誰、講哪一版」從握手搬進每一則請求。</b>Server 讀 <code>_meta</code> 決定怎麼回，MUST NOT 靠上一則請求。</li>
         <li><b>要更多資料就回 <code>input_required</code>，自己什麼都不存。</b>要記的東西寫進 <code>requestState</code> 交給 Client 帶回來——但它會經過 Client，所以 MUST 當成攻擊者可改的輸入；影響授權時要做完整性保護（HMAC、AEAD）。</li>
         <li><b>跨請求的狀態，用明確的 handle 當參數傳。</b>規格的非條文建議；project_mcp 留言分頁的 <code>cursor</code> 就是這個形狀。</li>
+        <li><b>寫入操作受速率限制。</b><code>add_issue_comment</code> 限制在每分鐘 80 次、每小時 500 次（GitHub 公開限制），超過時回 <code>isError: true</code> 加 <code>Remedy: RETRY</code> 與 <code>retryAfterSeconds</code>，讀取操作無限制。</li>
       </ul>
 
       <div class="tbl">
-        <h3>2026-07-28 對 project_mcp（取自 docs/reviews/commercial-readiness.md §1.5）</h3>
+        <h3>2026-07-28 對 project_mcp 的實裝限制</h3>
         <table>
           <thead><tr><th></th><th>項目</th><th>為什麼</th></tr></thead>
           <tbody>
-            <tr><td class="no">SDK 天花板</td><td>無狀態核心、<code>server/discover</code>、<code>resultType</code>、<code>ttlMs</code>／<code>cacheScope</code></td><td>四項都落在 SDK 層。Java SDK 3.x 才實作 2026-07-28。</td></tr>
+            <tr><td class="no">SDK 天花板</td><td>無狀態核心、<code>server/discover</code>、<code>resultType</code>、<code>ttlMs</code>／<code>cacheScope</code></td><td>四項都落在 SDK 層；本版依賴的 MCP Java SDK 只支援到 2025-11-25。</td></tr>
             <tr><td class="na">不受影響</td><td>MRTR、移除 session、錯誤碼分區</td><td>它不發 Server 請求、stdio 沒有 session header、失敗只走 <code>isError</code> 不自訂錯誤碼。</td></tr>
             <tr><td class="ok">可自行處理</td><td><code>tools/list</code> 順序固定（SHOULD）</td><td>今天依 Spring AI 掃描順序，沒有明確保證。</td></tr>
           </tbody>
@@ -763,7 +763,7 @@ td.na{color:var(--muted);font-weight:700;white-space:nowrap}
         <li id="n22"><span class="n">22</span><b>JSON Schema 2020-12</b> <span class="zh">參數表</span>——這一版放寬 inputSchema／outputSchema，允許 2020-12 的任何關鍵字；structuredContent 可以是任何 JSON 值。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/index.mdx">basic/index.mdx §JSON Schema Usage ↗</a> · <a href="https://json-schema.org/understanding-json-schema">JSON Schema 入門 ↗</a></span></li>
         <li id="n23"><span class="n">23</span><b>requestState</b> <span class="zh">Server 的便條</span>——不透明字串，Server 自己定格式。MUST 視為攻擊者可控；影響授權或商業邏輯時 MUST 做完整性保護。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/patterns/mrtr.mdx">mrtr.mdx §Server Requirements ↗</a></span></li>
         <li id="n24"><span class="n">24</span><b>stateful tools · handle</b> <span class="zh">有狀態的工具</span>——協議沒有 session，要跨請求記東西就回一個 id，之後當參數傳回來。非條文的設計建議。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/server/tools.mdx">server/tools.mdx §Stateful Tools ↗</a></span></li>
-        <li id="n25"><span class="n">25</span><b>SDK ceiling</b> <span class="zh">SDK 天花板</span>——Java SDK 3.x 才會實作這一版；roadmap 寫 3.0.0 milestone 規劃在 2026 年 9 月。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/java-sdk/blob/main/ROADMAP.md">java-sdk ROADMAP.md §3.x ↗</a></span></li>
+        <li id="n25"><span class="n">25</span><b>SDK ceiling</b> <span class="zh">SDK 天花板</span>——協議版本由 SDK 處理，Server 自己的程式碼碰不到。本版依賴的 MCP Java SDK 2.0 支援的最新版本是 2025-11-25，所以這一版的新要求要等 SDK 升級才能滿足。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/java-sdk">modelcontextprotocol/java-sdk ↗</a></span></li>
         <li id="n26"><span class="n">26</span><b>stdout purity</b> <span class="zh">stdout 純淨</span>——Server MUST NOT 往 stdout 寫非 MCP 訊息，這一版還加上 MUST NOT 寫 JSON-RPC 請求。log 可寫 stderr。<span class="go">去哪學：<a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/specification/2026-07-28/basic/transports/stdio.mdx">basic/transports/stdio.mdx ↗</a></span></li>
       </ol>
     </aside>
@@ -785,9 +785,8 @@ td.na{color:var(--muted);font-weight:700;white-space:nowrap}
   </ol>
 
   <footer class="foot">
-    <p>規格條文取自 <code>modelcontextprotocol/modelcontextprotocol</code> main 分支的 <code>docs/specification/2026-07-28/</code>（changelog、architecture、basic/index、versioning、transports/stdio、patterns/mrtr、patterns/cancellation、server/discover、server/tools、server/utilities/caching、deprecated），2026-09-15 讀取；本頁所有外部連結已於同日確認可開啟。新舊對照的左半取自同 repo 的 <code>docs/mcp-client-server-dataflow.html</code>（2025-11-25 版）。</p>
-    <p>project_mcp 那一欄與表格取自 <code>docs/reviews/commercial-readiness.md</code> §1.5、§6.3（2026-09-08）；「被擋下的一樣沒有 remedy」是 2026-09-09 以 MCP Inspector v2.5.0 實測的結果，「工具層預期不用改」是評審的推估，不是實測。SDK：2026-09-15 查 <code>modelcontextprotocol/java-sdk</code> 的 releases，最新是 v2.0.1（2026-08-19），尚無 3.x；ROADMAP 寫 3.0.0 milestone 規劃在 2026 年 9 月——這是對方的計畫，本頁不預測它何時出。</p>
-    <p>Client 內部那一段：本 repo 沒有 Client 程式碼，內容依規格條文畫成；標「常見做法」的步驟不是條文。新版範例 JSON 的形狀取自規格 <code>server/tools.mdx</code> 的範例，不是從 project_mcp 實際跑出來的——它今天還不會講這一版。</p>
+    <p>規格條文取自 <code>modelcontextprotocol/modelcontextprotocol</code> 的 <code>docs/specification/2026-07-28/</code>（changelog、architecture、basic/index、versioning、transports/stdio、patterns/mrtr、patterns/cancellation、server/discover、server/tools、server/utilities/caching、deprecated）。新舊對照的左半取自 <code>docs/mcp-client-server-dataflow.html</code>（2025-11-25 版）。</p>
+    <p>project_mcp 使用 MCP Java SDK，目前支援協議版本至 2025-11-25。Client 內部流程依規格條文繪製；標「常見做法」的步驟不是規格條文。</p>
   </footer>
 </section>
 

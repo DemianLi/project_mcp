@@ -68,19 +68,11 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
 
 <header>
   <h1>MCP 2025-11-25：開發注意事項與現行架構</h1>
-  <div class="meta">project_mcp · develop · 2026-09-08 · 對照 commit <code>99ba0b3</code></div>
 </header>
-
-<div class="note">
-  <strong>關於形式：</strong>這份要的是「規格要求」與「現況架構圖」，屬於參考文件，不是
-  prototype。prototype 的定義是「用丟棄式程式碼回答一個設計問題」，而這裡沒有待決的設計問題要試——
-  硬包成可互動的假原型只會得到一份比較差的文件。所以直接做文件。
-</div>
 
 <p class="sub">
   基準是 <strong>2025-11-25</strong> 修訂版——這正是本專案相依的 MCP Java SDK 2.0.0 所支援的上限
-  （<code>ProtocolVersions</code> 常數止於 <code>MCP_2025_11_25</code>）。最新的 2026-07-28
-  修訂版另見 <code>docs/reviews/commercial-readiness.md</code>。
+  （<code>ProtocolVersions</code> 常數止於 <code>MCP_2025_11_25</code>）。
 </p>
 
 <h2><span class="n">1</span>現行架構</h2>
@@ -180,7 +172,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
   <rect class="bxf" x="394" y="432" width="200" height="88" rx="4"/>
   <text class="t" x="494" y="452" text-anchor="middle">GhStderr</text>
   <text class="s" x="494" y="470" text-anchor="middle">Branch 資料列：markers → Remedy</text>
-  <text class="s" x="494" y="486" text-anchor="middle">每列附一則實測 stderr 為證</text>
+  <text class="s" x="494" y="486" text-anchor="middle">每列附上 stderr 範例</text>
   <text class="s" x="494" y="506" text-anchor="middle">沒見過的措辭 → UNKNOWN</text>
 
   <path class="lnf" d="M594,476 L626,476" marker-end="url(#ar)"/>
@@ -228,8 +220,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
 <h2><span class="n">2</span>2025-11-25 開發注意事項</h2>
 
 <p class="sub">
-  每一列的規格文字都取自官方 repo 的 <code>docs/specification/2025-11-25/</code>，
-  已於 2026-09-08 逐條打開核對。<span class="v-ok">✓ 符合</span>　<span class="v-note">△ 有意偏離／需留意</span>　<span class="v-gap">✗ 缺口</span>　<span class="v-na">— 不適用</span>
+  每一列的規格文字都取自官方 repo 的 <code>docs/specification/2025-11-25/</code>。<span class="v-ok">✓ 符合</span>　<span class="v-note">△ 有意偏離／需留意</span>　<span class="v-gap">✗ 缺口</span>　<span class="v-na">— 不適用</span>
 </p>
 
 <h3>2.1 stdio 傳輸</h3>
@@ -267,7 +258,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
 <tr><td>Server <strong>MUST</strong> 以自己的 capabilities 與 information 回應</td><td><span class="tag must">MUST</span></td><td><span class="v-na">—</span> SDK 負責；名稱與版本取自 <code>application.yml</code> 的 <code>spring.ai.mcp.server</code></td></tr>
 <tr><td>Server 支援請求的版本則 <strong>MUST</strong> 回同一版本，否則 <strong>MUST</strong> 回自己支援的版本</td><td><span class="tag must">MUST</span></td><td><span class="v-na">—</span> SDK 負責，上限 <code>2025-11-25</code></td></tr>
 <tr><td>實作 <strong>SHOULD</strong> 為所有<em>送出</em>的請求設逾時，逾時 <strong>SHOULD</strong> 送取消通知</td><td><span class="tag should">SHOULD</span></td><td><span class="v-na">—</span> 這條綁的是<strong>送出請求的一方</strong>。本 Server 在 <code>tools/call</code> 上是接收方，而且完全沒用到 server→client 的請求（sampling／elicitation／<code>roots/list</code> 都沒有），所以這條在本專案裡沒有東西可綁，談的是 Client 的時鐘（SDK 對它能送的那些請求持有 <code>requestTimeout</code>，本 Server 從不送）。<code>GhCli.TIMEOUT_SECONDS = 30</code> 是子行程預算，規格隻字未提——兩個時鐘互不知道對方，見 <a href="deploying.md">deploying.md</a> 的 <em>Two clocks</em></td></tr>
-<tr><td>取消通知的接收方 <strong>SHOULD</strong> 停止處理、釋放資源、不回應；但在請求未知／已完成／不可取消時 <strong>MAY</strong> 忽略</td><td><span class="tag should">SHOULD</span></td><td><span class="v-note">△</span> 忽略，走的是規格明列的 <strong>MAY ignore</strong>。<code>notifications/cancelled</code> 在整個相依堆疊（<code>mcp-core</code> 2.0.0、<code>spring-ai-mcp</code> 2.0.1…）裡不存在，SDK 走未知通知分支：一行 <code>WARN</code>、不回應、不碰 stdout。代價是那個 <code>gh</code> 會跑到自己的 30 秒為止；實測 20.36 秒後仍寫出一個 id 正確的回應。見 <a href="adr/0016-a-cancelled-call-is-not-cancelled-here.md">ADR-0016</a></td></tr>
+<tr><td>取消通知的接收方 <strong>SHOULD</strong> 停止處理、釋放資源、不回應；但在請求未知／已完成／不可取消時 <strong>MAY</strong> 忽略</td><td><span class="tag should">SHOULD</span></td><td><span class="v-note">△</span> 忽略，走的是規格明列的 <strong>MAY ignore</strong>。<code>notifications/cancelled</code> 在整個相依堆疊（<code>mcp-core</code> 2.0.0、<code>spring-ai-mcp</code> 2.0.1…）裡不存在，SDK 走未知通知分支：一行 <code>WARN</code>、不回應、不碰 stdout。代價是那個 <code>gh</code> 會跑到自己的 30 秒為止。見 <a href="design.md#cancellation">design.md</a></td></tr>
 </table>
 </div>
 <div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/lifecycle.mdx">basic/lifecycle.mdx</a>、<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/basic/utilities/cancellation.mdx">basic/utilities/cancellation.mdx</a></div>
@@ -315,8 +306,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
   <td>兩種錯誤機制：<strong>Protocol Errors</strong>（未知 tool、格式錯誤、server 錯誤）走 JSON-RPC error；
       <strong>Tool Execution Errors</strong>（API 失敗、輸入驗證、業務邏輯）走結果裡的 <code>isError: true</code></td>
   <td><span class="tag should">分類</span></td>
-  <td><span class="v-ok">✓</span> ADR-0002 把<strong>所有</strong>失敗歸到後者。理由寫在
-      <code>ToolResults</code> 的註解裡：protocol error 代表「這通呼叫沒發生」，永遠到不了模型手上，
+  <td><span class="v-ok">✓</span> <strong>所有</strong>失敗歸到後者。理由：protocol error 代表「這通呼叫沒發生」，永遠到不了模型手上，
       而 Remedy 的預期讀者正是模型。「<code>gh</code> 沒裝」仍然是一個跑過、但做不到的 Tool。</td>
 </tr>
 <tr>
@@ -324,8 +314,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
   <td><span class="tag should">SHOULD</span></td>
   <td><span class="v-note">△ <strong>有意偏離，且已記載</strong></span>
       失敗路徑的 <code>content</code> 放的是「一句人話 ＋ 逐字 stderr」，不是
-      <code>structuredContent</code> 的 JSON 序列化。ADR-0002「The payload」一節寫明了理由：
-      <code>content</code> 是必填欄位，讓只渲染文字的 Client 也一定看得到一句話。
+      <code>structuredContent</code> 的 JSON 序列化。理由：<code>content</code> 是必填欄位，讓只渲染文字的 Client 也一定看得到一句話。
       <strong>代價要知道</strong>：一個想從 text block 反向解析 JSON 來取得 Remedy 的 Client 會落空。</td>
 </tr>
 <tr>
@@ -339,7 +328,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
 <div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx</a> §Error Handling、§Structured Content</div>
 
 <h3>2.5 安全</h3>
-<p>規格這一節是四條並列的 <strong>MUST</strong>，也是本文件唯一找到真正缺口的地方。</p>
+<p>規格這一節是四條並列的 <strong>MUST</strong>。</p>
 <div class="scroll">
 <table>
 <tr><th>Servers <strong>MUST</strong></th><th>本專案</th></tr>
@@ -347,25 +336,22 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
     <td><span class="v-ok">✓</span> <code>Limits</code> 夾住 <code>limit</code>、<code>Cursors</code> 驗證游標、
         <code>get_issue</code> 擋掉 pull request 號碼</td></tr>
 <tr><td>Implement proper access controls</td>
-    <td><span class="v-note">△</span> 外包給 <code>gh</code> 解析出的登入身分。ADR-0009 明確決定不在 Server 端建門禁。
-        單租戶成立；多租戶不成立（見 commercial-readiness §7.1）</td></tr>
+    <td><span class="v-note">△</span> 外包給 <code>gh</code> 解析出的登入身分，不在 Server 端建門禁。
+        單租戶成立；多租戶不成立</td></tr>
 <tr><td><strong>Rate limit tool invocations</strong></td>
-    <td><span class="v-gap">✗ 缺口</span> 本專案沒有任何節流。<code>gh</code> 撞到 GitHub 限流時會回
-        <code>RETRY</code>，但那是<strong>下游</strong>的限流被動反映，不是這個 Server 自己在限流。
-        規格這條是 MUST。教材情境無妨，商用要補。</td></tr>
+    <td><span class="v-note">△</span> <code>add_issue_comment</code> 限流 80 次/分鐘、500 次/小時（GitHub 內容生成請求的官方限制），超過上限時回 <code>isError: true</code> ＋ <code>Remedy.RETRY</code> ＋ <code>retryAfterSeconds</code>，在任何 gh 子進程前即拒。讀取操作未限流，因其成本取決於查詢內容。</td></tr>
 <tr><td>Sanitize tool outputs</td>
     <td><span class="v-note">△</span> Envelope 只挑選欄位、不做轉義。issue 內文與留言是原樣帶回的
-        ——這是刻意的（模型需要原文），但代表 <strong>prompt injection 的入口是開的</strong>，
-        且渲染責任落在 Client。目前 README 與 ADR 都沒有把這件事寫成一句警語。</td></tr>
+        ——這是刻意的（模型需要原文），但代表 GitHub 內容可能帶有惡意文字、渲染責任落在 Client。</td></tr>
 </table>
 </div>
 <div class="src">來源：<a href="https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/docs/specification/2025-11-25/server/tools.mdx">server/tools.mdx</a> §Security Considerations L512-518</div>
 
 <h2><span class="n">3</span>動手前該知道的三件事</h2>
 
-<h3>1 · 動 <code>application.yml</code> 之前先讀那三行註解</h3>
+<h3>1 · 動 <code>application.yml</code> 之前先讀它的註解</h3>
 <p>
-  裡面每一項設定都只為一個目的存在：不讓任何東西寫進 stdout。這是 stdio 傳輸唯一的
+  關掉 console appender、關掉 banner、不啟動 web server，這三項設定都為了同一個目的：不讓任何東西寫進 stdout。這是 stdio 傳輸唯一的
   <strong>MUST NOT</strong>，違反了不會有編譯錯誤，也不會有測試紅燈——只會讓 Client 那端的
   JSON-RPC 解析莫名其妙壞掉。
 </p>
@@ -382,13 +368,11 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
   在 lambda <em>外面</em> 擲出的 <code>ToolFailure</code> 會被 Spring AI 自己的 callback 接走，
   回一個 <code>isError: true</code> 但<strong>沒有 <code>structuredContent</code></strong> 的結果——
   Remedy 與 stderr 就這樣消失，而 <code>isError</code> 看起來還是對的。
-  這是實測出來的，不是推論；<code>FailureContractAcceptanceTest</code> 就是為了抓這個而存在。
+  <code>FailureContractAcceptanceTest</code> 就是為了抓這個而存在。
 </p>
 
 <footer>
-  規格條文於 2026-09-08 自 <code>modelcontextprotocol/modelcontextprotocol</code> 的
-  <code>main</code> 分支逐條核對；本文所有外部連結均已驗證可取得。<br>
-  程式碼觀察對照 <code>99ba0b3</code>，取消與逾時兩列另於 2026-09-09 實測補上。基準為 2025-11-25——本專案相依的 MCP Java SDK 2.0.0 的協議上限。
+  基準為 MCP 規格 2025-11-25——本專案相依的 MCP Java SDK 2.0.0 的協議上限。本文所有外部連結均指向官方規格文件。
 </footer>
 
 </div>
