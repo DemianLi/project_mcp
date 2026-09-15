@@ -9,14 +9,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Turns what {@code gh label list --json} prints into the Envelope {@code list_labels}
- * returns.
+ * Maps {@code gh label list} JSON output to the response envelope.
  *
- * <p>Apart from {@link IssueMapper} rather than folded into it: the two share no field and
- * no shape, and a single class named for neither domain would be a home for the next
- * unrelated mapping too. What they do share is the property that earns them their own
- * classes — each is a pure function of a string, exercisable against a captured payload
- * with no subprocess, no network call and no GitHub account.
+ * <p>Testable as a pure function against captured payloads.
  */
 @Component
 public class LabelMapper {

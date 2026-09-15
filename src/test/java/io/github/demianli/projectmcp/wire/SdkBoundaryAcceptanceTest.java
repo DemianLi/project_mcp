@@ -12,45 +12,24 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Acceptance layer: the two things the SDK decides on this Server's behalf.
+ * Tests two things the SDK decides without code in src/main/java: capabilities and schema
+ * validation failures.
  *
- * <p>Every other test here asserts something this repo wrote. These two assert what
- * arrives at a Client without any code in {@code src/main/java} having produced it — the
- * capability set, and the shape of a call the SDK refuses before a Tool method runs. Both
- * were found by driving a built jar with the MCP Inspector and with hand-written JSON-RPC,
- * and neither would have been found by reading this repo's source, because the behaviour
- * is not in it.
- *
- * <p>Both assertions pin a <em>current</em> fact rather than a desired one. That is the
- * point: the SDK is a dependency with a roadmap, and the day one of these changes is the
- * day this Server's contract changes without a commit. See ADR-0011.
+ * <p>These tests pin current SDK behavior as a tripwire. The SDK is a dependency with its
+ * own roadmap; if either behavior changes, this Server's contract changes silently. See
+ * docs/design.md#identity-and-permissions.
  */
 class SdkBoundaryAcceptanceTest {
 
     @TempDir Path tmp;
 
     /**
-     * The hole in the failure contract, held open on purpose.
+     * Tests the failure contract gap: SDK schema validation before dispatch.
      *
-     * <p>{@code io.modelcontextprotocol.util.ToolInputValidator} validates arguments against
-     * {@code inputSchema} in {@code McpAsyncServer} <em>before</em> dispatch, and builds its
-     * own {@code CallToolResult} with {@code content} and {@code isError} and nothing else.
-     * So a call the schema rejects never reaches {@code ToolResults}, and comes back with no
-     * Remedy — the one thing ADR-0002 promises every failure carries.
-     *
-     * <p>Two escapes were measured and neither works. {@code validateToolInputs(false)}
-     * through an {@code McpSyncServerCustomizer} hands the arguments to Spring AI's binder
-     * instead, which answers a missing {@code int} with
-     * {@code java.lang.NullPointerException: Cannot invoke "java.lang.Number.intValue()"} —
-     * still no {@code structuredContent}, and now leaking JVM internals. A custom
-     * {@code JsonSchemaValidator} controls the message text but not the result's shape,
-     * because {@code ToolInputValidator} builds it.
-     *
-     * <p>Which is why this asserts {@code structuredContent} is <strong>null</strong>. Read
-     * it as a tripwire, not an endorsement: when the SDK grows a seam here, this test fails
-     * and someone gets to close the hole.
-     *
-     * <p>No {@code gh} is needed — nothing reaches it.
+     * <p>ToolInputValidator validates arguments against inputSchema before dispatch, building
+     * a CallToolResult with content and isError only — no Remedy. A Tool never runs, so no
+     * ToolFailure is constructed. This test asserts the current behavior as a tripwire: if
+     * the SDK grows a way to populate structuredContent here, the hole closes automatically.
      */
     @Test
     void aCallTheSchemaRejectsCarriesNoRemedy() throws Exception {
@@ -65,10 +44,10 @@ class SdkBoundaryAcceptanceTest {
                     .isTrue();
 
             assertThat(result.structuredContent())
-                    .as("the failure contract starts at the Tool method body; a schema "
-                            + "rejection is answered before that and carries no Remedy. If "
-                            + "this is no longer null, the SDK has changed and ADR-0011's "
-                            + "reasoning needs rereading -- the hole may now be closable")
+                    .as("the failure contract starts at the Tool method; schema rejection "
+                            + "is answered before dispatch, carrying no Remedy. This null "
+                            + "signals the SDK's current behavior; if it changes, the hole "
+                            + "may close")
                     .isNull();
 
             assertThat(result.content())
@@ -78,18 +57,11 @@ class SdkBoundaryAcceptanceTest {
     }
 
     /**
-     * What this Server tells a Client it can do.
+     * Tests the declared Server capabilities.
      *
-     * <p>Spring AI turns resources, prompts and completions on by default. They were being
-     * advertised in {@code InitializeResult} while every corresponding list came back empty,
-     * so a Client probing this Server was told it had a Resource face and a Prompt face it
-     * does not have — ADR-0004 decided against both. Three lines in {@code application.yml}
-     * turn them off; this is what keeps them off.
-     *
-     * <p>{@code logging} stays. There is no property for it, and removing it would mean
-     * replacing the whole capability set through a customizer bean for a capability nothing
-     * asks about. It is declared and unused, and asserting it here says so out loud rather
-     * than leaving the next reader to discover it on the wire.
+     * <p>Spring AI defaults to resources, prompts and completions on. Three lines in
+     * application.yml turn them off because this Server is Tools only. logging is
+     * undisabled but unused, which this test documents.
      */
     @Test
     void onlyTheImplementedCapabilitiesAreDeclared() throws Exception {
@@ -102,7 +74,7 @@ class SdkBoundaryAcceptanceTest {
                     .isNotNull();
 
             assertThat(capabilities.resources())
-                    .as("ADR-0004: no Resources, so nothing should say otherwise")
+                    .as("no Resources declared")
                     .isNull();
             assertThat(capabilities.prompts())
                     .as("no Prompts are registered")

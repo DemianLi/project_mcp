@@ -15,18 +15,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Coverage layer: {@code list_labels}' payload, and the argv it builds.
+ * Tests {@code list_labels} response shape and verifies sort/search exclusion in argv.
  *
- * <p>The argv assertions are not incidental. ADR-0004's central move is that {@code sort}
- * and {@code order} are a guarantee this Server makes rather than parameters it accepts,
- * which is what keeps the combination {@code gh} forbids — {@code --sort} alongside
- * {@code --search} — <em>unreachable</em> rather than merely rejected at runtime. Nothing
- * above the argv can observe whether that holds: both branches return a well-formed
- * Envelope, and the one that is wrong would fail only against the real {@code gh}. So the
- * stand-in records what it was called with, and the tests read it.
- *
- * <p>Every fixture is a verbatim capture of what the real {@code gh label list --json
- * name,description} printed.
+ * <p>Sort and search are mutually exclusive in GitHub's API; the Server enforces this by
+ * never sending both, which tests verify through argv inspection. Fixtures are real captures
+ * from {@code gh label list}.
  */
 class ListLabelsTest {
 
@@ -58,13 +51,13 @@ class ListLabelsTest {
 
         assertThat(result.isError()).isFalse();
         assertThat(text(result))
-                .as("the Envelope is ADR-0001's, inherited unchanged")
+                .as("standard envelope with items, count, truncated")
                 .startsWith("{\"items\":[")
                 .contains("\"count\":19")
                 .contains("\"truncated\":false");
 
         assertThat(text(result))
-                .as("two fields, and the first is the string list_issues accepts back")
+                .as("two fields: name and description")
                 .startsWith("{\"items\":[{\"name\":\"accessibility\",\"description\":"
                         + "\"Barrier affecting people with disabilities\"}")
                 .doesNotContain("\"color\"", "\"id\"", "\"isDefault\"",
@@ -83,8 +76,7 @@ class ListLabelsTest {
 
     @Test
     void aSearchDropsTheSortFlagsBecauseGhRefusesBothTogether() throws Exception {
-        // `gh` answers "cannot specify --order or --sort with --search" and exits non-zero.
-        // Sending them anyway would turn every search into an UNKNOWN failure.
+        // gh forbids combining --sort with --search; Server omits sort when searching.
         toolsReturning("label-list.json").listLabels("DemianLi", "project_mcp", null, "wayfinder");
 
         assertThat(argv()).containsSequence("--search", "wayfinder");
@@ -93,9 +85,7 @@ class ListLabelsTest {
 
     @Test
     void aBlankSearchIsOmittedRatherThanSentAsAnEmptyValue() throws Exception {
-        // gh happens to accept `--search ""` alongside --sort, treating an empty value as
-        // no filter -- but hanging the ordering guarantee on that is hanging it on gh's
-        // choice of where to put a check. Blank means no filter, so no flag.
+        // Blank search is treated as no search, preserving sort flags.
         toolsReturning("label-list.json").listLabels("DemianLi", "project_mcp", null, "   ");
 
         assertThat(argv()).doesNotContain("--search");
@@ -134,9 +124,7 @@ class ListLabelsTest {
 
     @Test
     void aLabelWithoutADescriptionKeepsTheKey() throws Exception {
-        // 20 of cli/cli's 83 labels have none, so this is a shape a Client meets, not an
-        // edge case. Dropping the key would make "no description" and "field not requested"
-        // the same thing on the wire.
+        // Empty descriptions stay in the response; omitting them would be ambiguous.
         CallToolResult result = toolsReturning("label-list-empty-description.json")
                 .listLabels("cli", "cli", 30, "blocked");
 
@@ -145,8 +133,7 @@ class ListLabelsTest {
 
     @Test
     void aGhFailureTravelsTheOrdinaryWay() throws Exception {
-        // Nothing new: list_labels inherits ADR-0002 by calling GhCli.run, with no per-Tool
-        // code. This is here to prove the inheritance, not to re-cover the Remedies.
+        // Failures are classified to Remedies by the standard path.
         var tools = new LabelTools(
                 new GhCli(FakeGh.failing(tmp, "GraphQL: Could not resolve to a Repository "
                         + "with the name 'DemianLi/nope'. (repository)"), 30),

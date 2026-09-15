@@ -15,33 +15,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Coverage layer: {@code add_issue_comment}'s payload, and the two argv it builds.
+ * Verifies {@code add_issue_comment}'s response shape and the argv it builds to GitHub.
  *
- * <p>The argv carries more of this Tool's decisions than of any read's, because almost
- * nothing here is visible in the result. That the lookup is {@code repository.issue} and not
- * a bare number is the entire pull-request guard; that every string goes out under
- * {@code -f} and never {@code -F} is what stops a body of {@code "123"} arriving as a JSON
- * number; and that {@code clientMutationId} is absent is a measured decision rather than an
- * omission. A wrong version of any of the three returns a perfectly good {@code url}.
- *
- * <p>What this layer cannot see is which of {@code run} and {@code runWrite} carried each
- * call — they build identical argv, and the difference appears only in a failure that this
- * Tool's own tests do not provoke. {@code GhCliFailureTest} owns that half.
- *
- * <p>Both fixtures are verbatim captures from the real endpoint, taken while resolving #30
- * against the sandbox repository.
+ * <p>The argv decisions are not visible in the success result, so this layer asserts them:
+ * that the lookup uses {@code repository.issue} (pull-request guard), that all values go
+ * under {@code -f} (preserves numeric bodies), and that no {@code clientMutationId} is sent.
  */
 class AddIssueCommentTest {
 
     @TempDir Path tmp;
 
-    /**
-     * A stand-in that answers the lookup and then the mutation, recording both argv.
-     *
-     * <p>Two calls is what makes this different from every other stand-in in the suite: the
-     * script counts its own invocations, so the second answer is the mutation's rather than
-     * the lookup's repeated.
-     */
+    /** Stand-in that answers lookup then mutation, recording both invocations. */
     private CommentTools tools() throws IOException {
         return tools(new WriteLimiter());
     }
@@ -85,7 +69,7 @@ class AddIssueCommentTest {
 
         assertThat(result.isError()).isFalse();
         assertThat(result.structuredContent())
-                .as("ADR-0007 keeps ADR-0001's TEXT-only line rather than amending it")
+                .as("response is text-only, not structured")
                 .isNull();
         assertThat(text(result))
                 .isEqualTo("{\"url\":\"https://github.com/DemianLi/project-mcp-sandbox/"
@@ -103,8 +87,7 @@ class AddIssueCommentTest {
         tools().addIssueComment("DemianLi", "project-mcp-sandbox", 1, "hello");
 
         assertThat(String.join(" ", argv(1)))
-                .as("repository.issue(number:) cannot resolve a pull request's id, and that "
-                        + "-- not a check anywhere -- is the guard (ADR-0007)")
+                .as("query uses repository.issue(number:) to reject pull requests")
                 .contains("repository(owner:$owner, name:$name)")
                 .contains("issue(number:$number) { id }");
         assertThat(String.join(" ", argv(1)))
@@ -114,9 +97,7 @@ class AddIssueCommentTest {
 
     @Test
     void everyStringGoesOutUnderMinusFSoANumericBodyStaysAString() throws Exception {
-        // -F coerces anything that looks numeric. A comment whose whole text is "123" would
-        // then reach `body:String!` as a JSON number and fail for no reason a caller could
-        // see. Measured against the real endpoint: "123" posts fine under -f.
+        // Using -f preserves "123" as a string; -F would coerce it to a JSON number.
         tools().addIssueComment("DemianLi", "project-mcp-sandbox", 1, "123");
 
         assertThat(argv(2)).containsSequence("-f", "body=123");
@@ -135,10 +116,7 @@ class AddIssueCommentTest {
 
     @Test
     void theMutationCarriesNoClientMutationId() throws Exception {
-        // It is the obvious idempotency key and is not one: GitHub's schema calls it an
-        // identifier for the client performing the mutation, and the same key with the same
-        // body twice was measured producing two comments. Sending it would advertise a
-        // guarantee that does not exist. See ADR-0008.
+        // clientMutationId does not provide idempotency; same key/body produces two comments.
         tools().addIssueComment("DemianLi", "project-mcp-sandbox", 1, "hello");
 
         assertThat(String.join(" ", argv(2)))
@@ -161,9 +139,7 @@ class AddIssueCommentTest {
 
     @Test
     void aBlankBodyIsRefusedWithoutCallingGhAtAll() throws Exception {
-        // GitHub's predicate is blankness, not emptiness: `--body " "` fails exactly as
-        // `--body ""` does. Validating emptiness alone would let whitespace through to the
-        // failure this check exists to remove. See ADR-0007.
+        // Blank (not empty) bodies are rejected to prevent whitespace-only comments.
         for (String blank : List.of("", " ", "  ", "\n", "\t\n ")) {
             CommentTools tools = tools();
             CallToolResult result =
@@ -215,8 +191,7 @@ class AddIssueCommentTest {
 
     @Test
     void aFailureOnTheLookupNeverReachesTheMutation() throws Exception {
-        // The pull-request case as a Client meets it: `gh` exits 1 on call one, so call two
-        // does not happen. Captured verbatim from the sandbox's pull request #3.
+        // When lookup fails, the mutation is never invoked.
         String script = "printf '%s\\n' \"$@\" >> " + tmp.resolve("argv1.txt") + "\n"
                 + "echo 'gh: Could not resolve to an Issue with the number of 3.' >&2\n"
                 + "exit 1";

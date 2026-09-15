@@ -3,22 +3,12 @@ package io.github.demianli.projectmcp.gh;
 /**
  * A Tool call that could not do its job.
  *
- * <p>Carries everything the failure contract puts on the wire: the {@link Remedy}, {@code
- * gh}'s stderr verbatim, and — for {@link Remedy#RETRY} — how long to wait first. The
- * message is the human-readable half.
+ * <p>Carries the {@link Remedy}, {@code gh}'s stderr verbatim, and—for
+ * {@link Remedy#RETRY}—how long to wait. The message is the human-readable half.
  *
  * <p>Named for the Tool rather than for {@code gh} because not every failure comes from
- * {@code gh}. {@code get_issue} handed a pull request number is the first that does not:
- * {@code gh} succeeded and returned a pull request, and {@link
- * io.github.demianli.projectmcp.tool.IssueTools} judged it unacceptable. On such a path
- * {@link #stderr()} is empty, exactly as it is for a timeout or an absent binary. {@code
- * GhCli} remains the only place that knows how {@code gh} itself fails; only this name is
- * wider. See the 2026-09-05 amendment to
- * {@code docs/adr/0002-failure-contract-for-gh-calls.md}.
- *
- * <p>The {@code gh} argv is deliberately <em>not</em> here. It says nothing a caller can act
- * on and would make this Server's internal construction part of its observable surface. It
- * is written to the log file instead, where it is still available for diagnosis.
+ * {@code gh}. Some failures are invented here (e.g., a response exceeding the size limit).
+ * The argv is not here; it is written to the log file for diagnosis only.
  */
 public class ToolFailure extends RuntimeException {
 
@@ -43,11 +33,8 @@ public class ToolFailure extends RuntimeException {
     }
 
     /**
-     * Seconds to wait before retrying, or {@code null} when unknown or not applicable —
-     * which is nearly always. It is filled only by a rate limit: a wait {@code gh} names, or
-     * the one {@code WriteLimiter} computes. A timeout carries none: the budget it spent is a fact about the past, and this
-     * field says "do not retry before this", which is a claim about the future. ADR-0008
-     * removed the one place the two were confused.
+     * Seconds to wait before retrying, or {@code null} when not applicable. Filled only by
+     * rate limits (from {@code gh} or {@code WriteLimiter}), never by timeouts.
      */
     public Integer retryAfterSeconds() {
         return retryAfterSeconds;

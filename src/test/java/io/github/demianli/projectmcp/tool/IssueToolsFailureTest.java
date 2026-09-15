@@ -13,10 +13,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Coverage layer: the wire shape a Tool builds, asserted without crossing the wire.
+ * Verifies failure response shapes: structured content, messages, and remedies.
  *
- * <p>{@code CallToolResult} is a value, so its shape can be checked here. What cannot be
- * checked here is that the Server actually emits it — that is the acceptance layer's job.
+ * <p>Tests the Tool's output structure without verifying network transport.
  */
 class IssueToolsFailureTest {
 
@@ -57,9 +56,7 @@ class IssueToolsFailureTest {
 
     @Test
     void theMessageAppearsExactlyOnce() throws Exception {
-        // The defect this whole map exists to fix. Throwing a RuntimeException had Spring AI
-        // join getMessage() and the root cause's getMessage(), which for a directly-thrown
-        // exception are the same sentence -- so it landed twice.
+        // Without ToolResults.attempt, exceptions would duplicate the message in the response.
         String stderr = "HTTP 401: Bad credentials";
         CallToolResult result = call(FakeGh.failing(tmp, stderr));
 
@@ -92,14 +89,13 @@ class IssueToolsFailureTest {
 
     @Test
     void successIsUnchangedByAnyOfThis() throws Exception {
-        // ADR-0001's shape, from a payload captured verbatim from the real gh.
+        // Success responses follow the standard envelope shape.
         String fixture = Files.readString(Path.of("src/test/resources/gh/issue-list.json"));
         Path out = tmp.resolve("payload.json");
         Files.writeString(out, fixture);
         CallToolResult result = call(FakeGh.writing(tmp, "cat " + out));
 
-        // isError is false rather than absent: CallToolResult's builder defaults it, and
-        // ToolResults.of uses the same builder call Spring AI would have used.
+        // isError defaults to false in CallToolResult.
         assertThat(result.isError()).isFalse();
         assertThat(result.structuredContent()).isNull();
         assertThat(text(result))

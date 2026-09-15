@@ -13,19 +13,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Acceptance layer: the Server, launched as a Client launches it, answering over Stdio.
+ * Tests the Server running as a subprocess, answering over Stdio.
  *
- * <p>This is the only layer that can see what this suite is for. {@code isError},
- * {@code structuredContent} and the message duplication are produced by the callback layer
- * that builds a {@code CallToolResult} and by the transport that serialises it — none of
- * them exists below the wire, so no in-JVM test can observe them.
+ * <p>This is the only layer observing wire behavior: isError, structuredContent, message
+ * format. These are produced by the callback layer building CallToolResult and the
+ * transport serializing it — invisible in-JVM.
  *
- * <p>Kept thin on purpose: it proves the shape, and coverage of every Remedy lives in the
- * cheaper layer next door.
+ * <p>Thin by design: proves the wire shape. Remedy coverage belongs in the cheaper layer.
  *
- * <p>Offline by construction. The child process gets a {@code PATH} containing one thing —
- * a stand-in {@code gh} — so the real binary is unreachable even if it is installed, and no
- * request leaves the machine.
+ * <p>Offline: the subprocess has only a stand-in gh on PATH, so no real calls leave the
+ * machine.
  */
 class WireAcceptanceTest {
 
@@ -80,14 +77,8 @@ class WireAcceptanceTest {
 
     @Test
     void anAbsentGhCrossesTheWireToo() throws Exception {
-        // The failure with no stderr to classify, and the one that never reaches a non-zero
-        // exit. An empty PATH is exactly how a real deployment gets this.
-        //
-        // PATH is that one empty directory and nothing else -- deliberately not the usual
-        // trailing /usr/bin:/bin. This test needs `gh` to be findable nowhere, and a
-        // GitHub-hosted Ubuntu runner keeps a real gh at /usr/bin/gh: appending it here
-        // would turn an offline test into a live call to api.github.com. The Server needs
-        // no PATH of its own, since java is launched by absolute path.
+        // Absent binary produces no stderr. Empty PATH ensures gh is truly unreachable;
+        // not shadowing a real gh at /usr/bin/gh which would make the test live.
         Path empty = Files.createDirectory(tmp.resolve("empty"));
         try (McpSyncClient client = LaunchedServer.onPath(empty.toString())) {
             CallToolResult result = listIssues(client);
@@ -136,8 +127,7 @@ class WireAcceptanceTest {
 
             assertThat(result.isError()).isFalse();
             assertThat(result.structuredContent())
-                    .as("ADR-0001 chose TEXT mode; the success path is unchanged by the "
-                            + "failure contract")
+                    .as("success returns text only, the failure contract does not change this")
                     .isNull();
             assertThat(text(result))
                     .startsWith("{\"items\":[")
@@ -174,12 +164,9 @@ class WireAcceptanceTest {
 
     @Test
     void theEnvelopeThatGrewCrossesTheWireWithBothExtraKeys() throws Exception {
-        // list_issue_comments is the first Tool to add keys to the Envelope, which is the
-        // one thing ADR-0001's amendment permits and the thing a Client would notice. The
-        // shape is only real on the wire: below it, `nextCursor` is a String field like any
-        // other, and whether a null one survives serialisation as an explicit null or
-        // vanishes is decided by the transport. A vanished key would quietly turn "there
-        // is no next page" into "this Server does not page".
+        // list_issue_comments adds keys to the Envelope. On the wire, null values must
+        // arrive as explicit null, not missing keys, so "no next page" stays distinct from
+        // "this Server does not page". See docs/design.md#list_issue_comments.
         String fixture = Files.readString(
                 Path.of("src/test/resources/gh/comments-last-page.json"));
         Path payload = tmp.resolve("comments.json");
@@ -187,7 +174,7 @@ class WireAcceptanceTest {
 
         try (McpSyncClient client = LaunchedServer.withGh(tmp, "cat " + payload)) {
             assertThat(client.listTools().tools())
-                    .as("the annotation scanner found the third component too")
+                    .as("the annotation scanner found all components")
                     .extracting(io.modelcontextprotocol.spec.McpSchema.Tool::name)
                     .contains("list_issues", "get_issue", "list_labels", "list_issue_comments");
 
@@ -198,7 +185,7 @@ class WireAcceptanceTest {
             assertThat(text(result))
                     .startsWith("{\"items\":[")
                     .contains("\"count\":1", "\"truncated\":false", "\"totalCount\":1")
-                    .as("null arrives as a null, not as a missing key")
+                    .as("null survives as explicit null, not a missing key")
                     .contains("\"nextCursor\":null");
         }
     }
@@ -226,11 +213,9 @@ class WireAcceptanceTest {
     }
     @Test
     void theFirstToolThatWritesCrossesTheWireWithItsHintsAndItsOneKey() throws Exception {
-        // Two things only this layer can see. The annotations: ADR-0007 is the first place
-        // in this Server where destructiveHint and idempotentHint mean anything, and #29
-        // established they reach the wire by reading Spring AI's provider -- this watches
-        // it happen instead. And the payload: one key, no Envelope, no structuredContent,
-        // which is what keeps ADR-0001's TEXT-only line unamended.
+        // Observes annotations and payload shape for the first write Tool. Annotations
+        // (readOnlyHint false, destructiveHint and idempotentHint false) reach the wire via
+        // Spring AI. Payload is one key only, no Envelope or structuredContent.
         Path id = tmp.resolve("id.json");
         Path added = tmp.resolve("added.json");
         Files.writeString(id, Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
@@ -248,15 +233,13 @@ class WireAcceptanceTest {
                     .orElseThrow();
 
             assertThat(tool.annotations().readOnlyHint())
-                    .as("the first false in this Server, and what makes the next two mean "
-                            + "anything at all")
+                    .as("the first false in this Server")
                     .isFalse();
             assertThat(tool.annotations().destructiveHint())
-                    .as("additive versus destructive is the spec's axis, not reversible "
-                            + "versus irreversible")
+                    .as("additive vs destructive is the spec axis")
                     .isFalse();
             assertThat(tool.annotations().idempotentHint())
-                    .as("written out explicitly, and this is where that becomes observable")
+                    .as("written explicitly and observable here")
                     .isFalse();
             assertThat(tool.annotations().openWorldHint()).isTrue();
             assertThat(tool.annotations().title()).isEqualTo("Add a comment to an issue");

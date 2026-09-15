@@ -15,18 +15,12 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * What happens when one response is too big, on both sides of the line.
+ * Tests responses that exceed the response size ceiling.
  *
- * <p>Above the ceiling the call is refused with a Remedy and the Server carries on. Above
- * what the <em>heap</em> can hold — which the ceiling exists to keep out of reach — there is
- * no answer to give, and the Server stops being one rather than staying up and mute.
- *
- * <p><strong>Why the second test runs a real Server out of memory.</strong> Before this,
- * that case produced no response of any kind, no line in the log, and a process that was
- * still holding the pipe minutes after its stdin had closed — measured, and the reason
- * ADR-0015 exists. None of that is visible to a test that stubs the failure; the branch is
- * about what a JVM does after an {@code OutOfMemoryError}, so the only honest provocation is
- * an {@code OutOfMemoryError}.
+ * <p>Above the ceiling the call is refused with a Remedy and the Server continues. Above what
+ * the heap can hold — which the ceiling keeps out of reach — there is no response and the
+ * Server stops being a Server. The only way to test OutOfMemoryError is to trigger one,
+ * so the second test runs the Server out of memory. See docs/design.md#bounds.
  */
 class ResponseCeilingAcceptanceTest {
 
@@ -106,7 +100,7 @@ class ResponseCeilingAcceptanceTest {
 
         List<Map<String, Object>> trace = traceLines(logFile);
         assertThat(trace)
-                .as("the line ADR-0013 promised, on the one path that used to leave none")
+                .as("one trace line logs the fatal event")
                 .hasSize(1);
         assertThat(trace.get(0))
                 .containsEntry("tool", "get_issue")

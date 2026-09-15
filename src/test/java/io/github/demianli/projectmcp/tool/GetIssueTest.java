@@ -14,12 +14,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Coverage layer: {@code get_issue}'s payload and its one home-grown failure.
+ * Verifies {@code get_issue} response shapes, including rejection of pull request numbers.
  *
- * <p>Every fixture here is a verbatim capture of what the real {@code gh issue view --json}
- * printed, so the field spellings and the shapes {@code gh} chooses — {@code closedAt} null
- * on an open issue while {@code stateReason} is an empty string — are the real ones rather
- * than what this Server assumes they are.
+ * <p>Fixtures are real captures from {@code gh issue view --json}.
  */
 class GetIssueTest {
 
@@ -48,7 +45,7 @@ class GetIssueTest {
 
         assertThat(result.isError()).isFalse();
         assertThat(result.structuredContent())
-                .as("ADR-0003 inherits ADR-0001's TEXT mode rather than reopening it")
+                .as("response is text-only, not structured")
                 .isNull();
 
         assertThat(text(result))
@@ -72,8 +69,7 @@ class GetIssueTest {
 
     @Test
     void anOpenIssueKeepsGhsOwnSpellingOfAbsence() throws Exception {
-        // gh disagrees with itself here -- closedAt is null, stateReason is "" -- and both
-        // are passed through. Normalising either would invent a shape GitHub did not report.
+        // gh reports closedAt as null and stateReason as ""; both are passed through unchanged.
         CallToolResult result = get("issue-view-open.json", 15);
 
         assertThat(text(result))

@@ -1,5 +1,4 @@
-# stdout belongs to JSON-RPC. Every setting in the `spring.main` and `logging`
-# blocks below exists to keep something else from writing to it.
+# stdout carries JSON-RPC protocol. Keep all output off it.
 spring:
   main:
     banner-mode: off
@@ -9,32 +8,12 @@ spring:
       server:
         type: SYNC
         name: project-mcp
-        # Filled in by Maven at package time (spring-boot-starter-parent filters this
-        # file with @..@ delimiters), because it was a hand-maintained literal until
-        # 0.1.1 and 0.1.1 nearly shipped announcing itself as 0.1.0. What a Client is
-        # told in `InitializeResult` is now the same string as the artifact's name.
+        # Filled in by Maven at package time with @project.version@.
         version: @project.version@
-        # Declare only what is implemented. Spring AI turns all four of these on by
-        # default, and the three below were being advertised in `InitializeResult`
-        # while `resources/list`, `prompts/list` and `resources/templates/list` all
-        # returned empty -- measured, not deduced. A Client probing this Server's
-        # capabilities was told it had a Resource face and a Prompt face; it has
-        # neither, by the decision in ADR-0004.
-        #
-        # `logging` is the one that cannot be turned off here: there is no property
-        # for it, and switching it off would mean replacing the whole capability set
-        # through an McpSyncServerCustomizer bean. It stays declared and unused --
-        # nothing in `src/` ever emits a logging notification, because logs go to the
-        # file named below.
-        #
-        # Declared and unused is the decision, not the leftover. The alternative to
-        # leaving it on is not "turn it off" but "start using it", and using it means
-        # sending this Server's log through `notifications/message` to the Client --
-        # where it lands is the Client's choice, and one of the choices is the model's
-        # context. That would be pollution wearing observability's clothes. Turning it
-        # off instead costs a customizer class and a red line in
-        # SdkBoundaryAcceptanceTest, and buys one absent empty object in
-        # InitializeResult. See ADR-0013.
+        # Only Tools are offered: resources, prompts and completions are off.
+        # See docs/design.md#why-there-are-no-resources. The logging capability is still
+        # declared, because it cannot be switched off here; this Server never sends a log
+        # notification — its logs go to the file configured below.
         capabilities:
           resource: false
           prompt: false
@@ -44,50 +23,19 @@ logging:
   file:
     name: logs/project-mcp.log
   threshold:
-    # Silence the console appender outright. A blank `logging.pattern.console`
-    # also keeps stdout clean, but logback complains about it on stderr.
     console: "OFF"
   structured:
     format:
-      # Elastic Common Schema, and Boot 4.1.1 builds it -- no logstash-logback-encoder,
-      # no logback-spring.xml. ECS over Boot's other two choices because its field names
-      # are a published schema (`@timestamp`, `log.level`, `error.type`), so a collector
-      # that appears later reads this file without a translation layer, where the
-      # Logstash format is Logstash's own.
-      #
-      # The console is off, so this is the whole log. The trace fields ToolResults puts
-      # in the MDC land in this JSON alongside ECS's own. They land as strings, MDC
-      # having no other type -- `durationMs` reads back as "12", not 12, and a jq
-      # filter on it needs `tonumber`. Emitting real numbers would mean a
-      # StructuredLoggingJsonMembersCustomizer; the cost was judged higher than the
-      # `tonumber`. See ADR-0013.
+      # Elastic Common Schema. See docs/design.md#logging.
       file: ecs
     ecs:
       service:
-        # ECS names the writer in `service.name`, and it is empty without this --
-        # `service.version` arrives from the build and the name does not. A file that
-        # says how long a call took but not who took it is only readable while it is
-        # still the only file.
         name: project-mcp
   level:
-    # Three WARNs on every boot, about Spring AI's own beans not being eligible for
-    # post-processing. Nothing here can act on them and nothing here caused them, and
-    # at three lines per start they are most of what a short-lived process writes.
-    # Aimed at the one logger rather than raised on root, which would take real signal
-    # with it.
-    # The `$` matters: logback splits the hierarchy on `.` only, so the inner class is
-    # not a child of the outer one and naming the outer one alone matches nothing.
+    # Suppress Spring AI bean post-processing warnings
     "[org.springframework.context.support.PostProcessorRegistrationDelegate$BeanPostProcessorChecker]": ERROR
   logback:
     rollingpolicy:
-      # Written down rather than inherited. These were Boot's defaults for this version
-      # and would have gone on being them silently; the file now takes a line per call
-      # instead of a line per failure, so how much of it survives is a decision this
-      # Server owes an answer to.
-      #
-      # total-size-cap is the one that is not a default: Boot's is unlimited. Nothing
-      # deletes this directory -- not the Client that starts the process, not the
-      # process itself -- so unlimited means the only bound is the disk.
       max-file-size: 10MB
       max-history: 7
       total-size-cap: 100MB

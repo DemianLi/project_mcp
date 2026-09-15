@@ -16,47 +16,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Acceptance layer: every Tool that declares it writes actually takes the write route.
+ * Tests that every Tool declaring writes actually takes the write route.
  *
- * <p><strong>The gap this closes.</strong> A Tool being a write is stated in two places that
- * never meet. It is declared to a Client as {@code readOnlyHint = false}, and it is acted on
- * by the Tool choosing {@code GhCli.runWrite} over {@code GhCli.run}. Both halves were
- * already tested and the line between them was not: {@link WireAcceptanceTest} reads
- * {@code add_issue_comment}'s four hints off the wire, and {@code GhCliFailureTest} drives
- * {@code runWrite} directly with an argv of {@code query=x} that belongs to no Tool at all.
- * {@code AddIssueCommentTest} says outright that it cannot see which of the two carried each
- * call. So a write Tool declaring {@code readOnlyHint = false} and calling {@code run} passed
- * the whole suite, and told a Client to retry at the one moment a comment may already exist
- * — ADR-0008's contract gone, silently.
+ * <p>Write declaration (readOnlyHint = false on the wire) and write implementation
+ * (GhCli.runWrite) are in different parts of the code. Both are tested separately, but the
+ * gap between them is not: a Tool could declare false and call run(), causing silent contract
+ * violations. This test drives each write Tool through the write route's timeout to detect
+ * that gap. See docs/design.md#writes.
  *
- * <p><strong>Why here.</strong> Annotations are like {@code isError}: they have no existence
- * below the wire, so nothing under it can read the partition. This layer is thin on purpose
- * and this test does not change that — it proves a shape, the shape of a write Tool's
- * failure, which is the thing this layer is for. Coverage of each Remedy still lives next
- * door.
- *
- * <p><strong>The partition is read, not listed.</strong> `CONTEXT.md` says which Tools count
- * as writes is the {@code readOnlyHint} field, "not a second list kept alongside", so this
- * test keeps no list of write Tools. It asks the Server, and treats anything that does not
- * explicitly declare {@code readOnlyHint = true} as a write — the spec's own default, and
- * the direction that fails safe: a Tool added with no annotations at all lands in the
- * partition and demands an entry in the tables below rather than slipping past.
- *
- * <p>What the reading cannot catch on its own is the partition being silently emptied —
- * {@code add_issue_comment} mislabelled {@code readOnlyHint = true} would simply be skipped.
- * Two things already standing stop that: {@link WireAcceptanceTest} asserts that Tool's hint
- * by hand, and the emptiness assertion below refuses a vacuous pass. Neither is a list of
- * which Tools write.
- *
- * <p><strong>The 30 seconds.</strong> Driving a Tool into {@code CHECK_BEFORE_RETRY} costs a
- * real {@code GhCli} timeout, and there is no cheaper way in: of the three exits that carry
- * that Remedy, the other two are thread states inside the Server process that nothing out
- * here can reach, and the budget is 30 seconds fixed — Spring builds {@code GhCli} through
- * its no-argument constructor and no property exists to shorten it. Making one would mean
- * designing this Server's first operator-facing configuration key, which ADR-0009 put out of
- * scope. So the wall clock is the price of this test, once per write Tool. It is worth it at
- * one write Tool. If the day comes that it is not, the thing to revisit is the fixed budget,
- * not this assertion.
+ * <p>The test keeps no list of write Tools; it reads readOnlyHint from the Server. A Tool
+ * with no annotations defaults to write (the spec default). The test costs 30 seconds per
+ * write Tool because CHECK_BEFORE_RETRY requires reaching GhCli's real timeout — there is
+ * no cheaper way to exercise that code path. See docs/design.md#writes.
  */
 class WritePartitionAcceptanceTest {
 

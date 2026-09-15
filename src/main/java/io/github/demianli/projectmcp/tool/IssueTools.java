@@ -12,14 +12,7 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * The issue-reading Tools.
- *
- * <p>Parameters and the success shape are fixed by
- * {@code docs/adr/0001-list-issues-parameters-and-return-shape.md}; the failure shape by
- * {@code docs/adr/0002-failure-contract-for-gh-calls.md}. The three known
- * limitations recorded there are repeated in the parameter descriptions below rather than
- * left in the ADR, so a Client meets them in the schema instead of discovering them at
- * runtime.
+ * The issue-reading Tools: list issues and fetch a single issue detail.
  */
 @Component
 public class IssueTools {
@@ -49,27 +42,16 @@ public class IssueTools {
     }
 
     @McpTool(name = "list_issues",
-            // Left to default, this Tool would advertise itself as a destructive write:
-            // readOnlyHint=false / destructiveHint=true, which is enough to make a Client
-            // ask the user to confirm a listing. The defaults are the spec's own, not
-            // Spring AI's -- #26 found this comment attributing them to the wrong place.
-            // This Server does now have a Tool that writes (add_issue_comment), which is
-            // exactly why the reads have to say so rather than leaving it to be inferred.
             annotations = @McpTool.McpAnnotations(
                     title = "List issues",
                     readOnlyHint = true,
                     destructiveHint = false,
-                    // GitHub is an open world: the same call can return different issues.
                     openWorldHint = true),
             description = """
             List issues in a GitHub repository, newest-created first. Returns an envelope \
             {items, count, truncated}; `truncated` is true when more issues exist beyond \
             this response. Each issue carries number, title, state, labels, assignees, url \
             and updatedAt — not the body, which `get_issue` is for.""")
-    // Returns CallToolResult rather than the Envelope directly, because a failure has to
-    // carry structuredContent and an isError flag, and a Java method has one return type.
-    // Spring AI passes a CallToolResult through untouched; the success branch below
-    // reproduces exactly what it would otherwise have built.
     public CallToolResult listIssues(
 
             @McpToolParam(required = true,
@@ -100,16 +82,12 @@ public class IssueTools {
         IssueState effectiveState = state == null ? IssueState.OPEN : state;
 
         return ToolResults.attempt("list_issues", owner, repo, () -> {
-            // The argv is composed in here rather than above it because composing it can
-            // now fail: Repos.slug refuses a slash, and a refusal thrown outside this
-            // lambda would be Spring AI's to answer, arriving with no Remedy. Same reason
-            // add_issue_comment checks its body in here. See ToolResults and ADR-0011.
+            // Compose argv inside the lambda so validation failures carry structured content.
             List<String> args = new ArrayList<>(List.of(
                     "issue", "list",
                     "--repo", Repos.slug(owner, repo),
                     "--state", effectiveState.forGh(),
-                    // One spare, so `truncated` can mean "more exist" rather than merely
-                    // "your limit was clamped".
+                    // Request one extra to detect whether more issues exist.
                     "--limit", Integer.toString(effectiveLimit + 1),
                     "--json", FIELDS));
 
@@ -133,7 +111,7 @@ public class IssueTools {
             description = """
             Read one issue in full. Returns a flat object of twelve fields — the seven \
             `list_issues` reports, plus body, author, createdAt, closedAt and stateReason. \
-            Comments are not included, and no Tool returns them yet.""")
+            Comments are not included; use `list_issue_comments` to read them.""")
     public CallToolResult getIssue(
 
             @McpToolParam(required = true,
@@ -155,10 +133,8 @@ public class IssueTools {
                     "--repo", Repos.slug(owner, repo),
                     "--json", DETAIL_FIELDS);
 
-            // Mapped first, then judged. IssueMapper stays a pure function of a string and
-            // knows nothing about failure; the semantic check runs on the record it
-            // returns, so the payload is parsed exactly once. The next Tool that has to
-            // reject something it successfully fetched should split the same way.
+            // Parse first, then validate. The semantic check (pull request guard) runs
+            // on the parsed issue, so validation can access the url without re-parsing.
             IssueDetail issue = mapper.toDetail(gh.run(args));
             if (issue.url().contains(PULL_REQUEST_PATH)) {
                 throw notAnIssue(number, issue.url());
@@ -168,22 +144,9 @@ public class IssueTools {
     }
 
     /**
-     * The one failure this Server reports that {@code gh} did not produce.
-     *
-     * <p>{@code gh issue view} accepts a pull request number and answers with pull request
-     * data, because GitHub's data model makes every pull request an issue — not the
-     * reverse. Returning it with a marker was rejected: seen through the issue lens a pull
-     * request is <em>half</em> a pull request, since {@code isDraft}, {@code headRefName},
-     * {@code mergeable}, reviews and the diff have no field on {@code gh issue view} at
-     * all, so the marker would certify a payload silently missing everything that makes a
-     * pull request one.
-     *
-     * <p>The sentence is built per call rather than being a constant: it names the number
-     * that was asked for and carries the URL out of the payload just parsed, which is the
-     * one thing a caller who genuinely wanted that pull request can still act on. That is
-     * also what keeps {@link Remedy#FIX_REQUEST} honest here — see ADR-0003.
-     *
-     * <p>{@code stderr} is empty because there was none: {@code gh} did not fail.
+     * Failure for a pull request number passed to {@code get_issue}.
+     * {@code gh} accepts pull request numbers but returns incomplete data. The url
+     * in the error message lets the caller navigate to the pull request directly.
      */
     private static ToolFailure notAnIssue(int number, String url) {
         return new ToolFailure(Remedy.FIX_REQUEST,

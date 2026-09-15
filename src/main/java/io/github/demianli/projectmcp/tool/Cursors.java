@@ -7,31 +7,10 @@ import io.github.demianli.projectmcp.gh.Remedy;
 import io.github.demianli.projectmcp.gh.ToolFailure;
 
 /**
- * Wraps GitHub's pagination cursor so it cannot be used against the wrong issue.
+ * Wraps GitHub cursors with issue identity to prevent silent errors from cross-issue reuse.
  *
- * <p><strong>Why this class exists at all.</strong> GitHub's cursor is not opaque: it
- * base64-decodes to {@code cursor:v2:} followed by the {@code databaseId} of the comment it
- * points at, with no TTL and no server-side state. Handing it straight to a Client would be
- * legal — the specification makes opaqueness a MUST for a Client and only a SHOULD for a
- * Server — and was rejected on one measurement. A cursor from another issue is <em>accepted
- * silently and produces a wrong answer</em>: feeding {@code cli/cli#13840}'s cursor to
- * {@code cli/cli#14361}, an issue that genuinely has one comment, returns
- * {@code totalCount: 1} with an empty {@code nodes} and {@code hasPreviousPage: false},
- * exiting zero with no error anywhere. A Client reads that as "this issue has one comment,
- * I can see none of it, and there is nothing more".
- *
- * <p>Under ADR-0002 that is the worst outcome available. Every failure this Server reports
- * carries a Remedy so a Client knows what to do next; a silently wrong success tells it
- * nothing and is not even a failure. So the cursor a Client receives names the issue it
- * came from, and is checked on the way back. It is also the only way to catch this at all:
- * the Server cannot ask which issue a bare comment id belongs to without spending another
- * call.
- *
- * <p>Not encryption and not a signature. A Client that takes one apart learns a repository
- * name it already knew, and one that forges a mismatched wrapper gets the same
- * {@link Remedy#FIX_REQUEST} as one that pastes the wrong cursor. The check is against
- * mistakes, not against an adversary — and this Server is a subprocess of its Client, so
- * there is no adversary to be against.
+ * <p>GitHub's cursor is opaque to Clients but becomes wrong silently if used on a different
+ * issue. Wrapping with the issue reference allows validation on the return path.
  */
 final class Cursors {
 
@@ -70,10 +49,6 @@ final class Cursors {
             throw unreadable();
         }
 
-        // The issue half cannot contain the separator -- neither an owner, a repository
-        // name, nor a decimal number may -- so the first one is the boundary. GitHub's own
-        // cursor is base64 and may well contain characters of its own; splitting from the
-        // left keeps it intact.
         int boundary = decoded.indexOf(SEPARATOR);
         if (boundary < 0) {
             throw unreadable();

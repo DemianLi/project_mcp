@@ -3,26 +3,15 @@ package io.github.demianli.projectmcp.wire;
 import java.util.Map;
 
 /**
- * One call per Tool that gets as far as {@code gh}.
+ * Arguments that exercise each Tool's path through to a {@code gh} call.
  *
- * <p>Shared by the Acceptance layer tests that drive every Tool rather than a chosen one.
- * Each entry has to survive whatever its Tool refuses before {@code gh} is started — an
- * {@code add_issue_comment} whose {@code body} were blank would be refused with
- * {@code FIX_REQUEST} having never reached the subprocess, and a test meaning to observe a
- * {@code gh} failure would observe nothing of the kind.
+ * <p>Acceptance tests use these to drive every Tool. Each entry must survive pre-call
+ * validation — blank body on add_issue_comment would fail with FIX_REQUEST before gh runs.
+ * For writes, the entry must reach the write path; stopping at a pre-call check would make
+ * WritePartitionAcceptanceTest see FIX_REQUEST when it expected CHECK_BEFORE_RETRY.
  *
- * <p>The requirement is stronger for a write Tool, and both callers depend on it: an entry
- * must reach {@code gh}, and for a Tool that writes it must reach the <em>write</em>. An entry
- * that stopped at a check in between would make {@code WritePartitionAcceptanceTest} fail
- * looking like a routing fault — {@code FIX_REQUEST} where it wanted
- * {@code CHECK_BEFORE_RETRY} — when the fault was here.
- *
- * <p>Not derivable from a Tool's {@code inputSchema}: the schema gives types, and what is
- * needed here is a value that passes a semantic check the schema does not express.
- *
- * <p><strong>This is not a list of Tools.</strong> Whoever asks decides what a missing entry
- * means; every caller so far treats it as a failure, which is what makes a Tool added without
- * one go red rather than be skipped.
+ * <p>Schema types alone do not suffice; semantic checks are required. Missing entries are
+ * treated as failures, so a Tool without one fails rather than skips.
  */
 final class ToolCalls {
 

@@ -15,38 +15,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Acceptance layer: no Tool lets a slash in {@code owner} or {@code repo} reach {@code gh}.
+ * Tests that no Tool lets a slash in owner or repo reach gh.
  *
- * <p><strong>The failure this stands on.</strong> {@code gh}'s {@code --repo} takes
- * {@code [HOST/]OWNER/REPO}, so before issue #37 an {@code owner} of
- * {@code 127.0.0.1:8099/a} sent this Server to {@code https://127.0.0.1:8099/api/graphql} —
- * measured through this same wire, against the packaged 0.1.0. The caller chose where the
- * Server made its next request, and in the deployment shape this Server is built for that
- * caller is a model that has just read someone else's issue text.
- *
- * <p><strong>Two assertions, and the second is the one that was actually wrong.</strong>
- * A Remedy of {@code FIX_REQUEST} is the contract; what shipped was {@code RETRY} with "the
- * network looks unavailable", because {@code gh}'s {@code dial tcp … connection refused}
- * matches {@code GhStderr}'s network row. ADR-0002 calls a confident wrong Remedy its worst
- * category, and it is worse than the redirect: a Client told to retry sends the same request
- * to the same host again. So this test pins the Remedy, not merely that something failed.
- *
- * <p><strong>And that {@code gh} never started.</strong> The stand-in writes a file the
- * moment it runs, and the file must not exist — a guard that refused after spawning the
- * subprocess would satisfy every assertion about the response while the request still left
- * the machine.
- *
- * <p>Every Tool is driven from {@code listTools()} rather than a hand-written list, for the
- * reason {@link FailureContractAcceptanceTest} gives: the sixth Tool should be covered by
- * having been written, not by having been remembered. Two Tools compose {@code --repo} and
- * three pass the halves as GraphQL variables where a slash is inert; the rule is the same for
- * all five on purpose, so that one bad parameter gets one answer whichever Tool receives it.
+ * <p>gh's --repo accepts [HOST/]OWNER/REPO, so a slash can redirect the request. The refusal
+ * must be FIX_REQUEST to prevent the Client from retrying the same malicious input. Every
+ * Tool is tested, not a hand-written list, so the sixth Tool is covered by being written, not
+ * remembered. The stand-in writes a marker when executed, proving gh never started.
  */
 class RepositoryNameAcceptanceTest {
 
     @TempDir Path tmp;
 
-    /** The shape from #37: a host, a port, and an owner behind it. */
+    /** A host:port/owner shape that could redirect the gh request. */
     private static final String HOST_SHAPED_OWNER = "127.0.0.1:8099/a";
 
     @SuppressWarnings("unchecked")

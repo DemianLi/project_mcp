@@ -10,19 +10,7 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * The label-reading Tools.
- *
- * <p>A second component rather than another method on {@link IssueTools}: labels are not
- * issues, and Spring AI discovers {@code @McpTool} methods on any bean, so the split costs
- * nothing. Everything shared is shared through code both classes call —
- * {@link Limits} for the {@code limit} rule, {@link ToolResults} for the success and failure
- * shapes, {@link ListResult} for the Envelope.
- *
- * <p>The shape is fixed by
- * {@code docs/adr/0004-list-labels-tool-shape-parameters-and-return.md}; the failure shape by
- * {@code docs/adr/0002-failure-contract-for-gh-calls.md}. The limitations recorded in
- * ADR-0004 are repeated in the descriptions below rather than left in the ADR, so a Client
- * meets them in the schema instead of discovering them at runtime.
+ * The label-reading Tool. A separate component to keep labels independent from issues.
  */
 @Component
 public class LabelTools {
@@ -79,24 +67,17 @@ public class LabelTools {
         boolean filtering = search != null && !search.isBlank();
 
         return ToolResults.attempt("list_labels", owner, repo, () -> {
-            // Composed in here, not above: Repos.slug can refuse, and a refusal
-            // thrown outside this lambda loses its Remedy to Spring AI. See
-            // ToolResults and ADR-0011.
+            // Compose argv inside the lambda so validation failures carry structured content.
             List<String> args = new ArrayList<>(List.of(
                     "label", "list",
                     "--repo", Repos.slug(owner, repo),
-                    // One spare, as in list_issues, so `truncated` means "more exist" rather
-                    // than merely "your limit was clamped". Verified to hold under --search.
+                    // Request one extra to detect whether more labels exist.
                     "--limit", Integer.toString(effectiveLimit + 1),
                     "--json", FIELDS));
 
-            // Ordering is a guarantee this Server makes, not a parameter it accepts -- and the
-            // two flags must not be sent alongside --search, which `gh` refuses outright
-            // ("cannot specify --order or --sort with --search", non-zero exit). Spring AI
-            // derives its schema from this method's signature, so it has no oneOf and could not
-            // publish that exclusion; keeping `sort` out of the signature is what makes the
-            // illegal combination unreachable rather than merely rejected. Which is why these
-            // two branches are exclusive and must stay that way.
+            // --search and --sort/--order are mutually exclusive in gh. We expose search
+            // but not sort, so a search request omits the sort flags. This makes the illegal
+            // combination unreachable at the schema level.
             if (filtering) {
                 args.add("--search");
                 args.add(search);

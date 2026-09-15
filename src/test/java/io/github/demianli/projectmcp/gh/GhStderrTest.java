@@ -8,30 +8,20 @@ import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
 /**
- * Coverage layer: what {@code gh}'s stderr is turned into, and what holds across the table.
+ * Tests what {@code gh} stderr is classified as, and invariants across the classification table.
  *
- * <p>No process anywhere. Everything here is a string going into a static method, which is
- * the whole reason {@link GhStderr} was split out of {@link GhCli} — the sibling
- * {@code GhCliFailureTest} keeps the tests that need a real subprocess, and needs one for
- * every case it has.
+ * <p>No subprocesses: each test passes a string to {@link GhStderr#classify(String)}, which is
+ * why {@link GhStderr} was split from {@link GhCli}. {@code GhCliFailureTest} exercises the
+ * real machinery for each case that reaches it.
  *
- * <p><strong>Two kinds of test, and they do not overlap.</strong> The first kind asks whether
- * one row says the right thing: these carry the assertions about wording that no walk of the
- * table could make, and they are the reason a row's sentence can be trusted. The second kind
- * asks whether the rows disagree with each other — that no sample lands on two rows, that no
- * marker is dead, that no marker swallows another's, that the table produces the three
- * Remedies it is allowed to. Those were prose before this file existed: three comments in the
- * {@code if} chain saying "the two strings cannot both match", and one test covering one pair
- * of them.
+ * <p><strong>Two test categories.</strong> First: tests of individual rows verify wording
+ * and prove each sentence is correct. Second: invariant tests walk {@link GhStderr#branches()}
+ * checking that no sample lands on two rows, no marker is dead, no marker contains another
+ * row's marker, and the table produces only its allowed Remedies. The second category needs
+ * no hardcoded list of rows — a new row added tomorrow is covered automatically.
  *
- * <p>The second kind keeps no list of its own. It walks {@link GhStderr#branches()}, so a row
- * added tomorrow is covered by all four without anyone touching this file — the same reason
- * {@code ArgvFlagAcceptanceTest} reads variable types off the GraphQL document rather than
- * off a table of its own.
- *
- * <p>Sample strings are not repeated here. They live on the row they justify, so the string a
- * wording test sends is the same object the table was built around; a row whose sample is
- * edited cannot leave a test asserting against the old one.
+ * <p>Sample strings live on the row they justify. A wording test sends the same string the
+ * table was built around, so if a sample is edited the test using it reflects that change.
  */
 class GhStderrTest {
 
@@ -85,9 +75,8 @@ class GhStderrTest {
 
     @Test
     void rateLimitWithoutAStatedWaitLeavesItUnset() {
-        // gh's rate-limit wording is unverified: it could not be provoked against the real
-        // API, which is why both of this row's samples are UNMEASURED. The contract is built
-        // so that not knowing it costs the wait, not the classification.
+        // Rate limit wording without a stated wait. The contract favors correct
+        // classification over an unknown wait time.
         ToolFailure f = GhStderr.classify(sample("secondary rate limit"));
         assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
         assertThat(f.retryAfterSeconds()).isNull();
@@ -105,10 +94,8 @@ class GhStderrTest {
 
     @Test
     void theGraphqlWordingForTheSameThingIsAlsoFixRequest() {
-        // The same condition down the other route: `gh api graphql` says "an Issue with the
-        // number of", singular and without the "or pull request" clause. Before ADR-0005
-        // this fell through to UNKNOWN, and it is the whole reason list_issue_comments could
-        // not simply inherit the failure contract unchanged.
+        // The same condition via GraphQL route: `gh api graphql` says "an Issue with the
+        // number of", singular and without the "or pull request" clause.
         ToolFailure f = GhStderr.classify(sample("an Issue with the number of"));
         assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
         assertThat(f.getMessage())
@@ -169,24 +156,19 @@ class GhStderrTest {
 
     @Test
     void anAuthenticatedLoginWithoutThePermissionIsAskOperator() {
-        // Measured in #33: a fine-grained PAT with Issues: Read-only, refused by addComment
-        // after the id lookup on the same token had already succeeded.
+        // A fine-grained PAT lacking permission, refused after prior success on the same
+        // token. Without this row it would land as UNKNOWN and incorrectly suggest login.
         ToolFailure f = GhStderr.classify(sample("personal access token"));
 
         assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
-        // The whole point of the row, and the regression this test exists to catch: before
-        // it, this landed on UNKNOWN, and the nearest matching Remedy would have told an
-        // operator to log in again -- which does not change what a login may do.
         assertThat(f.getMessage()).doesNotContain("gh auth login");
         assertThat(f.getMessage()).contains("lacks permission");
     }
 
     @Test
     void theSameRefusalWordedForAnAppTokenIsAskOperatorToo() {
-        // UNMEASURED on purpose -- matched on the family for the reason the row gives. This
-        // is the wording an installation token gets, which is what `gh` resolves inside
-        // GitHub Actions, so it is the member of the family a real deployment is most likely
-        // to meet. The sentence must stay free of anything true only of a PAT.
+        // Installation token refusal, the wording gh resolves in GitHub Actions. The
+        // sentence must not mention PAT-specific details.
         ToolFailure f = GhStderr.classify(sample("by integration"));
 
         assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
@@ -195,10 +177,8 @@ class GhStderrTest {
 
     @Test
     void unrecognisedStderrIsUnknownAndSurvivesVerbatim() {
-        // The usage blob gh prints for a bad flag, and the one input here that is not a
-        // sample: the floor is what no row matched, so it cannot have a row of its own.
-        // Unreachable through a Tool's typed surface, so it can only mean a bug in this
-        // Server -- ADR-0002 gives it no Remedy of its own, and this is where it lands.
+        // Unrecognized stderr, the floor: no row matched. Unreachable through a Tool's
+        // typed surface, so it indicates a Server bug. See docs/design.md#failure-contract.
         String blob = "unknown flag: --banana\n\nUsage:  gh issue list [flags]\n\nFlags:\n"
                 + "      --app string         Filter by GitHub App author";
         ToolFailure f = GhStderr.classify(blob);
@@ -212,23 +192,20 @@ class GhStderrTest {
 
     @Test
     void noSampleLandsOnTwoRows() {
-        // The invariant three comments in the old if chain asserted in prose and one test
-        // checked for one pair. First match wins, so a sample landing on two rows is not an
-        // UNKNOWN and not a crash -- it is a confident wrong Remedy, which ADR-0002 puts in
-        // its worst category, and the losing row quietly stops being reachable.
+        // First match wins. A sample landing on two rows means a wrong Remedy is returned
+        // confidently and the losing row becomes unreachable. This test ensures each
+        // sample belongs to exactly its declared row.
         assertThat(GhStderr.branches()).as("an empty table would pass this vacuously")
                 .isNotEmpty();
 
         for (Branch branch : GhStderr.branches()) {
             assertThat(branch.samples())
-                    .as("row `%s` states no sample, so nothing below examines it",
-                            branch.name())
+                    .as("row `%s` declares at least one sample", branch.name())
                     .isNotEmpty();
 
             for (GhStderr.Sample sample : branch.samples()) {
                 assertThat(allMatching(sample.stderr()))
-                        .as("`%s` is row `%s`'s own sample, so exactly that row should "
-                                + "claim it", sample.stderr(), branch.name())
+                        .as("`%s` belongs to row `%s` alone", sample.stderr(), branch.name())
                         .containsExactly(branch);
             }
         }

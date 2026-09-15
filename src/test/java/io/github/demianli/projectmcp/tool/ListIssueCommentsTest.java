@@ -17,18 +17,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Coverage layer: {@code list_issue_comments}' payload, the argv it builds, and what it does
- * with a cursor.
+ * Tests {@code list_issue_comments} response and argv, including cursor handling.
  *
- * <p>The argv assertions carry more weight here than in {@link ListLabelsTest}. Three of
- * ADR-0006's decisions are invisible above the argv, and each has a plausible wrong version
- * that returns a perfectly well-formed Envelope: the window opens with {@code last:} and not
- * {@code first:}; no spare row is asked for, because at the cap the spare is the 101 that
- * hard-errors; and a cursor is unwrapped back to GitHub's before being sent. Only the
- * stand-in's record of what it was called with can tell those apart.
- *
- * <p>Every fixture is a verbatim capture of what the real {@code gh api graphql} printed,
- * with one exception noted at its test.
+ * <p>The argv assertions verify critical decisions not visible in success responses: opening
+ * with {@code last:} not {@code first:}, asking for no spare row at the cap, and unwrapping
+ * cursors before sending. Fixtures are real captures from {@code gh api graphql}.
  */
 class ListIssueCommentsTest {
 
@@ -69,7 +62,7 @@ class ListIssueCommentsTest {
 
         assertThat(result.isError()).isFalse();
         assertThat(text(result))
-                .as("ADR-0001's three keys, in their order, then ADR-0006's two")
+                .as("standard three envelope keys, plus totalCount and nextCursor")
                 .startsWith("{\"items\":[")
                 .contains("\"count\":3", "\"truncated\":true", "\"totalCount\":143")
                 .contains("\"nextCursor\":\"");
@@ -87,7 +80,7 @@ class ListIssueCommentsTest {
         toolsReturning("comments-page.json").listIssueComments("cli", "cli", 13840, 30, null);
 
         assertThat(argv())
-                .as("last:, not first: -- the window opens at the newest end (ADR-0006)")
+                .as("uses last:, not first: — opens at newest end")
                 .contains("last=30")
                 .doesNotContain("first=30", "first=31");
         assertThat(argv())
@@ -114,10 +107,8 @@ class ListIssueCommentsTest {
 
     @Test
     void aTerminalPageReportsNoCursorEvenThoughGitHubStillSendsOne() throws Exception {
-        // The discriminator, and the one an implementation is most likely to get wrong.
-        // cli/cli#14361 has one comment: hasPreviousPage is false, and startCursor is
-        // *not* null -- it points at that comment. Reading the cursor's presence instead
-        // of the flag would hand a Client a marker whose next response is empty.
+        // Must check hasPreviousPage, not cursor presence. On a terminal page, GitHub may
+        // send a startCursor pointing at the last comment, but there is no next page.
         CallToolResult result = toolsReturning("comments-last-page.json")
                 .listIssueComments("cli", "cli", 14361, 30, null);
 
@@ -159,9 +150,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aCursorFromAnotherIssueIsRefusedBeforeGhIsCalled() throws Exception {
-        // The measurement this wrapper exists for. Handed straight to GitHub, this cursor
-        // returns totalCount 1 with an empty nodes and exits zero -- a Client reads that as
-        // "one comment exists and I cannot see it". Rejecting it costs no call at all.
+        // Rejecting cross-issue cursors before GitHub is called prevents silent failures.
         CommentTools tools = toolsReturning("comments-page.json");
         String elsewhere = Cursors.wrap(new IssueRef("cli", "cli", 13840),
                 startCursorIn("comments-page.json"));
@@ -180,12 +169,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aCursorFromAnotherRepositoryIsRefusedToo() throws Exception {
-        // Measured as the more dangerous of the two: the same cursor against
-        // ollama/ollama#5000 returned all eight of its comments looking entirely normal,
-        // because the id happened to sort after all of them.
-        //
-        // The fixture named here is never read: the cursor is refused above gh, so the
-        // stand-in does not run. It is passed only because toolsReturning builds the Tool.
+        // Cross-repository cursor validation prevents silent data mixing.
         CallToolResult result = toolsReturning("comments-page.json").listIssueComments(
                 "ollama", "ollama", 5000,
                 30, Cursors.wrap(new IssueRef("cli", "cli", 13840),
@@ -201,12 +185,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aCursorStaysUsableWhenTheRepositoryIsSpelledInAnotherCase() throws Exception {
-        // Measured on GitHub: repository(owner:"cli", name:"cli"), owner:"CLI" name:"CLI"
-        // and owner:"cLi" name:"Cli" all answer nameWithOwner cli/cli. So CLI/cli#13840 and
-        // cli/cli#13840 are one issue, and a cursor issued for either is valid for the
-        // other. An exact comparison refused this one, telling a Client to fix a request
-        // that was correct -- in a sentence that named the same issue on both sides of the
-        // word "but".
+        // GitHub resolves owner and repository names case-insensitively, so cursors should too.
         String issued = Cursors.wrap(new IssueRef("cli", "cli", 13840),
                 startCursorIn("comments-page.json"));
 
@@ -251,10 +230,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aDeletedAccountLeavesTheAuthorEmptyRatherThanBreakingTheRow() throws Exception {
-        // The one fixture that is not a verbatim capture: GitHub types `author` as `Actor`
-        // and not `Actor!`, so a deleted account reports null, but no such comment turned
-        // up in roughly 350 sampled across eleven repositories. This is comments-page.json
-        // with the first author nulled, which is exactly what the schema permits.
+        // When author is null (deleted account), mapper returns empty string to keep the row valid.
         CallToolResult result = toolsReturning("comments-ghost-author.json")
                 .listIssueComments("cli", "cli", 13840, 3, null);
 
@@ -267,9 +243,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aGhFailureTravelsTheOrdinaryWay() throws Exception {
-        // Inherited by calling GhCli.run, with no per-Tool code -- but worth proving here
-        // because this is the first Tool whose failures come from `gh api` rather than
-        // porcelain, and ADR-0005 added a branch to classify() for exactly that.
+        // GraphQL errors are classified and mapped to Remedies like porcelain errors.
         var tools = new CommentTools(
                 new GhCli(FakeGh.failing(tmp,
                         "gh: Could not resolve to an Issue with the number of 14362."), 30),

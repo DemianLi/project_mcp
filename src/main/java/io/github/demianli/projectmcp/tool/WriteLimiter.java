@@ -10,20 +10,12 @@ import io.github.demianli.projectmcp.gh.ToolFailure;
 import org.springframework.stereotype.Component;
 
 /**
- * Rate limits the Tools that write, at the numbers GitHub publishes for content-generating
- * requests: at most 80 in any 60 seconds and 500 in any hour.
+ * Rate limits write Tools using GitHub's published limits: 80 per minute, 500 per hour.
+ * Uses two sliding windows to track admission times of recent writes. A write that exceeds
+ * either limit is refused with {@link Remedy#RETRY} and the retry delay, before any gh runs.
  *
- * <p>Two sliding windows over the admission times of recent writes. A call over either limit
- * is refused with {@link Remedy#RETRY} and the number of seconds until a slot frees, before
- * any {@code gh} runs. Every admitted call counts, whatever happens to it afterwards: a write
- * that times out may still have landed.
- *
- * <p>The count lives in this process only. GitHub's limit belongs to the account, so writes
- * made with the same login from anywhere else are invisible here; this guarantees that this
- * Server alone stays inside the limit, not that the account does.
- *
- * <p>Reads are not limited. Their cost to GitHub depends on the query, so there is no
- * published per-call number to apply.
+ * <p>The limit is per-Server process, not per-account. Writes from other clients on the same
+ * account are not tracked here.
  */
 @Component
 public class WriteLimiter {

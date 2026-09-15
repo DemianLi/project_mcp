@@ -15,45 +15,19 @@ import org.slf4j.MDC;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The one way a Tool's work becomes what goes on the wire, and the one place a call leaves a
- * trace.
+ * Entry point for all Tool work. Handles success, controlled failure ({@link ToolFailure}),
+ * and fatal errors. Constructs the response shape and logs call metadata (never content).
  *
- * <p>Written once and shared, because the failure contract is Server-wide: a second Tool
- * inherits it by handing its work to {@link #attempt}, not by copying a shape — and, since
- * both result shapes are built in here and nowhere else, not by any other route either.
- * That is the whole point of the single entry. It used to be two: every Tool wrapped its
- * own body in
- * {@code try { of(...) } catch (ToolFailure e) { failure(e) }}, five copies of one contract,
- * with nothing but habit keeping the sixth honest.
+ * <p>Failures are reported as {@code isError: true} with structured content (Remedy, stderr,
+ * retry delay), not as JSON-RPC errors. Structured content lets the Client and model see the
+ * Remedy; protocol errors are invisible to the model.
  *
- * <p>Every failure travels as {@code isError: true}, never as a JSON-RPC protocol error. A
- * protocol error means the call did not happen and never reaches the model as tool output —
- * it would deliver the Remedy where its intended reader cannot see it. A missing {@code gh}
- * is still a Tool that ran and could not do its job.
+ * <p><strong>Work must go inside the lambda.</strong> A {@code ToolFailure} thrown outside
+ * is caught by Spring AI's own handler, which strips {@code structuredContent}. The
+ * {@code FailureContractAcceptanceTest} catches this mistake.
  *
- * <p><strong>The trace is the same argument applied a second time.</strong> One entry means
- * one line per call, in one shape, without five Tools each deciding what a call worth
- * recording looks like. ADR-0013 fixes what that line carries; the short version is that it
- * records the <em>shape</em> of a call — which Tool, which repository, how long, how big,
- * how it ended — and never its <em>content</em>. No issue title, no body, no comment text,
- * no label name reaches the log file, because a log that mirrors GitHub's content is a
- * disclosure surface that exists outside the protocol entirely.
- *
- * <p><strong>Three ways a call ends, not two.</strong> It returns a value, or it throws a
- * {@link ToolFailure} and the Client is told what to do about it — or an {@link Error}
- * escapes, and there is nothing to tell anyone. The third branch writes the call's line and
- * halts the process, because under stdio a Server that has died is one a Client can restart
- * and a Server that is alive and mute is one it can only time out against. ADR-0015 carries
- * the measurement.
- *
- * <p><strong>What a Tool can still get wrong.</strong> Not forgetting to catch — that no
- * longer compiles. What is left is doing the work <em>outside</em> the lambda: a
- * {@code ToolFailure} thrown out of a Tool method is caught by Spring AI's own callback,
- * which answers with {@code isError: true} and a text message and <em>no</em>
- * {@code structuredContent} — so the Remedy and the stderr vanish from the half ADR-0002
- * calls authoritative, while {@code isError} still looks right. Measured, not assumed. That
- * is the mistake {@code FailureContractAcceptanceTest} exists to catch. Work done outside
- * the lambda is also work the trace cannot see, which is a second reason for the same rule.
+ * <p>Logs the call shape (tool name, repo, duration, bytes, outcome) but never its content
+ * (body, comment text, label names). See docs/design.md#logging.
  */
 final class ToolResults {
 
@@ -62,13 +36,9 @@ final class ToolResults {
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     /**
-     * The MDC keys this class owns, removed in the {@code finally} below.
-     *
-     * <p>Removed rather than {@link MDC#clear()}: Spring AI dispatches Tool calls on a pooled
-     * thread ({@code pool-2-thread-N} in the log), so a key left behind decorates whatever
-     * call lands on that thread next — a trace field belonging to a call that already ended.
-     * Clearing would fix that too, and would also discard anything a future caller had put
-     * there, which is not this class's to discard.
+     * MDC keys this class sets, removed in the finally block.
+     * Tool calls run on a pooled thread, so keys must be cleaned up to avoid bleeding
+     * into subsequent calls.
      */
     private static final String[] KEYS =
             {"tool", "callId", "repo", "outcome", "remedy", "durationMs", "resultBytes"};
@@ -77,28 +47,14 @@ final class ToolResults {
     }
 
     /**
-     * Runs a Tool's work, reports whichever way it goes, and records that it happened.
+     * Runs a Tool's work and handles the outcome: success, {@link ToolFailure}, or fatal error.
      *
-     * <p>Everything a Tool does that can fail belongs inside {@code body} — the {@code gh}
-     * call, the mapping, and any judgement the Tool makes on what came back. Failures leave
-     * it by being thrown, whether they came from {@code GhCli}, from {@code Cursors}, or from
-     * the Tool itself; there is no second way to report one.
+     * <p>All work must happen inside {@code body}. Failures thrown outside are not caught
+     * by this method; failures thrown inside are caught and structured properly.
      *
-     * <p>{@code body} must produce a value. A {@code null} would serialise as the literal
-     * {@code null} inside an otherwise successful result — every mapper here constructs a
-     * record and none can return one, so this is a contract stated rather than enforced.
-     *
-     * <p>{@code tool}, {@code owner} and {@code repo} are in the MDC <em>before</em>
-     * {@code body} runs, so every line a Tool's work emits from inside carries them without
-     * being handed anything: {@code GhCli}'s argv warning is tagged with the call it belongs
-     * to, and so is the write line {@code CommentTools} emits itself. That is what makes
-     * {@code callId} worth generating — the three lines a failing write can produce are not
-     * guaranteed to be adjacent under a pooled dispatcher, and the id is what joins them.
-     *
-     * <p><strong>A call rejected by the input schema never reaches here</strong> and so
-     * leaves no trace at all: the SDK validates before dispatch (ADR-0011), builds its own
-     * result and returns it. {@code durationMs} therefore measures the Tool method body, not
-     * the request.
+     * <p>Sets MDC fields before running {@code body} so all Tool output is tagged with
+     * {@code callId}, {@code tool}, and {@code repo}, even if multiple Tools run concurrently
+     * on pooled threads.
      *
      * @param tool  the Tool's wire name, e.g. {@code list_issues}
      * @param owner repository owner, recorded as shape
@@ -111,41 +67,26 @@ final class ToolResults {
         MDC.put("callId", callId());
         MDC.put("repo", owner + "/" + repo);
         try {
-            // Serialised here rather than in `of` so the trace can report what the Client
-            // actually receives. Measuring the record instead would report a number no one
-            // can check against anything.
+            // Serialize the result so the trace can report its actual size.
             String json = JSON.writeValueAsString(body.get());
             MDC.put("resultBytes", String.valueOf(json.getBytes(StandardCharsets.UTF_8).length));
             end(start, "ok");
             log.info("{} ok", tool);
             return CallToolResult.builder().addTextContent(json).build();
         } catch (ToolFailure e) {
-            // The Remedy, not the message and not the stderr. The classification is the part
-            // that is safe to aggregate; GhCli's own line already carries the detail, under
-            // the same callId, for the failures that came from there.
+            // Log the Remedy (the classification), not the full message.
             MDC.put("remedy", e.remedy().name());
             end(start, "error");
             log.info("{} failed", tool);
             return failure(e);
         } catch (Error e) {
-            // Not a failure this Server can report: an Error means the process itself is no
-            // longer trustworthy, and building a CallToolResult to say so needs the memory
-            // that has just run out.
-            //
-            // Measured, which is why this branch exists. A response large enough to exhaust
-            // the heap left the Client with no answer of any kind -- no isError, no Remedy,
-            // not even a protocol error -- and left this process alive, still holding the
-            // pipe, after its stdin had closed. A stdio Client can restart a Server that
-            // died. It can only wait out its own timeout on one that is running and will
-            // never answer, and the abandoned process stays for as long as the machine does.
-            //
-            // So: leave a line saying which call it was, and stop. halt rather than exit
-            // because shutdown hooks are more of the untrustworthy process; the log file's
-            // appender flushes on write, so the line is already on disk.
+            // A fatal error means the process cannot be trusted. Halt immediately
+            // rather than trying to respond, since the Client can restart a dead Server
+            // but can only timeout on a mute one.
             end(start, "fatal");
             log.error("{} died", tool, e);
             Runtime.getRuntime().halt(70);
-            throw e;                        // unreachable; the compiler wants a way out
+            throw e;
         } finally {
             for (String key : KEYS) {
                 MDC.remove(key);
@@ -165,14 +106,7 @@ final class ToolResults {
     }
 
     /**
-     * The failure shape.
-     *
-     * <p>Two halves saying the same thing to two readers. {@code structuredContent} is
-     * authoritative and machine-readable; it survives untouched because
-     * {@code McpAsyncServer} skips output-schema validation once {@code isError} is true.
-     * {@code content} is mandatory on a {@code CallToolResult}, which is what makes
-     * structuring the error safe here — a human reading a Client that renders only text
-     * still sees a sentence.
+     * Builds the failure response: both text (for humans) and structured content (for models).
      */
     private static CallToolResult failure(ToolFailure failure) {
         Map<String, Object> structured = new LinkedHashMap<>();

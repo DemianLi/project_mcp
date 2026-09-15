@@ -9,17 +9,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Turns the JSON {@code gh} prints into the records the Tools return.
+ * Maps issue JSON from {@code gh} to issue result types.
  *
- * <p>Kept apart from {@link io.github.demianli.projectmcp.gh.GhCli} so this half is a pure
- * function of a string: it can be exercised against a captured payload without a
- * subprocess, a network call, or a GitHub account.
- *
- * <p>Purity is why nothing here rejects anything. {@code get_issue} refuses a pull request
- * number, but that judgement is made by {@link IssueTools} on the record this class
- * returns, not here on the JSON — so the payload is parsed exactly once and this class
- * keeps knowing nothing about failure. The next Tool with a semantic check should follow
- * the same split.
+ * <p>Testable as a pure function against captured payloads. Semantic validation (e.g.
+ * rejecting pull requests) happens at the Tool level, not here.
  */
 @Component
 public class IssueMapper {
@@ -47,13 +40,7 @@ public class IssueMapper {
         return ListResult.of(issues, limit);
     }
 
-    /**
-     * Maps what {@code gh issue view --json ...} prints into one issue.
-     *
-     * <p>Nulls are passed through as {@code gh} spelled them: {@code closedAt} is absent
-     * while an issue is open, and {@code asString(null)} keeps it that way rather than
-     * turning it into an empty string that would read as a real timestamp of zero length.
-     */
+    /** Maps issue view JSON to {@code IssueDetail}. */
     public IssueDetail toDetail(String ghJson) {
         JsonNode issue = json.readTree(ghJson);
         return new IssueDetail(

@@ -10,14 +10,10 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Exercises the half of {@code list_issues} that is a pure function of a string.
+ * Tests {@code IssueMapper} as a pure function against captured {@code gh} output.
  *
- * <p>Coverage layer. No Spring context, no subprocess, no GitHub account: the fixture was
- * captured verbatim from {@code gh issue list --repo DemianLi/project_mcp --state all
- * --limit 3 --json number,title,state,labels,assignees,url,updatedAt}, so it carries the
- * real shape of the object arrays that get flattened — including the empty
- * {@code assignees[].name}, and an issue with no labels and no assignees at all, which the
- * other fixture happens not to have.
+ * <p>Fixture contains real field shapes including empty assignee arrays and issues with no
+ * labels or assignees.
  */
 class IssueMapperTest {
 

@@ -8,7 +8,7 @@ import io.github.demianli.projectmcp.gh.ToolFailure;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
-/** Unit layer: the two sliding windows, driven by a clock the test controls. */
+/** Tests write rate limiting: 80 per minute, 500 per hour. */
 class WriteLimiterTest {
 
     private static final long SECOND = 1_000_000_000L;

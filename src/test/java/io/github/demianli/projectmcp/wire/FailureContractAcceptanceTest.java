@@ -13,39 +13,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Acceptance layer: every Tool reports a failing {@code gh} with its Remedy intact.
+ * Tests that every Tool returns failure results with Remedy and stderr intact.
  *
- * <p>ADR-0002 makes the failure contract Server-wide, and {@code ToolResults} says so in
- * prose — but until now only {@code list_issues} was watched keeping it. The other four
- * inherited the contract by their authors writing it out, and the Acceptance layer took
- * their word for it.
+ * <p>The failure contract is Server-wide (see docs/design.md#failure-contract). Every Tool
+ * must catch ToolFailure and return it via ToolResults. Spring AI's callback produces
+ * isError: true and text message for any RuntimeException, but does not produce
+ * structuredContent. If a Tool lets ToolFailure escape, the Remedy vanishes silently while
+ * the result still looks like a well-formed error. This test drives every Tool to catch that
+ * mistake, not by remembering which ones were written, but by asserting on every declared
+ * Tool.
  *
- * <p><strong>What has teeth here, and what does not.</strong> Not {@code isError}: a
- * {@code ToolFailure} that escapes a Tool method is a plain {@code RuntimeException}, and
- * Spring AI's own callback answers it with {@code isError: true} and a text message. An
- * assertion on {@code isError} alone would pass while the contract was broken. What Spring
- * AI does <em>not</em> produce is {@code structuredContent} — so the Remedy and the stderr,
- * the half ADR-0002 calls authoritative, vanish while the result still looks like a
- * well-formed refusal. That is the assertion below, and it was arrived at by measurement:
- * removing a {@code catch} from {@code list_issues} failed on {@code structuredContent} and
- * not on {@code isError}.
- *
- * <p><strong>The mistake it catches.</strong> Since {@code ToolResults} narrowed to
- * {@code ToolResults.attempt}, forgetting to catch no longer compiles. What still compiles
- * is doing the work outside the lambda —
- *
- * <pre>{@code
- * String out = gh.run(args);                       // outside: escapes to Spring AI
- * return ToolResults.attempt("list_issues", owner, repo, () -> map(out));
- * }</pre>
- *
- * <p>— which is a natural enough shape to reach for, produces a result that reads as correct,
- * and silently drops the Remedy. Every Tool is driven here rather than a chosen one, so the
- * fifth and sixth Tool are covered by having been written, not by having been remembered.
- *
- * <p>Cheap by construction: one Server, one stand-in that fails the same way for everyone,
- * one call per Tool. None of the 30 seconds {@link WritePartitionAcceptanceTest} has to pay
- * — a non-zero exit is answered at once.
+ * <p>Cheap: one Server, one stand-in that fails identically, one call per Tool. No timeouts.
  */
 class FailureContractAcceptanceTest {
 

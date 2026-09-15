@@ -12,10 +12,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Acceptance layer: the write limit holds across calls in one running Server.
+ * Tests that the write limit holds across calls in one running Server.
  *
- * <p>Unit tests prove the windows; this proves the Server shares one limiter between calls
- * rather than making a fresh one per call, which only a real process can show.
+ * <p>Unit tests prove the limiting windows; this proves the Server shares one limiter
+ * between all calls rather than making a fresh one per call.
  */
 class WriteLimitAcceptanceTest {
 

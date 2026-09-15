@@ -14,31 +14,15 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * What a call leaves behind, and what it must not.
+ * Tests what the Server writes to logs and what it must not include.
  *
- * <p>Two assertions with very different stakes. The first — that a call writes one line
- * carrying the fields ADR-0013 lists — protects a format: get it wrong and a reader is
- * inconvenienced. The second — that nothing this Server <em>puts</em> into the file is
- * content — protects a boundary: get it wrong and this Server's log becomes a copy of GitHub
- * content sitting outside the protocol, on a disk nothing here ever cleans.
- *
- * <p><strong>What this cannot assert.</strong> {@code GhCli} logs {@code gh}'s stderr
- * verbatim, and the stand-in's stderr is written by this test. If GitHub ever answers a
- * rejected write by quoting the body back, content reaches the file by a route no redaction
- * here touches — and eliding stderr instead would leave a failure with no evidence at all.
- * The claim is therefore about what this Server writes, not about every byte in the file.
- * Named as a limitation in ADR-0013 rather than left to be discovered.
- *
- * <p><strong>The second one has already been broken once.</strong> Before ADR-0013,
- * {@code GhCli} logged the argv of a failed call verbatim, and an {@code add_issue_comment}
- * whose <em>mutation</em> failed put the whole comment in the file — the lookup failing was
- * not enough, which is why five Tools' worth of green tests never showed it. That is the
- * regression this test exists to catch, and it is why the write half drives the failure into
- * the second call rather than the first.
- *
- * <p>Read from a redirected file rather than {@code logs/project-mcp.log}: asserting that a
- * string is <em>absent</em> from a file every other run appends to would pass or fail on
- * history rather than on this call.
+ * <p>Two assertions: one protects format (each call writes one line with required fields),
+ * one protects a boundary (nothing the Server writes into the log is GitHub content). If the
+ * second breaks, the Server's log becomes a copy of user content outside the protocol.
+ * GhCli logs gh stderr verbatim; if GitHub quotes the comment body on refusal, content
+ * reaches the file via a route redaction cannot touch. This test asserts what the Server
+ * itself writes, as a limitation documented in docs/design.md#logging. Reads from a
+ * redirected file because asserting absence from a shared file would pass/fail on history.
  */
 class TraceContractAcceptanceTest {
 
@@ -79,13 +63,13 @@ class TraceContractAcceptanceTest {
 
         Map<String, Object> trace = onlyTraceLine(logFile, "get_issue ok");
         assertThat(trace)
-                .as("the shape of the call, and ADR-0013 fixes which fields say it")
+                .as("shape of the call: tool, outcome, repo, callId, durationMs, resultBytes")
                 .containsEntry("tool", "get_issue")
                 .containsEntry("outcome", "ok")
                 .containsEntry("repo", "DemianLi/project-mcp-sandbox")
                 .containsKeys("callId", "durationMs", "resultBytes");
         assertThat(trace)
-                .as("a Remedy belongs to a failure and nothing else")
+                .as("Remedy only on failures")
                 .doesNotContainKey("remedy");
 
         assertThat(Files.readString(logFile))
@@ -129,10 +113,9 @@ class TraceContractAcceptanceTest {
         Map<String, Object> trace = onlyTraceLine(log, "add_issue_comment failed");
         assertThat(trace)
                 .containsEntry("outcome", "error")
-                // UNKNOWN, not CHECK_BEFORE_RETRY. ADR-0008 reclassifies the three exits
-                // where a write was *abandoned* before its result could be read; this one
-                // exited cleanly and non-zero with stderr nothing in GhStderr matches, and
-                // that floors at UNKNOWN whether it wrote or read.
+                // The mutation exited non-zero with unrecognized stderr, so it classifies
+                // as UNKNOWN whether the write succeeded before the failure. See
+                // docs/design.md#writes.
                 .containsEntry("remedy", "UNKNOWN")
                 .containsKey("callId");
         assertThat(argvLine(log).get("callId"))

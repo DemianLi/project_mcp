@@ -18,31 +18,16 @@ import org.springframework.stereotype.Component;
  * Runs the {@code gh} binary and hands back its stdout.
  *
  * <p>This is the Server's only route to GitHub — there is no REST or GraphQL client.
- * Authentication is entirely {@code gh}'s concern: this class never reads a token and
- * never sets one.
+ * Authentication is entirely {@code gh}'s concern: this class never reads a token.
  *
- * <p>Arguments are passed as separate argv elements and no shell is involved, so a
- * repository name containing shell metacharacters is inert.
+ * <p>Arguments are passed as separate argv elements and no shell is involved. stderr
+ * classification is {@link GhStderr}'s concern at the single point where there is stderr to
+ * read. Every Tool inherits the failure contract by calling {@link #run} or
+ * {@link #runWrite}, with no per-Tool code.
  *
- * <p>How {@code gh} fails is this package's knowledge and no Tool's. Knowing that a missing
- * binary arrives as an {@link IOException} rather than a non-zero exit, and knowing the
- * timeout budget, are this class's; recognising {@code gh}'s stderr wording is
- * {@link GhStderr}'s, one call away at the single point where there is stderr to read. Every
- * Tool inherits the whole contract by calling {@link #run}, with no per-Tool code.
- *
- * <p>That split is an internal seam and not a change of interface. It exists because the two
- * halves are worked on at different rates — the stderr table has gained branches in three
- * separate commits since it was written, the process machinery has changed twice — and
- * because the table has an invariant that an {@code if} chain inside this class could only
- * assert in prose. {@link GhStderr} carries the argument.
- *
- * <p>Since ADR-0008 it also knows which calls <em>change something</em>. Three of the exits
- * below kill the process without learning what it did, and that means "nothing happened,
- * try again" on a read and "something may have happened" on a write — one failure, two
- * different actions for the caller. A Tool says which it is by choosing {@link #run} or
- * {@link #runWrite}, and nothing else about the distinction leaves this class. Rewriting
- * the Remedy in a Tool's {@code catch} would move half the contract to exactly where the
- * paragraph above says it must not live, and every future write Tool would copy it.
+ * <p>On a read, a timeout or unreadable pipe means nothing happened—retry. On a write,
+ * those same exits mean the result is unconfirmed—check before retrying. A Tool says which
+ * by choosing {@link #run} or {@link #runWrite}.
  */
 @Component
 public class GhCli {
@@ -50,42 +35,14 @@ public class GhCli {
     private static final Logger log = LoggerFactory.getLogger(GhCli.class);
 
     /**
-     * How long a single {@code gh} call may take.
-     *
-     * <p>The default only: what a call actually gets is {@link #timeoutSeconds}, which the
-     * two-argument constructor sets.
-     *
-     * <p>Part of the failure contract, not a private tuning knob — though no longer for the
-     * reason ADR-0002 gave. It is no longer reported as a wait to observe (ADR-0008 removed
-     * that), but it is still named in the timeout's sentence, and on a write whatever this
-     * budget is set to decides how often a caller is told to go and check. Shortening it
-     * buys responsiveness and costs unconfirmed writes.
+     * Timeout for a single {@code gh} call in seconds. Part of the failure contract; see
+     * docs/design.md#bounds. The two-argument constructor can override this default.
      */
     static final int TIMEOUT_SECONDS = 30;
 
     /**
-     * The most this Server will accept from one {@code gh} call.
-     *
-     * <p>Eight megabytes, and both ends of that were measured rather than guessed.
-     *
-     * <p><strong>Above.</strong> The largest response GitHub's own shapes can produce here is
-     * a full page of comments at its documented ceiling — 100 nodes of 65,536 characters —
-     * which came back at 6.57 MB and crossed the wire in 64 ms. Eight leaves that untouched.
-     * A limit that ordinary traffic can reach is a limit that gets raised until it means
-     * nothing.
-     *
-     * <p><strong>Below.</strong> Driving {@code get_issue} against manufactured bodies on a
-     * 256 MB heap: 40 MB passed through whole and was delivered to the Client; 60 MB threw
-     * {@code OutOfMemoryError}. The break sits near a fifth of the heap, because the bytes
-     * are decoded to a {@code String}, parsed to a tree, mapped to records and serialised
-     * back to JSON, each step holding its own copy. Eight is far enough below any plausible
-     * heap's fifth that <em>this</em> limit is reached first — which is the ordering that
-     * matters, since this one comes back as a {@link Remedy} and an {@code OutOfMemoryError}
-     * comes back as nothing at all.
-     *
-     * <p>Not configurable, for the reason {@link #TIMEOUT_SECONDS} and {@code Limits.MAX}
-     * are not: every bound in this Server is a constant with an ADR behind it. See
-     * {@code docs/adr/0015-a-ceiling-on-one-response.md}.
+     * Maximum bytes accepted from one {@code gh} call. Responses exceeding this are
+     * rejected with {@link Remedy#FIX_REQUEST}. See docs/design.md#bounds.
      */
     static final int MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
@@ -97,18 +54,8 @@ public class GhCli {
     }
 
     /**
-     * Lets a test point at a stand-in binary and shorten the timeout.
-     *
-     * <p>Public because it is a real configuration point — a deployment with {@code gh}
-     * somewhere other than the PATH can use it — but its reason for existing is the test
-     * suite.
-     *
-     * <p>The substitution deliberately happens at the executable name and nowhere deeper:
-     * everything below it — the spawn, the concurrent pipe draining, the exit code, the
-     * timeout — stays real, so the tests exercise the machinery rather than replace it. A
-     * mock in front of {@link ProcessBuilder} would make a missing binary, a timeout and a
-     * full pipe buffer untestable, which is most of what can actually go wrong here. See
-     * issue #9.
+     * Lets a test point at a stand-in binary and shorten the timeout. Public because it is
+     * a real configuration point — a deployment with {@code gh} elsewhere can use it.
      */
     public GhCli(String executable, int timeoutSeconds) {
         this.executable = executable;
@@ -116,17 +63,7 @@ public class GhCli {
     }
 
     /**
-     * What a caller is told after a write this Server could not confirm, quoted from
-     * ADR-0008.
-     *
-     * <p>The tension is deliberate and recorded rather than designed away: this is the
-     * first per-Tool string in a class whose javadoc promises every Tool inherits the
-     * contract "with no per-Tool code", and it names {@code list_issue_comments} by hand,
-     * so renaming that Tool silently falsifies this sentence with nothing at compile time
-     * noticing. ADR-0008 accepted both costs — the whole reason recovery is left with the
-     * Client is that this Server provides the means, and a means the Client is not told
-     * about is a hope rather than a contract. The second write Tool will collide with it;
-     * that is the point at which to parameterise, not before.
+     * What a caller is told after a write this Server could not confirm.
      */
     private static final String CHECK_INSTEAD_OF_RETRYING =
             " The comment could not be confirmed. It may already have been posted. Before "
@@ -137,8 +74,6 @@ public class GhCli {
      * Runs a {@code gh} call that only reads, and returns its stdout.
      *
      * @throws ToolFailure if {@code gh} is missing, exits non-zero, or outlives the timeout.
-     *     The shape the Client sees is fixed by
-     *     {@code docs/adr/0002-failure-contract-for-gh-calls.md}.
      */
     public String run(List<String> args) {
         return run(args, false);
@@ -147,14 +82,9 @@ public class GhCli {
     /**
      * Runs a {@code gh} call that changes something, and returns its stdout.
      *
-     * <p>The same spawn, the same draining, the same {@link GhStderr#classify}. The one difference
-     * is what the caller is told when the call is abandoned before its result could be read:
-     * those three exits carry {@link Remedy#CHECK_BEFORE_RETRY} instead of advice to call
-     * again. See ADR-0008.
-     *
-     * <p>A sibling method rather than a parameter on {@code run}, so that the four calls
-     * that read say nothing at all — a read is the unmarked case, and marking it would put
-     * a {@code false} at four call sites whose only job is to stay quiet.
+     * <p>On unconfirmed writes (timeout, interrupt, unreadable pipe), the caller is told
+     * {@link Remedy#CHECK_BEFORE_RETRY} instead of {@link Remedy#RETRY}. See
+     * docs/design.md#writes.
      *
      * @throws ToolFailure on every failure {@link #run} throws for, with the three
      *     unconfirmed-write exits reclassified.
@@ -189,14 +119,8 @@ public class GhCli {
 
             if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
                 kill(process);
-                // Nothing is read after a timeout, and waiting for the readers would undo
-                // the timeout: see kill(Process).
                 stdout.cancel(true);
                 stderr.cancel(true);
-                // No wait travels with this. `retryAfterSeconds` means "do not retry
-                // before this", and the budget already spent is a fact about the past; a
-                // Client obeying the documented meaning waited it out and then retried,
-                // which on a write is what schedules the duplicate. See ADR-0008.
                 throw failure(command, new ToolFailure(
                         write ? Remedy.CHECK_BEFORE_RETRY : Remedy.RETRY,
                         "The GitHub CLI did not answer within " + timeoutSeconds + " seconds."
@@ -207,17 +131,13 @@ public class GhCli {
             byte[] out = stdout.get();
             String err = new String(stderr.get(), StandardCharsets.UTF_8).strip();
 
-            // Before the size check. A `gh` that failed and also wrote a great deal has a
-            // reason in its stderr, and that reason is worth more to a caller than the
-            // number of bytes it managed to produce on the way to it.
+            // Classify stderr before checking size: a failure reason is worth more than bytes.
             if (process.exitValue() != 0) {
                 throw failure(command, GhStderr.classify(err));
             }
             if (out.length > MAX_RESPONSE_BYTES) {
                 throw failure(command, tooLarge(out.length));
             }
-            // Decoded only once the size is known to be sane: this is where the payload
-            // stops being bytes and starts being amplified. See MAX_RESPONSE_BYTES.
             return new String(out, StandardCharsets.UTF_8);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -229,10 +149,6 @@ public class GhCli {
                     "", null));
         } catch (ExecutionException e) {
             kill(process);
-            // The worst of the three on a write: the process may have run to completion and
-            // the failure be nothing but this Server not reading the bytes back. On a read
-            // it stays UNKNOWN, which is where a Java exception string standing in for
-            // stderr comes from.
             throw failure(command, new ToolFailure(
                     write ? Remedy.CHECK_BEFORE_RETRY : Remedy.UNKNOWN,
                     "The output of the GitHub CLI could not be read."
@@ -242,22 +158,9 @@ public class GhCli {
     }
 
     /**
-     * The failure for a response this Server will not carry.
-     *
-     * <p>{@code FIX_REQUEST} for every Tool, and the sentence has to serve two callers whose
-     * available action differs. A {@code list_*} caller can ask for fewer items or page with
-     * a cursor. A {@code get_issue} caller cannot make the issue smaller — but the action is
-     * still theirs, and it is to stop asking this Tool for this issue. Neither is
-     * {@code UNKNOWN}: that Remedy means this Server does not recognise the failure, and this
-     * is a failure it invented, named and measured in bytes.
-     *
-     * <p>The sentence is written once, here, rather than per Tool. This class knows how many
-     * bytes arrived and does not know which Tool asked — and giving it that knowledge would
-     * undo the boundary the whole package rests on, that how {@code gh} fails is this
-     * package's business and no Tool's. ADR-0015 records the cost.
-     *
-     * <p>{@code stderr} is empty because there was none: {@code gh} succeeded. This is the
-     * fourth failure this Server invents rather than inherits.
+     * Failure for a response exceeding {@link #MAX_RESPONSE_BYTES}. Always
+     * {@link Remedy#FIX_REQUEST}. This class invents the failure since {@code gh}
+     * succeeded but the Server refuses to carry the response.
      */
     private static ToolFailure tooLarge(int bytes) {
         return new ToolFailure(Remedy.FIX_REQUEST,
@@ -270,18 +173,9 @@ public class GhCli {
     }
 
     /**
-     * Kills the process <em>and everything it spawned</em>.
-     *
-     * <p>{@link Process#destroyForcibly()} alone kills only the direct child. Anything that
-     * child started inherits the same pipes and keeps the write end open, so
-     * {@code readAllBytes} goes on blocking and a timeout stops being a timeout — the call
-     * runs for as long as the grandchild does. That is precisely the "hangs with no error to
-     * report" failure this class exists to avoid, arriving through a different door.
-     *
-     * <p>Found by CI on its first run: the timeout test asserts it really waited about a
-     * second, and on the Ubuntu runner it took the grandchild's full 30. It did not
-     * reproduce on macOS, where the shell disposes of the child differently — so the test
-     * had to be right about wall-clock time for the bug to show up at all.
+     * Kills the process and everything it spawned. {@link Process#destroyForcibly()} alone
+     * kills only the direct child; children of that child keep the pipe open, so
+     * {@code readAllBytes} blocks forever and the timeout never fires.
      */
     private static void kill(Process process) {
         process.descendants().forEach(ProcessHandle::destroyForcibly);
@@ -303,28 +197,13 @@ public class GhCli {
 
     /**
      * The GraphQL variables that carry <em>content</em> rather than shape.
-     *
-     * <p>One entry, and a new one is not optional. ADR-0013 draws the line this set enforces:
-     * the log records which Tool ran against which repository and how it ended, never what
-     * was written or read. Every other value in an argv here is shape — {@code owner},
-     * {@code name}, {@code number}, {@code subjectId}, the query document itself,
-     * {@code --repo}, {@code --limit}, {@code --json} — and stays legible because diagnosis
-     * needs it. {@code body} is the one that is the Client's text.
+     * Only {@code body} is elided from logs; see docs/design.md#logging.
      */
     private static final Set<String> CONTENT_VARIABLES = Set.of("body");
 
     /**
-     * The argv as a line, with content elided.
-     *
-     * <p>Measured before it was written: an {@code add_issue_comment} whose mutation failed
-     * put the entire comment into {@code logs/project-mcp.log}, because the argv it logs
-     * ends in {@code -f body=<the comment>}. The failure needed to be the mutation rather
-     * than the lookup for it to happen, which is why four Tools' worth of green tests never
-     * saw it.
-     *
-     * <p>The length survives. It is shape, and it is the half of the value that diagnoses
-     * anything: a body of 0 characters and a body of 60000 fail for different reasons, and
-     * neither reason is legible from the text itself.
+     * The argv as a line, with content elided. The body length is kept because it diagnoses
+     * failures without leaking the text.
      */
     private static String argv(List<String> command) {
         List<String> safe = new ArrayList<>(command.size());

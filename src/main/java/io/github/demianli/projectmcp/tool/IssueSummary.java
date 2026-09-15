@@ -3,19 +3,13 @@ package io.github.demianli.projectmcp.tool;
 import java.util.List;
 
 /**
- * One issue, as {@code list_issues} reports it.
+ * Issue summary returned by {@code list_issues}.
  *
- * <p>Seven fields, chosen so a Client can decide <em>which</em> issue to read. {@code body}
- * is deliberately absent — reading an issue is {@code get_issue}'s job, and {@code body} is
- * the one field that grows without bound.
+ * <p>Seven fields allowing Clients to decide which issue to read further. No body (that is
+ * for {@code get_issue}).
  *
- * @param labels label names only. {@code gh} returns objects carrying a GraphQL node id, a
- *     description and a UI colour; flattening leaves the Client holding exactly the string
- *     it would pass back into the {@code labels} parameter.
- * @param assignees login handles only, flattened for the same reason.
- * @param updatedAt an ISO-8601 instant, passed through as {@code gh} spelled it. Kept as a
- *     String on purpose: a date type would serialise according to whichever Jackson modules
- *     happen to be on the classpath.
+ * @param labels and assignees: flattened to strings for filter reuse
+ * @param updatedAt ISO-8601 timestamp as GitHub reports it (kept as String)
  */
 public record IssueSummary(
         int number,

@@ -20,63 +20,28 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Acceptance layer: every GraphQL variable leaves with the flag its declared type requires.
+ * Tests that each GraphQL variable uses the flag its declared type requires.
  *
- * <p><strong>What {@code -F} actually does.</strong> {@code gh api}'s two field flags are not
- * spellings of one thing. {@code -f} sends the value as a string, literally. {@code -F} has
- * three magic readings of it, all three measured on this route: {@code 123} and {@code true}
- * become JSON scalars; {@code {owner}}, {@code {repo}} and {@code {branch}} are replaced with
- * whatever repository the Server's working directory resolves to; and {@code @path} or
- * {@code @-} reads the value out of a local file or stdin and sends <em>that</em>. So
- * {@code -F body=} on {@code add_issue_comment} would let a Client name a file on this
- * machine and have its contents posted to GitHub, over a Tool whose annotations say it
- * writes a comment.
+ * <p><strong>The danger in -F.</strong> {@code gh api}'s -f sends strings literally. {@code -F}
+ * has three magic readings: 123 and true become JSON scalars; {owner}, {repo}, {branch} are
+ * replaced with the current repository; @path reads a file. So {@code -F body=} on
+ * add_issue_comment would let a Client name a file on this machine and post its contents to
+ * GitHub, contradicting the Tool's read-only annotations.
  *
- * <p><strong>What was already watched, and what was not.</strong> Not the whole rule — the
- * gap was uneven and measuring it is what shaped this test. {@code AddIssueCommentTest} pins
- * every flag on both of that Tool's argv by hand, down to
- * {@code assertThat(argv(2)).doesNotContain("-F")}, so flipping {@code body} to {@code -F}
- * was red before this file existed. {@code list_issue_comments} was watched on {@code cursor}
- * alone; {@code owner}, {@code name}, {@code number} and {@code last} had no assertion
- * anywhere. Flipping {@code -f owner=} there — the mutation that lets a Client's
- * {@code {owner}} be replaced by this machine's repository — left all 75 other tests green.
- * That is the shape of the thing being fixed: not an unguarded rule, a rule guarded Tool by
- * Tool, by hand, by whoever remembered.
+ * <p><strong>The rule is two-sided.</strong> {@code Int}, {@code Float}, {@code Boolean}
+ * must use -F (sending them as strings would violate GraphQL type constraints). All other
+ * scalars use -f. {@code ID} uses -f by design: GraphQL's ID takes a string.
  *
- * <p><strong>The rule is two-sided, and it is not "avoid {@code -F}".</strong>
- * {@code -F number=} and {@code -F last=} are correct: their values are Java {@code int}s and
- * can carry none of the three readings, and sending them with {@code -f} would hand a JSON
- * string to an {@code Int!}. So the check runs both ways — {@code Int}, {@code Float} and
- * {@code Boolean} must be {@code -F}; every other scalar must be {@code -f}. {@code ID} sits
- * on the {@code -f} side deliberately: GraphQL's {@code ID} takes a string and serialises as
- * one, so {@code subjectId} is right as it stands and a naive "not a String means
- * {@code -F}" would turn that call site red.
+ * <p><strong>Both sides of the check live in one place.</strong> Types are declared in the
+ * GraphQL document, which travels in the argv as {@code -f query=…}. A captured argv carries
+ * both what was sent and what the document says it should be, so no separate table is needed
+ * here — and new variables added with wrong flags turn the test red without editing this file.
  *
- * <p><strong>Both halves are read off one argv.</strong> The types are not written down
- * here. Every document declares them — {@code query($owner:String!, …, $number:Int!, …)} —
- * and the document itself travels in the argv as {@code -f query=…}, so a captured call
- * carries what was sent <em>and</em> what it should have been sent as. This test keeps no
- * table of variable names, exactly as {@link WritePartitionAcceptanceTest} keeps no list of
- * write Tools: a variable added to a document with the wrong flag goes red without anyone
- * touching this file.
- *
- * <p>A typed argv would make the mistake unrepresentable rather than merely un-shippable, and
- * that is the better answer at two adapters. ADR-0010 records why it waits for one: today
- * {@code gh api graphql} is three call sites in a single class.
- *
- * <p>Declarations are checked against the pairs that appear, never the reverse. {@code $before}
- * is legitimately absent on a first call, and demanding every declared variable be sent would
- * fail the ordinary case.
- *
- * <p><strong>Why here, when a Client cannot see an argv.</strong> Placement follows the
- * enumeration, not the visibility. "Every Tool" exists in exactly one place —
- * {@code listTools()} — and that is above the wire. Below it this test would be reflecting
- * over {@code @McpTool} or hand-listing the three call sites in {@code CommentTools}, which
- * is the "covered by being remembered" it exists to remove. The argv is reachable from up
- * here anyway: the stand-in {@code gh} writes it down.
- *
- * <p>Cheap: one Server, one stand-in that answers immediately, one call per Tool. Nothing
- * here touches {@code GhCli}'s timeout.
+ * <p><strong>Why at the Acceptance layer.</strong> "Every Tool" is only visible at
+ * listTools(), above the wire. Below it, the test would either reflect on @McpTool or
+ * hand-list call sites, coupling itself to implementation details. The argv is reachable
+ * here: the stand-in gh writes it down. The test is cheap: one Server, one standin, one call
+ * per Tool.
  */
 class ArgvFlagAcceptanceTest {
 

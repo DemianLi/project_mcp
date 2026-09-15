@@ -1,12 +1,8 @@
-<!-- Tests provoke failures on purpose, and GhCli logs every one at WARN with the argv.
-     That is correct in production and pure noise here.
-
-     This file is also why a child process launched with target/test-classes on its path
-     writes no log at all: Logback having a configuration of its own means Spring Boot never
-     installs the file appender application.yml describes. The Server starts, answers, and
-     records nothing, which is invisible to every test except the one that reads the log.
-     That test drops this directory from the child's classpath: see
-     LaunchedServer.withGhLoggingTo and TraceContractAcceptanceTest. -->
+<!-- Tests provoke GhCli failures on purpose; at WARN level their argv is logged. This config
+     silences that noise. It also prevents Spring Boot's file appender from being installed
+     when the test classpath includes target/test-classes, making the Server's output invisible
+     except to tests that explicitly redirect logging. TraceContractAcceptanceTest drops
+     test-classes and redirects the log to assert on contents. -->
 <configuration>
   <logger name="io.github.demianli.projectmcp.gh.GhCli" level="OFF"/>
   <root level="WARN"/>

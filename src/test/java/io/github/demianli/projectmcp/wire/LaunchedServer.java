@@ -17,19 +17,15 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Starts the Server the way a Client starts it, and hands back a connected Client.
+ * Launches the Server as a Client would and returns a connected {@link McpSyncClient}.
  *
- * <p>Shared by every test in the Acceptance layer. It was two private helpers on
- * {@link WireAcceptanceTest} until a second file in this layer needed them, and the thing
- * that made it a seam rather than a copy is {@code requestTimeout}: the write-partition
- * tests have to outwait {@code GhCli}'s own 30-second budget, and every other test must not.
- * A copied helper would have grown that parameter on one side only.
+ * <p>Shared by Acceptance layer tests. Factored out when a second file needed it, with
+ * {@code requestTimeout} parameterized because write-partition tests must wait longer than
+ * GhCli's default 30 seconds.
  *
- * <p>Started from the test's own classpath rather than the packaged jar: {@code mvn test}
- * runs before {@code package}, so requiring the jar would make the suite depend on a build
- * step that has not happened yet. Everything that matters is identical — same main class,
- * same Spring context, same Stdio transport, a genuinely separate process, and a real
- * JSON-RPC conversation across a pipe.
+ * <p>Launched from the test classpath rather than the packaged jar, since {@code mvn test}
+ * runs before {@code package}. The subprocess runs the same main class, Spring context and
+ * Stdio transport — a real separate process with real JSON-RPC over a pipe.
  */
 final class LaunchedServer {
 
@@ -80,15 +76,11 @@ final class LaunchedServer {
     }
 
     /**
-     * A Server that finds a stand-in {@code gh} running {@code ghBody}, and nothing else
-     * worth finding.
+     * A Server with a stand-in {@code gh} on PATH that runs {@code ghBody}.
      *
-     * <p>The stand-in comes <em>first</em> on the {@code PATH}, and that — not the absence
-     * of a real {@code gh} — is the guarantee. GitHub-hosted Ubuntu runners ship the GitHub
-     * CLI at {@code /usr/bin/gh}, so assuming the trailing directories are empty of it would
-     * be true on a laptop and false in CI. Shadowing holds either way. The trailing
-     * {@code /usr/bin:/bin} is there for the shell utilities the stand-in itself uses,
-     * nothing more.
+     * <p>The stand-in is first on PATH so it shadows any real gh. GitHub-hosted Ubuntu
+     * runners have gh at /usr/bin/gh, so the trailing /usr/bin:/bin ensures shell utilities
+     * the stand-in needs are available.
      */
     static McpSyncClient withGh(Path dir, String ghBody) throws IOException {
         return withGh(dir, ghBody, DEFAULT_REQUEST_TIMEOUT);
@@ -109,17 +101,12 @@ final class LaunchedServer {
     }
 
     /**
-     * The same, with the Server's log file redirected somewhere a test can read it.
+     * The same, with the Server's log file redirected to a test-specified location.
      *
-     * <p>The one caller is {@link TraceContractAcceptanceTest}, which asserts on what the
-     * file contains and — more to the point — on what it does not. Redirected rather than
-     * read from {@code logs/}: the real file is appended to by every other run on this
-     * machine, so a test reading it would be asserting about someone else's lines, and a
-     * test asserting a string is <em>absent</em> from it would pass or fail on history.
-     *
-     * <p>Passed as a program argument rather than an environment variable because
-     * {@link #onPath} replaces the environment wholesale, and {@code PATH} is the only entry
-     * that belongs in it.
+     * <p>{@link TraceContractAcceptanceTest} uses this to assert what the log contains and
+     * what it does not. Redirecting keeps the test's lines separate from other runs on the
+     * machine. Passed as a program argument because {@link #onPath} clears the environment
+     * except for PATH.
      */
     static McpSyncClient withGhLoggingTo(Path dir, String ghBody, Path logFile)
             throws IOException {
@@ -129,11 +116,10 @@ final class LaunchedServer {
     }
 
     /**
-     * A Server whose heap is too small for the work it is about to be given.
+     * A Server with constrained heap to test out-of-memory paths.
      *
-     * <p>The only way to reach {@code ToolResults}' fatal branch from the wire. What that
-     * branch is for is a Server that has run out of memory and must not go on pretending to
-     * be a Server, and the only honest way to test it is to run one out of memory.
+     * <p>Tests {@code ToolResults}' fatal branch, which fires when the Server has exhausted
+     * memory and must stop accepting calls. Only way to reach this path from the wire.
      */
     static McpSyncClient withGhAndHeap(Path dir, String ghBody, String heap, Path logFile)
             throws IOException {
@@ -144,20 +130,14 @@ final class LaunchedServer {
     }
 
     /**
-     * The classpath a Client would start this Server on, which is not the one the tests run.
+     * Classpath for the child process: the Server classes and dependencies, but not test
+     * classes.
      *
-     * <p>{@code src/test/resources/logback-test.xml} silences {@code GhCli} and gives the
-     * root logger no appender at all, on purpose — the suite provokes failures by the dozen
-     * and every one of them would otherwise print. A child launched with
-     * {@code target/test-classes} on its path finds that file, and Logback having a
-     * configuration of its own means Spring Boot never installs the file appender
-     * {@code application.yml} describes. The Server starts, answers, and writes nothing
-     * anywhere, which is invisible to every test that does not read the log.
-     *
-     * <p>So the one test that reads it drops that directory. What is left is exactly what a
-     * Client's {@code java -cp} would contain: the Server's own classes and its
-     * dependencies. Nothing in the child ever came from the test tree — the stand-in
-     * {@code gh} arrives on {@code PATH} and the fixtures are read by the test JVM.
+     * <p>Logback test config silences logging in test runs. When test-classes is on the
+     * child's path, Logback finds it and Spring Boot does not install its file appender.
+     * For tests that read logs, this method excludes test-classes. The result matches what
+     * a Client would load: production code only, with stand-in gh on PATH and fixtures
+     * read by the test JVM.
      */
     private static String withoutTestClasses() {
         return Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator))
