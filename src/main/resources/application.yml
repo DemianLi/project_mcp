@@ -1,4 +1,4 @@
-# stdout carries JSON-RPC protocol. Keep all output off it.
+# stdout 承載 JSON-RPC 協定，任何其他輸出都不得寫到 stdout。
 spring:
   main:
     banner-mode: off
@@ -8,12 +8,11 @@ spring:
       server:
         type: SYNC
         name: project-mcp
-        # Filled in by Maven at package time with @project.version@.
+        # 打包時由 Maven 以 @project.version@ 填入。
         version: @project.version@
-        # Only Tools are offered: resources, prompts and completions are off.
-        # See docs/design.md#why-there-are-no-resources. The logging capability is still
-        # declared, because it cannot be switched off here; this Server never sends a log
-        # notification — its logs go to the file configured below.
+        # 只提供 Tools：resources、prompts、completions 皆關閉，
+        # 見 docs/design.md#why-there-are-no-resources。logging capability 在此無法關閉，
+        # 因此仍會宣告；但本 Server 從不送出 log notification，log 只寫入下方設定的檔案。
         capabilities:
           resource: false
           prompt: false
@@ -26,13 +25,13 @@ logging:
     console: "OFF"
   structured:
     format:
-      # Elastic Common Schema. See docs/design.md#logging.
+      # Elastic Common Schema，見 docs/design.md#logging。
       file: ecs
     ecs:
       service:
         name: project-mcp
   level:
-    # Suppress Spring AI bean post-processing warnings
+    # 關掉 Spring AI 的 bean post-processing 警告。
     "[org.springframework.context.support.PostProcessorRegistrationDelegate$BeanPostProcessorChecker]": ERROR
   logback:
     rollingpolicy:

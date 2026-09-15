@@ -8,28 +8,27 @@ import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tests what {@code gh} stderr is classified as, and invariants across the classification table.
+ * 驗證 {@code gh} 的 stderr 被分類成什麼，以及分類表整體的不變式。
  *
- * <p>No subprocesses: each test passes a string to {@link GhStderr#classify(String)}, which is
- * why {@link GhStderr} was split from {@link GhCli}. {@code GhCliFailureTest} exercises the
- * real machinery for each case that reaches it.
+ * <p>不啟動子行程：每個測試都把字串交給 {@link GhStderr#classify(String)}，這正是
+ * {@link GhStderr} 與 {@link GhCli} 分開的原因。會走到真正機制的情況由
+ * {@code GhCliFailureTest} 涵蓋。
  *
- * <p><strong>Two test categories.</strong> First: tests of individual rows verify wording
- * and prove each sentence is correct. Second: invariant tests walk {@link GhStderr#branches()}
- * checking that no sample lands on two rows, no marker is dead, no marker contains another
- * row's marker, and the table produces only its allowed Remedies. The second category needs
- * no hardcoded list of rows — a new row added tomorrow is covered automatically.
+ * <p><strong>兩類測試。</strong>第一類逐列驗證措辭，證明每句訊息都正確。第二類走訪
+ * {@link GhStderr#branches()} 檢查不變式：沒有樣本同時落在兩列、沒有失效的 marker、
+ * 沒有 marker 包含另一列的 marker，以及分類表只產生允許的 Remedy。第二類不需要寫死
+ * 列清單，新增的列會自動被涵蓋。
  *
- * <p>Sample strings live on the row they justify. A wording test sends the same string the
- * table was built around, so if a sample is edited the test using it reflects that change.
+ * <p>樣本字串放在它所佐證的那一列上。措辭測試送出的正是建表時依據的字串，樣本一改，
+ * 使用它的測試也跟著反映。
  */
 class GhStderrTest {
 
     /**
-     * The one sample in the whole table containing {@code needle}.
+     * 整張表中唯一包含 {@code needle} 的樣本。
      *
-     * <p>Uniqueness is asserted rather than assumed: a needle that started matching two
-     * samples would otherwise silently point a test at the wrong row.
+     * <p>唯一性是斷言而不是假設：否則 needle 一旦同時比對到兩個樣本，測試就會悄悄指向
+     * 錯的列。
      */
     private static String sample(String needle) {
         List<String> found = GhStderr.branches().stream()
@@ -43,13 +42,13 @@ class GhStderrTest {
         return found.get(0);
     }
 
-    /** Every row whose markers match {@code stderr}, ignoring which comes first. */
+    /** markers 比對得到 {@code stderr} 的每一列，不論誰先被嘗試。 */
     private static List<Branch> allMatching(String stderr) {
         String lowered = stderr.toLowerCase(Locale.ROOT);
         return GhStderr.branches().stream().filter(branch -> branch.matches(lowered)).toList();
     }
 
-    // ---------------------------------------------------------------- one row at a time
+    // ---------------------------------------------------------------- 逐列驗證
 
     @Test
     void networkUnreachableIsRetry() {
@@ -75,8 +74,7 @@ class GhStderrTest {
 
     @Test
     void rateLimitWithoutAStatedWaitLeavesItUnset() {
-        // Rate limit wording without a stated wait. The contract favors correct
-        // classification over an unknown wait time.
+        // rate limit 措辭沒有指明等待時間。契約寧可分類正確，也不猜一個未知的等待時間。
         ToolFailure f = GhStderr.classify(sample("secondary rate limit"));
         assertThat(f.remedy()).isEqualTo(Remedy.RETRY);
         assertThat(f.retryAfterSeconds()).isNull();
@@ -94,8 +92,8 @@ class GhStderrTest {
 
     @Test
     void theGraphqlWordingForTheSameThingIsAlsoFixRequest() {
-        // The same condition via GraphQL route: `gh api graphql` says "an Issue with the
-        // number of", singular and without the "or pull request" clause.
+        // 同一情況經由 GraphQL 路徑：`gh api graphql` 的措辭是 "an Issue with the number of"，
+        // 單數，且沒有 "or pull request" 子句。
         ToolFailure f = GhStderr.classify(sample("an Issue with the number of"));
         assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
         assertThat(f.getMessage())
@@ -105,9 +103,8 @@ class GhStderrTest {
 
     @Test
     void theTwoIssueWordingsSayDifferentThingsAboutPullRequests() {
-        // That neither row swallows the other is now the table's business, asserted for
-        // every pair by noSampleLandsOnTwoRows. What is left here is the half a walk cannot
-        // see: the porcelain wording can promise something the GraphQL one cannot.
+        // 兩列互不吞併由分類表負責，noSampleLandsOnTwoRows 對每一對列斷言。這裡驗證走訪
+        // 看不到的另一半：porcelain 的措辭能承諾 GraphQL 措辭無法承諾的事。
         assertThat(GhStderr.classify(sample("issue or pull request")).getMessage())
                 .as("porcelain gets the sentence that can promise there is no pull request "
                         + "with that number either -- true there, false on GraphQL")
@@ -118,9 +115,8 @@ class GhStderrTest {
 
     @Test
     void anUnusableCursorIsFixRequest() {
-        // Cursors refuses a cursor from the wrong issue before `gh` is called. It cannot
-        // refuse a correctly-addressed wrapper whose inner half is corrupt: that reaches
-        // GitHub, and this is what comes back.
+        // Cursors 會在呼叫 `gh` 前拒絕其他 issue 的 cursor，但無法拒絕 issue 正確、內層卻
+        // 損壞的 cursor：它會送到 GitHub，而這就是 GitHub 的回應。
         ToolFailure f = GhStderr.classify(sample("not-a-cursor"));
         assertThat(f.remedy()).isEqualTo(Remedy.FIX_REQUEST);
         assertThat(f.getMessage()).contains("cursor");
@@ -156,8 +152,8 @@ class GhStderrTest {
 
     @Test
     void anAuthenticatedLoginWithoutThePermissionIsAskOperator() {
-        // A fine-grained PAT lacking permission, refused after prior success on the same
-        // token. Without this row it would land as UNKNOWN and incorrectly suggest login.
+        // 權限不足的 fine-grained PAT：同一 token 先前成功過，這次被拒。少了這一列會落到
+        // UNKNOWN，並錯誤地建議重新登入。
         ToolFailure f = GhStderr.classify(sample("personal access token"));
 
         assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
@@ -167,8 +163,8 @@ class GhStderrTest {
 
     @Test
     void theSameRefusalWordedForAnAppTokenIsAskOperatorToo() {
-        // Installation token refusal, the wording gh resolves in GitHub Actions. The
-        // sentence must not mention PAT-specific details.
+        // installation token 被拒，這是 gh 在 GitHub Actions 中得到的措辭。訊息不得提及 PAT
+        // 專屬的細節。
         ToolFailure f = GhStderr.classify(sample("by integration"));
 
         assertThat(f.remedy()).isEqualTo(Remedy.ASK_OPERATOR);
@@ -177,8 +173,8 @@ class GhStderrTest {
 
     @Test
     void unrecognisedStderrIsUnknownAndSurvivesVerbatim() {
-        // Unrecognized stderr, the floor: no row matched. Unreachable through a Tool's
-        // typed surface, so it indicates a Server bug. See docs/design.md#failure-contract.
+        // 無法辨識的 stderr，也就是底線：沒有任何一列比對到。透過 Tool 有型別的介面走不到
+        // 這裡，所以出現就代表 Server 有 bug。見 docs/design.md#failure-contract。
         String blob = "unknown flag: --banana\n\nUsage:  gh issue list [flags]\n\nFlags:\n"
                 + "      --app string         Filter by GitHub App author";
         ToolFailure f = GhStderr.classify(blob);
@@ -188,13 +184,12 @@ class GhStderrTest {
                 .isEmpty();
     }
 
-    // ------------------------------------------------------------- across the whole table
+    // ------------------------------------------------------------- 整張表
 
     @Test
     void noSampleLandsOnTwoRows() {
-        // First match wins. A sample landing on two rows means a wrong Remedy is returned
-        // confidently and the losing row becomes unreachable. This test ensures each
-        // sample belongs to exactly its declared row.
+        // 先比對到者勝出。樣本若同時落在兩列，就會篤定地回傳錯的 Remedy，落敗的那一列也
+        // 永遠走不到。本測試確保每個樣本恰好屬於它宣告的那一列。
         assertThat(GhStderr.branches()).as("an empty table would pass this vacuously")
                 .isNotEmpty();
 
@@ -213,10 +208,9 @@ class GhStderrTest {
 
     @Test
     void everyMarkerIsExercisedByASampleOfItsOwnRow() {
-        // A marker no sample reaches is a marker nothing has ever shown to work. The cheapest
-        // way to write one is a capital letter: classify lowercases the stderr and compares
-        // against these verbatim, so `HTTP 401` here would never match anything and would
-        // look exactly like a working branch.
+        // 沒有任何樣本碰得到的 marker，從未被證明有效。最容易寫出這種 marker 的方式是用大寫：
+        // classify 會先把 stderr 轉小寫，再與這些 marker 原樣比對，所以這裡的 `HTTP 401`
+        // 永遠比對不到，看起來卻和正常的分支一模一樣。
         assertThat(GhStderr.branches()).isNotEmpty();
 
         for (Branch branch : GhStderr.branches()) {
@@ -232,15 +226,12 @@ class GhStderrTest {
 
     @Test
     void noMarkerSwallowsAnotherRowsMarker() {
-        // The failure noSampleLandsOnTwoRows cannot see: a row whose marker contains an
-        // earlier row's is unreachable for every stderr, not just for the samples written
-        // down here, and it would take a sample nobody thought to add to notice.
+        // noSampleLandsOnTwoRows 看不到的失敗：若某列的 marker 包含前面某列的 marker，它對
+        // 任何 stderr 都走不到，不只是對這裡寫下的樣本；要靠一個沒人想到要加的樣本才會發現。
         //
-        // Deliberately stricter than that. Containment only makes the *later* row
-        // unreachable, so half the pairs this rejects are harmless as the table stands
-        // today -- and stay harmless only as long as nobody reorders it. Depending on the
-        // order is the thing being prevented, so the check ignores it. Markers within one
-        // row are exempt: they lead to the same sentence, so overlap there costs nothing.
+        // 刻意比這更嚴格。包含關係只會讓「後面」的列走不到，所以被拒絕的組合中有一半在現行
+        // 順序下無害，而且只有在沒人調整順序時才無害。要避免的正是依賴順序，因此檢查不考慮
+        // 順序。同一列內的 markers 不受此限：它們導向同一句訊息，重疊沒有代價。
         List<Branch> branches = GhStderr.branches();
         assertThat(branches).isNotEmpty();
 
@@ -264,10 +255,9 @@ class GhStderrTest {
 
     @Test
     void theTableProducesThreeRemediesAndNeverTheOtherTwo() {
-        // UNKNOWN is the floor rather than a row, and CHECK_BEFORE_RETRY belongs to GhCli's
-        // write route, applied to the three exits that abandon a call without reading it.
-        // Neither can be reached from stderr, and a row carrying one would be a quiet claim
-        // that this class knows something it cannot know: what the call did.
+        // UNKNOWN 是底線而不是一列；CHECK_BEFORE_RETRY 屬於 GhCli 的寫入路徑，用於三種
+        // 不讀取結果就放棄呼叫的結束方式。兩者都無法從 stderr 得出；帶有其中之一的列，等於
+        // 暗中宣稱本 class 知道它不可能知道的事：呼叫實際做了什麼。
         assertThat(GhStderr.branches()).isNotEmpty();
         assertThat(GhStderr.branches()).extracting(Branch::remedy)
                 .containsOnly(Remedy.RETRY, Remedy.FIX_REQUEST, Remedy.ASK_OPERATOR);

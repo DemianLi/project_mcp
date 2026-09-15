@@ -1,10 +1,9 @@
 package io.github.demianli.projectmcp.tool;
 
 /**
- * Result from {@code add_issue_comment}: the URL of the written comment.
+ * {@code add_issue_comment} 的結果：新留言的 URL。
  *
- * <p>The url is the only value the Client can use to verify the write landed. Unlike list
- * operations, this is not an Envelope.
+ * <p>url 是 Client 唯一能用來確認寫入成功的值。與列表操作不同，這不是 Envelope。
  */
 public record NewComment(String url) {
 }

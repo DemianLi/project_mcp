@@ -2,14 +2,14 @@ package io.github.demianli.projectmcp.tool;
 
 import java.util.Locale;
 
-/** Issue state filter for {@code list_issues}. Enum to enable schema validation. */
+/** {@code list_issues} 的 issue 狀態篩選。用 enum 讓 schema 能驗證。 */
 public enum IssueState {
 
     OPEN,
     CLOSED,
     ALL;
 
-    /** The spelling {@code gh --state} documents. */
+    /** {@code gh --state} 文件所用的拼法。 */
     public String forGh() {
         return name().toLowerCase(Locale.ROOT);
     }

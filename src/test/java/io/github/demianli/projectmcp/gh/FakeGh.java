@@ -6,20 +6,19 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 
 /**
- * Writes a stand-in for the {@code gh} binary.
+ * 寫出一個替身 {@code gh} 執行檔。
  *
- * <p>The executable bit is load-bearing. Without it {@link ProcessBuilder#start()} throws an
- * {@link IOException} indistinguishable from an absent binary — a script written without it
- * would make the absent-binary test pass for the wrong reason and every other test fail in a
- * way that looks exactly like the contract working. For the same reason the absent-binary
- * case points at a path that does not exist, never at a file that merely is not executable.
+ * <p>executable bit 不可或缺。少了它，{@link ProcessBuilder#start()} 會拋出與「執行檔
+ * 不存在」無法區分的 {@link IOException}：這樣寫出的 script 會讓「執行檔不存在」的測試
+ * 因錯誤原因通過，其他測試則以看起來正是契約在運作的方式失敗。同理，「執行檔不存在」的
+ * 情境一律指向不存在的路徑，而不是單純不可執行的檔案。
  */
 public final class FakeGh {
 
     private FakeGh() {
     }
 
-    /** A {@code gh} that runs {@code body}. Returns the path to hand to {@link GhCli}. */
+    /** 執行 {@code body} 的 {@code gh}，回傳要交給 {@link GhCli} 的路徑。 */
     public static String writing(Path dir, String body) throws IOException {
         Path script = dir.resolve("gh");
         Files.writeString(script, "#!/bin/sh\n" + body + "\n");
@@ -27,7 +26,7 @@ public final class FakeGh {
         return script.toString();
     }
 
-    /** A {@code gh} that writes {@code stderr} and exits non-zero. */
+    /** 輸出 {@code stderr} 並以非零結束的 {@code gh}。 */
     public static String failing(Path dir, String stderr) throws IOException {
         return writing(dir, "cat >&2 <<'STDERR'\n" + stderr + "\nSTDERR\nexit 1");
     }

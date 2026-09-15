@@ -7,20 +7,20 @@ import io.github.demianli.projectmcp.gh.Remedy;
 import io.github.demianli.projectmcp.gh.ToolFailure;
 
 /**
- * Wraps GitHub cursors with issue identity to prevent silent errors from cross-issue reuse.
+ * 在 GitHub cursor 外包上所屬的 issue，避免 cursor 被拿到別的 issue 上而悄悄出錯。
  *
- * <p>GitHub's cursor is opaque to Clients but becomes wrong silently if used on a different
- * issue. Wrapping with the issue reference allows validation on the return path.
+ * <p>GitHub 的 cursor 對 Client 是不透明的，但用在另一個 issue 上時會悄悄給出錯誤結果。
+ * 包上 issue 參照後，送回時就能驗證。
  */
 final class Cursors {
 
-    /** Separates the issue this cursor belongs to from GitHub's own cursor. */
+    /** 分隔 cursor 所屬的 issue 與 GitHub 自己的 cursor。 */
     private static final char SEPARATOR = '|';
 
     private Cursors() {
     }
 
-    /** Wraps {@code ghCursor}, or returns {@code null} when there is no next response. */
+    /** 包裝 {@code ghCursor}；沒有下一頁時回傳 {@code null}。 */
     static String wrap(IssueRef issue, String ghCursor) {
         if (ghCursor == null) {
             return null;
@@ -31,10 +31,10 @@ final class Cursors {
     }
 
     /**
-     * Recovers GitHub's cursor from one this Server issued for this same issue.
+     * 從本 Server 為同一個 issue 發出的 cursor 還原 GitHub 的 cursor。
      *
-     * @return the cursor to send to {@code gh}, or {@code null} if the Client sent none
-     * @throws ToolFailure if the cursor is unreadable or belongs to a different issue
+     * @return 要送給 {@code gh} 的 cursor；Client 沒送時為 {@code null}
+     * @throws ToolFailure cursor 無法解讀或屬於另一個 issue 時
      */
     static String unwrap(IssueRef issue, String clientCursor) throws ToolFailure {
         if (clientCursor == null || clientCursor.isBlank()) {

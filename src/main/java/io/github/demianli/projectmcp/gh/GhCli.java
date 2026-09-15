@@ -15,19 +15,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Runs the {@code gh} binary and hands back its stdout.
+ * 執行 {@code gh} 並回傳其 stdout。
  *
- * <p>This is the Server's only route to GitHub — there is no REST or GraphQL client.
- * Authentication is entirely {@code gh}'s concern: this class never reads a token.
+ * <p>這是 Server 通往 GitHub 的唯一途徑，沒有 REST 或 GraphQL client。認證完全交給
+ * {@code gh}：這個 class 從不讀取 token。
  *
- * <p>Arguments are passed as separate argv elements and no shell is involved. stderr
- * classification is {@link GhStderr}'s concern at the single point where there is stderr to
- * read. Every Tool inherits the failure contract by calling {@link #run} or
- * {@link #runWrite}, with no per-Tool code.
+ * <p>參數以獨立的 argv 元素傳入，不經 shell。stderr 的分類由 {@link GhStderr} 負責，
+ * 而且只在這一處讀取 stderr。每個 Tool 只要呼叫 {@link #run} 或 {@link #runWrite}
+ * 就遵守失敗契約，不需要各自的程式碼。
  *
- * <p>On a read, a timeout or unreadable pipe means nothing happened—retry. On a write,
- * those same exits mean the result is unconfirmed—check before retrying. A Tool says which
- * by choosing {@link #run} or {@link #runWrite}.
+ * <p>讀取時，逾時或 pipe 無法讀取代表什麼都沒發生，可直接重試；寫入時，同樣的結束方式
+ * 代表結果未確認，須先檢查再重試。Tool 以選用 {@link #run} 或 {@link #runWrite} 表明
+ * 是哪一種。
  */
 @Component
 public class GhCli {
@@ -35,14 +34,14 @@ public class GhCli {
     private static final Logger log = LoggerFactory.getLogger(GhCli.class);
 
     /**
-     * Timeout for a single {@code gh} call in seconds. Part of the failure contract; see
-     * docs/design.md#bounds. The two-argument constructor can override this default.
+     * 單次 {@code gh} 呼叫的逾時秒數，屬於失敗契約的一部分，見 docs/design.md#bounds。
+     * 雙參數建構子可覆寫此預設值。
      */
     static final int TIMEOUT_SECONDS = 30;
 
     /**
-     * Maximum bytes accepted from one {@code gh} call. Responses exceeding this are
-     * rejected with {@link Remedy#FIX_REQUEST}. See docs/design.md#bounds.
+     * 單次 {@code gh} 呼叫接受的最大位元組數，超過時以 {@link Remedy#FIX_REQUEST} 拒絕。
+     * 見 docs/design.md#bounds。
      */
     static final int MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
@@ -54,8 +53,8 @@ public class GhCli {
     }
 
     /**
-     * Lets a test point at a stand-in binary and shorten the timeout. Public because it is
-     * a real configuration point — a deployment with {@code gh} elsewhere can use it.
+     * 讓測試指向替身執行檔並縮短逾時。設為 public，因為這是真正的設定點：{@code gh} 裝在
+     * 其他位置的部署也能使用。
      */
     public GhCli(String executable, int timeoutSeconds) {
         this.executable = executable;
@@ -63,7 +62,7 @@ public class GhCli {
     }
 
     /**
-     * What a caller is told after a write this Server could not confirm.
+     * 寫入無法確認時告訴呼叫者的訊息。
      */
     private static final String CHECK_INSTEAD_OF_RETRYING =
             " The comment could not be confirmed. It may already have been posted. Before "
@@ -71,23 +70,22 @@ public class GhCli {
                     + "of yours with this body is already on the issue.";
 
     /**
-     * Runs a {@code gh} call that only reads, and returns its stdout.
+     * 執行只讀取的 {@code gh} 呼叫，回傳其 stdout。
      *
-     * @throws ToolFailure if {@code gh} is missing, exits non-zero, or outlives the timeout.
+     * @throws ToolFailure {@code gh} 不存在、以非零結束或超過逾時時
      */
     public String run(List<String> args) {
         return run(args, false);
     }
 
     /**
-     * Runs a {@code gh} call that changes something, and returns its stdout.
+     * 執行會變更內容的 {@code gh} 呼叫，回傳其 stdout。
      *
-     * <p>On unconfirmed writes (timeout, interrupt, unreadable pipe), the caller is told
-     * {@link Remedy#CHECK_BEFORE_RETRY} instead of {@link Remedy#RETRY}. See
-     * docs/design.md#writes.
+     * <p>寫入未確認時（逾時、中斷、pipe 無法讀取），呼叫者得到
+     * {@link Remedy#CHECK_BEFORE_RETRY} 而非 {@link Remedy#RETRY}。見 docs/design.md#writes。
      *
-     * @throws ToolFailure on every failure {@link #run} throws for, with the three
-     *     unconfirmed-write exits reclassified.
+     * @throws ToolFailure 與 {@link #run} 相同的各種失敗，其中三種未確認寫入的結束方式
+     *     改為上述分類
      */
     public String runWrite(List<String> args) {
         return run(args, true);
@@ -102,17 +100,16 @@ public class GhCli {
         try {
             process = new ProcessBuilder(command).start();
         } catch (IOException e) {
-            // Not a non-zero exit: the process never existed. This is the only failure that
-            // arrives without any stderr to classify, so it is classified by its path here.
+            // 不是非零結束：行程根本沒有啟動。這是唯一沒有 stderr 可分類的失敗，
+            // 所以在這裡依其路徑分類。
             throw failure(command, new ToolFailure(Remedy.ASK_OPERATOR,
                     "The GitHub CLI (`gh`) could not be started. It is probably not "
                             + "installed, or not on this Server's PATH.",
                     "", null));
         }
 
-        // Both pipes must be drained concurrently. Reading stdout to completion while
-        // stderr fills its buffer deadlocks: `gh` blocks writing and never exits, and the
-        // Tool call hangs with no error to report.
+        // 兩個 pipe 必須同時讀取。若 stderr 塞滿緩衝區時還在把 stdout 讀到底，就會死結：
+        // `gh` 卡在寫入、永不結束，Tool 呼叫懸住且沒有任何錯誤可回報。
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             Future<byte[]> stdout = executor.submit(() -> process.getInputStream().readAllBytes());
             Future<byte[]> stderr = executor.submit(() -> process.getErrorStream().readAllBytes());
@@ -131,7 +128,7 @@ public class GhCli {
             byte[] out = stdout.get();
             String err = new String(stderr.get(), StandardCharsets.UTF_8).strip();
 
-            // Classify stderr before checking size: a failure reason is worth more than bytes.
+            // 先分類 stderr 再檢查大小：失敗原因比位元組數更有價值。
             if (process.exitValue() != 0) {
                 throw failure(command, GhStderr.classify(err));
             }
@@ -158,9 +155,8 @@ public class GhCli {
     }
 
     /**
-     * Failure for a response exceeding {@link #MAX_RESPONSE_BYTES}. Always
-     * {@link Remedy#FIX_REQUEST}. This class invents the failure since {@code gh}
-     * succeeded but the Server refuses to carry the response.
+     * 回應超過 {@link #MAX_RESPONSE_BYTES} 時的失敗，一律為 {@link Remedy#FIX_REQUEST}。
+     * 這個失敗由本 class 產生：{@code gh} 已成功，但 Server 拒絕承載這個回應。
      */
     private static ToolFailure tooLarge(int bytes) {
         return new ToolFailure(Remedy.FIX_REQUEST,
@@ -173,9 +169,8 @@ public class GhCli {
     }
 
     /**
-     * Kills the process and everything it spawned. {@link Process#destroyForcibly()} alone
-     * kills only the direct child; children of that child keep the pipe open, so
-     * {@code readAllBytes} blocks forever and the timeout never fires.
+     * 終止行程及其衍生的所有行程。只用 {@link Process#destroyForcibly()} 只會終止直接子行程；
+     * 孫行程仍握著 pipe，{@code readAllBytes} 會永遠阻塞，逾時也永遠不會觸發。
      */
     private static void kill(Process process) {
         process.descendants().forEach(ProcessHandle::destroyForcibly);
@@ -183,11 +178,10 @@ public class GhCli {
     }
 
     /**
-     * Logs the argv and returns the failure to throw.
+     * 記錄 argv，並回傳要拋出的失敗。
      *
-     * <p>The argv is the one piece of diagnosis deliberately kept out of the caller's
-     * payload, so this is where it survives. It goes to the log file only — the console
-     * appender is off, because stdout belongs to JSON-RPC.
+     * <p>argv 是刻意不放進回傳內容的診斷資訊，所以保留在這裡：它只寫入 log 檔。console
+     * appender 已關閉，因為 stdout 屬於 JSON-RPC。
      */
     private static ToolFailure failure(List<String> command, ToolFailure failure) {
         log.warn("`{}` failed [{}]: {}", argv(command), failure.remedy(),
@@ -196,14 +190,13 @@ public class GhCli {
     }
 
     /**
-     * The GraphQL variables that carry <em>content</em> rather than shape.
-     * Only {@code body} is elided from logs; see docs/design.md#logging.
+     * 承載<em>內容</em>而非結構的 GraphQL 變數。只有 {@code body} 在 log 中省略，
+     * 見 docs/design.md#logging。
      */
     private static final Set<String> CONTENT_VARIABLES = Set.of("body");
 
     /**
-     * The argv as a line, with content elided. The body length is kept because it diagnoses
-     * failures without leaking the text.
+     * 把 argv 組成一行並省略內容。保留 body 長度，因為它能協助診斷失敗，又不洩漏文字。
      */
     private static String argv(List<String> command) {
         List<String> safe = new ArrayList<>(command.size());

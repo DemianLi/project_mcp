@@ -12,25 +12,24 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * The issue-reading Tools: list issues and fetch a single issue detail.
+ * 讀取 issue 的 Tools：列出 issue 與取得單一 issue 內容。
  */
 @Component
 public class IssueTools {
 
-    /** The seven fields of {@link IssueSummary}, in the spelling {@code gh} expects. */
+    /** {@link IssueSummary} 的七個欄位，採 {@code gh} 要求的拼法。 */
     private static final String FIELDS = "number,title,state,labels,assignees,url,updatedAt";
 
     /**
-     * The twelve fields of {@link IssueDetail}.
+     * {@link IssueDetail} 的十二個欄位。
      *
-     * <p>{@code projectCards} must never appear here or in any future field list: Projects
-     * (classic) is sunset, and asking for it fails the whole call with a GraphQL error
-     * rather than returning an empty value.
+     * <p>{@code projectCards} 絕不能出現在這裡或任何欄位清單中：Projects（classic）已停用，
+     * 要求它會讓整個呼叫以 GraphQL 錯誤失敗，而不是回傳空值。
      */
     private static final String DETAIL_FIELDS =
             FIELDS + ",body,author,createdAt,closedAt,stateReason";
 
-    /** What {@code gh} puts in the {@code url} of a pull request but never of an issue. */
+    /** {@code gh} 只會放在 pull request（而非 issue）{@code url} 中的片段。 */
     private static final String PULL_REQUEST_PATH = "/pull/";
 
     private final GhCli gh;
@@ -82,12 +81,12 @@ public class IssueTools {
         IssueState effectiveState = state == null ? IssueState.OPEN : state;
 
         return ToolResults.attempt("list_issues", owner, repo, () -> {
-            // Compose argv inside the lambda so validation failures carry structured content.
+            // 在 lambda 內組 argv，驗證失敗才會帶有 structured content。
             List<String> args = new ArrayList<>(List.of(
                     "issue", "list",
                     "--repo", Repos.slug(owner, repo),
                     "--state", effectiveState.forGh(),
-                    // Request one extra to detect whether more issues exist.
+                    // 多要一筆，以偵測是否還有更多 issue。
                     "--limit", Integer.toString(effectiveLimit + 1),
                     "--json", FIELDS));
 
@@ -133,8 +132,8 @@ public class IssueTools {
                     "--repo", Repos.slug(owner, repo),
                     "--json", DETAIL_FIELDS);
 
-            // Parse first, then validate. The semantic check (pull request guard) runs
-            // on the parsed issue, so validation can access the url without re-parsing.
+            // 先解析再驗證。語意檢查（擋下 pull request）作用在解析後的 issue 上，
+            // 驗證時可直接取用 url，不必重新解析。
             IssueDetail issue = mapper.toDetail(gh.run(args));
             if (issue.url().contains(PULL_REQUEST_PATH)) {
                 throw notAnIssue(number, issue.url());
@@ -144,9 +143,8 @@ public class IssueTools {
     }
 
     /**
-     * Failure for a pull request number passed to {@code get_issue}.
-     * {@code gh} accepts pull request numbers but returns incomplete data. The url
-     * in the error message lets the caller navigate to the pull request directly.
+     * 傳給 {@code get_issue} 的是 pull request 編號時的失敗。{@code gh} 接受 pull request
+     * 編號，但回傳的資料不完整。錯誤訊息附上 url，讓呼叫者能直接前往該 pull request。
      */
     private static ToolFailure notAnIssue(int number, String url) {
         return new ToolFailure(Remedy.FIX_REQUEST,

@@ -1,4 +1,4 @@
-# Local artifacts and build artifacts not needed in the image.
+# 映像檔用不到的本機檔案與建置產物。
 target/
 logs/
 .git/

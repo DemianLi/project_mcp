@@ -15,21 +15,19 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * The comment Tools: list and add. These reach GitHub via {@code gh api graphql}, not
- * porcelain, so the queries live here and fields are selected explicitly.
+ * 留言 Tools：列出與新增。兩者經由 {@code gh api graphql} 而非 porcelain 指令存取
+ * GitHub，因此查詢寫在這裡，欄位也明確指定。
  *
- * <p><strong>Every GraphQL variable typed {@code String} goes out with {@code -f}.</strong>
- * The {@code -f} flag treats the value as a literal string. The {@code -F} flag has three
- * other interpretations: numeric or boolean literals pass through as JSON scalars (invalid
- * against a {@code String!} variable), template variables like {@code {owner}} expand to the
- * repository's owner, and {@code @path} or {@code @-} read from a local file or stdin.
- * Because Client strings are passed uninterpreted, a string value like {@code @path} cannot
- * go through {@code -F} without reading an unintended file. Numeric parameters like
- * {@code number} and {@code last} correctly use {@code -F}; string parameters use {@code -f}.
+ * <p><strong>型別為 {@code String} 的 GraphQL 變數一律用 {@code -f} 送出。</strong>
+ * {@code -f} 把值當成字面字串；{@code -F} 另有三種解讀：數字或布林字面值會成為 JSON
+ * 純量（對 {@code String!} 變數無效）、{@code {owner}} 這類模板變數會展開成 repository
+ * 的 owner、{@code @path} 或 {@code @-} 會讀取本機檔案或 stdin。Client 的字串原樣傳遞，
+ * 像 {@code @path} 這樣的值若走 {@code -F}，就會讀到不該讀的檔案。{@code number} 與
+ * {@code last} 等數字參數正確地使用 {@code -F}；字串參數使用 {@code -f}。
  *
- * <p>{@code add_issue_comment} is the Server's only write Tool. It uses {@link GhCli#runWrite}
- * instead of {@link GhCli#run} to set the failure contract for writes (Remedy determines
- * whether to retry or check before retrying). See docs/design.md#failure-contract.
+ * <p>{@code add_issue_comment} 是本 Server 唯一的寫入 Tool。它用 {@link GhCli#runWrite}
+ * 而非 {@link GhCli#run}，以套用寫入的失敗契約（由 Remedy 決定直接重試或先檢查再重試）。
+ * 見 docs/design.md#failure-contract。
  */
 @Component
 public class CommentTools {
@@ -37,8 +35,8 @@ public class CommentTools {
     private static final Logger log = LoggerFactory.getLogger(CommentTools.class);
 
     /**
-     * GraphQL query for paginating comments. Uses {@code last:} (most recent first)
-     * with an optional {@code before} cursor for continuation.
+     * 分頁讀取留言的 GraphQL 查詢。用 {@code last:}（最新的優先），並以選用的
+     * {@code before} cursor 接續下一頁。
      */
     private static final String QUERY = """
             query($owner:String!, $name:String!, $number:Int!, $last:Int!, $before:String) {
@@ -54,9 +52,9 @@ public class CommentTools {
             }""";
 
     /**
-     * Converts an issue number to its GraphQL ID. Guards against pull requests:
-     * {@code repository.issue(number:)} fails on a pull request number with a specific
-     * stderr pattern that {@link GhCli} maps to {@code FIX_REQUEST}.
+     * 把 issue 編號轉成 GraphQL ID，同時擋下 pull request：對 pull request 編號，
+     * {@code repository.issue(number:)} 會以特定 stderr 失敗，{@link GhCli} 將其對應為
+     * {@code FIX_REQUEST}。
      */
     private static final String ISSUE_ID = """
             query($owner:String!, $name:String!, $number:Int!) {
@@ -66,7 +64,7 @@ public class CommentTools {
             }""";
 
     /**
-     * GraphQL mutation to post a comment. Returns the comment URL from the response.
+     * 新增留言的 GraphQL mutation，從回應取得留言 URL。
      */
     private static final String ADD_COMMENT = """
             mutation($subjectId:ID!, $body:String!) {
@@ -133,19 +131,18 @@ public class CommentTools {
                 "-f", "owner=" + owner,
                 "-f", "name=" + repo,
                 "-F", "number=" + number,
-                // No spare row here (see list_issues for that pattern). GitHub's GraphQL caps
-                // at 100, so requesting 101 would hard-error. `truncated` comes from
-                // hasPreviousPage instead.
+                // 這裡不多要一列（多要一列的做法見 list_issues）。GitHub GraphQL 上限為 100，
+                // 要求 101 會直接出錯，所以 `truncated` 改由 hasPreviousPage 決定。
                 "-F", "last=" + effectiveLimit));
 
         return ToolResults.attempt("list_issue_comments", owner, repo, () -> {
-            // GraphQL route does not use --repo, but validate for consistency.
+            // GraphQL 路徑不使用 --repo，但為了一致仍做驗證。
             Repos.check(owner, repo);
 
-            // Before the call, so a cursor from the wrong issue costs nothing to reject.
+            // 在呼叫前檢查，拒絕其他 issue 的 cursor 不花任何成本。
             String before = Cursors.unwrap(issue, cursor);
             if (before != null) {
-                // Use -f for cursor strings (see class javadoc).
+                // cursor 字串用 -f（見 class javadoc）。
                 args.add("-f");
                 args.add("before=" + before);
             }
@@ -187,19 +184,19 @@ public class CommentTools {
             String body) {
 
         return ToolResults.attempt("add_issue_comment", owner, repo, () -> {
-            // Validate inside the lambda so the failure carries structured content.
-            // GitHub rejects blank (whitespace-only) bodies, so check before calling gh.
+            // 在 lambda 內驗證，失敗才會帶有 structured content。
+            // GitHub 拒絕空白（只有空白字元）的 body，所以在呼叫 gh 前檢查。
             if (body == null || body.isBlank()) {
                 throw blankBody();
             }
 
-            // Validate for consistency, though GraphQL route does not use --repo.
+            // GraphQL 路徑不使用 --repo，但為了一致仍做驗證。
             Repos.check(owner, repo);
 
-            // Check rate limit after validation and before any gh call.
+            // 驗證通過後、任何 gh 呼叫之前，檢查 rate limit。
             writes.acquire();
 
-            // Call one: resolve issue number to GraphQL ID (uses read route).
+            // 第一次呼叫：把 issue 編號解析成 GraphQL ID（走讀取路徑）。
             String subjectId = mapper.toIssueId(gh.run(List.of(
                     "api", "graphql",
                     "-f", "query=" + ISSUE_ID,
@@ -207,15 +204,15 @@ public class CommentTools {
                     "-f", "name=" + repo,
                     "-F", "number=" + number)));
 
-            // Call two: post the comment (uses write route, see docs/design.md#writes).
-            // Use -f for all string values (see class javadoc).
+            // 第二次呼叫：新增留言（走寫入路徑，見 docs/design.md#writes）。
+            // 所有字串值都用 -f（見 class javadoc）。
             NewComment written = mapper.toNewComment(gh.runWrite(List.of(
                     "api", "graphql",
                     "-f", "query=" + ADD_COMMENT,
                     "-f", "subjectId=" + subjectId,
                     "-f", "body=" + body)));
 
-            // Log the permalink; it identifies the comment without exposing content.
+            // 記錄永久連結：它能識別這則留言，又不暴露內容。
             MDC.put("commentUrl", written.url());
             log.info("comment written");
             MDC.remove("commentUrl");
@@ -225,7 +222,7 @@ public class CommentTools {
     }
 
     /**
-     * Failure for a blank comment body. Reported before calling gh.
+     * 留言 body 為空白時的失敗，在呼叫 gh 前回報。
      */
     private static ToolFailure blankBody() {
         return new ToolFailure(Remedy.FIX_REQUEST,

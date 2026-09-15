@@ -14,9 +14,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Verifies {@code get_issue} response shapes, including rejection of pull request numbers.
+ * 驗證 {@code get_issue} 的回應形狀，包括拒絕 pull request 編號。
  *
- * <p>Fixtures are real captures from {@code gh issue view --json}.
+ * <p>fixture 都是 {@code gh issue view --json} 的真實輸出。
  */
 class GetIssueTest {
 
@@ -69,7 +69,7 @@ class GetIssueTest {
 
     @Test
     void anOpenIssueKeepsGhsOwnSpellingOfAbsence() throws Exception {
-        // gh reports closedAt as null and stateReason as ""; both are passed through unchanged.
+        // gh 回報 closedAt 為 null、stateReason 為 ""，兩者都原樣傳遞。
         CallToolResult result = get("issue-view-open.json", 15);
 
         assertThat(text(result))
@@ -82,15 +82,15 @@ class GetIssueTest {
 
     @Test
     void commentsAreNotInThePayloadAtAll() throws Exception {
-        // Not merely empty: the field is never requested, so there is no key to read as
-        // "this issue has no comments".
+        // 不只是空的：這個欄位從未被要求，所以不存在一個會被讀成「這個 issue 沒有留言」
+        // 的 key。
         assertThat(text(get("issue-view.json", 13))).doesNotContain("\"comments\"");
     }
 
     @Test
     void aPullRequestNumberIsRejected() throws Exception {
-        // The fixture is a real pull request seen through `gh issue view` -- gh succeeded
-        // and answered. Nothing failed; this Server judged the answer unacceptable.
+        // fixture 是透過 `gh issue view` 看到的真實 pull request：gh 成功並回應了。沒有任何
+        // 東西失敗，是本 Server 判定這個回應不可接受。
         CallToolResult result = get("issue-view-pull-request.json", 14356);
 
         assertThat(result.isError()).isTrue();
@@ -117,8 +117,7 @@ class GetIssueTest {
 
     @Test
     void aGhFailureStillTravelsTheOrdinaryWay() throws Exception {
-        // The other origin: get_issue inherits GhCli's classification unchanged, including
-        // the case get_issue is the first Tool able to reach.
+        // 另一種來源：get_issue 原封不動沿用 GhCli 的分類，包括只有 get_issue 會遇到的情況。
         var tools = new IssueTools(
                 new GhCli(FakeGh.failing(tmp, "GraphQL: Could not resolve to an issue or pull "
                         + "request with the number of 9999. (repository.issue)"), 30),

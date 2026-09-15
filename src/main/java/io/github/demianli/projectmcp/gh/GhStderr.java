@@ -6,44 +6,44 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Reads {@code gh}'s stderr and decides what the caller should do about it.
+ * 讀取 {@code gh} 的 stderr，決定呼叫者接下來該怎麼做。
  *
- * <p>Best-effort by construction: these are substrings {@code gh} chooses, not an API.
- * Anything unmatched becomes {@link Remedy#UNKNOWN}. Each row carries the provenance of
- * its sample strings — whether they came from real {@code gh} or were written here.
+ * <p>本質上是盡力而為：比對的是 {@code gh} 自行選用的子字串，不是 API。沒有比對到的一律
+ * 成為 {@link Remedy#UNKNOWN}。每一列都標註其樣本字串的來源：取自真正的 {@code gh}，
+ * 或是在此撰寫。
  *
- * <p>This class sees only a non-zero exit with stderr. An absent binary, a timeout, and an
- * unreadable pipe never reach it. The write route's {@link Remedy#CHECK_BEFORE_RETRY} is
- * {@link GhCli}'s concern, not this class's.
+ * <p>本 class 只處理「非零結束且有 stderr」的情況；執行檔不存在、逾時與 pipe 無法讀取
+ * 都不會到這裡。寫入路徑的 {@link Remedy#CHECK_BEFORE_RETRY} 由 {@link GhCli} 負責，
+ * 不在此處。
  */
 final class GhStderr {
 
     private GhStderr() {
     }
 
-    /** Where a sample's wording came from. Evidence, not proof: nothing here can verify it. */
+    /** 樣本措辭的來源。只是佐證而非證明：這裡無法驗證它。 */
     enum Provenance {
 
-        /** This exact string is real output from {@code gh}. */
+        /** 這個字串是 {@code gh} 的真實輸出。 */
         MEASURED,
 
         /**
-         * Written here rather than taken from {@code gh}. The marker it exercises is a best
-         * guess at {@code gh}'s wording, so a real failure may not match it.
+         * 在此撰寫，並非取自 {@code gh}。它所驗證的 marker 是對 {@code gh} 措辭的最佳推測，
+         * 真正的失敗不一定比對得到。
          */
         UNMEASURED
     }
 
-    /** One stderr this row is meant to catch. */
+    /** 這一列要捕捉的一段 stderr。 */
     record Sample(String stderr, Provenance provenance) {
     }
 
     /**
-     * One classification: the markers that select it, and what the caller is then told.
+     * 一種分類：選中它的 markers，以及隨後告訴呼叫者的內容。
      *
-     * @param statedWait extracts a wait the stderr names, or {@code null} where no wording
-     *     names one — which is every row but the rate limit. Named around
-     *     {@code Object.wait}, which a record component may not shadow.
+     * @param statedWait 擷取 stderr 指明的等待時間；措辭沒有指明時為 {@code null}，除了
+     *     rate limit 那一列都是如此。命名避開 {@code Object.wait}，因為 record component
+     *     不能遮蔽它。
      */
     record Branch(String name, List<String> markers, Remedy remedy, String sentence,
                   Pattern statedWait, List<Sample> samples) {
@@ -57,13 +57,12 @@ final class GhStderr {
             return markers.stream().anyMatch(loweredStderr::contains);
         }
 
-        /** The failure this row reports for {@code stderr}, which it has already matched. */
+        /** 這一列對已比對成功的 {@code stderr} 回報的失敗。 */
         ToolFailure toFailure(String stderr) {
             if (statedWait == null) {
                 return new ToolFailure(remedy, sentence, stderr, null);
             }
-            // Against the original rather than the lowered copy: the pattern is
-            // case-insensitive itself, and the digits are what is being read out.
+            // 對原始字串而非小寫副本比對：pattern 本身不分大小寫，而要讀出的是其中的數字。
             Matcher m = statedWait.matcher(stderr);
             Integer seconds = m.find() ? Integer.valueOf(m.group(1)) : null;
             return new ToolFailure(remedy,
@@ -73,13 +72,13 @@ final class GhStderr {
         }
     }
 
-    /** {@code gh} sometimes names a wait; the wording is unverified, so this is best-effort. */
+    /** {@code gh} 有時會指明等待時間；措辭未經驗證，因此只是盡力而為。 */
     private static final Pattern RETRY_AFTER =
             Pattern.compile("retry after (\\d+)", Pattern.CASE_INSENSITIVE);
 
     /**
-     * The rows, in the order they are tried. First match wins. No marker contains another,
-     * which {@code GhStderrTest} asserts. The order goes from specific to general.
+     * 所有列，依嘗試順序排列，先比對到者勝出。沒有任何 marker 包含另一個，由
+     * {@code GhStderrTest} 斷言。順序由具體到一般。
      */
     private static final List<Branch> BRANCHES = List.of(
 
@@ -178,12 +177,12 @@ final class GhStderr {
                     List.of(new Sample("the 'torvalds/linux' repository has disabled issues",
                             Provenance.MEASURED))));
 
-    /** The rows, for {@link GhCli} to classify with and for its tests to walk. */
+    /** 所有列，供 {@link GhCli} 分類使用，也供其測試走訪。 */
     static List<Branch> branches() {
         return BRANCHES;
     }
 
-    /** What the caller should do about {@code stderr}. */
+    /** 呼叫者對這段 {@code stderr} 該怎麼做。 */
     static ToolFailure classify(String stderr) {
         String lowered = stderr.toLowerCase(Locale.ROOT);
         for (Branch branch : BRANCHES) {

@@ -15,18 +15,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests that no Tool lets a slash in owner or repo reach gh.
+ * 驗證沒有任何 Tool 會讓 owner 或 repo 中的斜線傳到 gh。
  *
- * <p>gh's --repo accepts [HOST/]OWNER/REPO, so a slash can redirect the request. The refusal
- * must be FIX_REQUEST to prevent the Client from retrying the same malicious input. Every
- * Tool is tested, not a hand-written list, so the sixth Tool is covered by being written, not
- * remembered. The stand-in writes a marker when executed, proving gh never started.
+ * <p>gh 的 --repo 接受 [HOST/]OWNER/REPO，斜線可能把請求導向別處。拒絕必須是 FIX_REQUEST，
+ * 以免 Client 用同樣的惡意輸入重試。測試走訪每個 Tool 而不是手寫清單，新增的 Tool 一寫出來
+ * 就被涵蓋。替身一旦執行就會寫下標記，藉此證明 gh 從未啟動。
  */
 class RepositoryNameAcceptanceTest {
 
     @TempDir Path tmp;
 
-    /** A host:port/owner shape that could redirect the gh request. */
+    /** 可能把 gh 請求導向別處的 host:port/owner 形狀。 */
     private static final String HOST_SHAPED_OWNER = "127.0.0.1:8099/a";
 
     @SuppressWarnings("unchecked")

@@ -8,7 +8,7 @@ import io.github.demianli.projectmcp.gh.ToolFailure;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
-/** Tests write rate limiting: 80 per minute, 500 per hour. */
+/** 驗證寫入的 rate limit：每分鐘 80 次、每小時 500 次。 */
 class WriteLimiterTest {
 
     private static final long SECOND = 1_000_000_000L;
@@ -68,7 +68,7 @@ class WriteLimiterTest {
 
     @Test
     void fiveHundredWritesInAnHourAreTheCeilingEvenWhenEveryMinuteIsUnderEighty() {
-        // 50 a minute stays under the minute window and reaches 500 after ten minutes.
+        // 每分鐘 50 次不會觸發分鐘視窗，十分鐘後累計達到 500 次。
         for (int minute = 0; minute < 10; minute++) {
             admit(50);
             now.addAndGet(60 * SECOND);

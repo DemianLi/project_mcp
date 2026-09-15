@@ -13,29 +13,26 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests that every Tool returns failure results with Remedy and stderr intact.
+ * 驗證每個 Tool 的失敗結果都完整帶有 Remedy 與 stderr。
  *
- * <p>The failure contract is Server-wide (see docs/design.md#failure-contract). Every Tool
- * must catch ToolFailure and return it via ToolResults. Spring AI's callback produces
- * isError: true and text message for any RuntimeException, but does not produce
- * structuredContent. If a Tool lets ToolFailure escape, the Remedy vanishes silently while
- * the result still looks like a well-formed error. This test drives every Tool to catch that
- * mistake, not by remembering which ones were written, but by asserting on every declared
- * Tool.
+ * <p>失敗契約適用於整個 Server（見 docs/design.md#failure-contract）。每個 Tool 都必須捕捉
+ * ToolFailure 並經由 ToolResults 回傳。Spring AI 的 callback 遇到任何 RuntimeException 都會
+ * 產生 isError: true 與文字訊息，但沒有 structuredContent；Tool 若讓 ToolFailure 漏出去，
+ * Remedy 會悄悄消失，結果看起來卻仍是格式正確的錯誤。本測試不靠記得有哪些 Tool，而是對
+ * 每個已宣告的 Tool 斷言。
  *
- * <p>Cheap: one Server, one stand-in that fails identically, one call per Tool. No timeouts.
+ * <p>成本低：一個 Server、一個一律以相同方式失敗的替身、每個 Tool 呼叫一次，不涉及逾時。
  */
 class FailureContractAcceptanceTest {
 
     @TempDir Path tmp;
 
     /**
-     * One stderr that every Tool's route reaches the same way.
+     * 每個 Tool 的路徑都以相同方式碰到的 stderr。
      *
-     * <p>It classifies — {@code FIX_REQUEST} — but which Remedy it lands on is
-     * {@code GhCliFailureTest}'s subject, not this one's. What matters here is that whatever
-     * was decided arrives with the structured half attached, which is why the assertion below
-     * reads the stderr back rather than pinning the Remedy's value.
+     * <p>它會被分類為 {@code FIX_REQUEST}，但分類成哪個 Remedy 由 {@code GhCliFailureTest}
+     * 驗證，不在此處。這裡在意的是無論分類結果為何，結構化的那一半都有帶上，所以下方斷言
+     * 讀回 stderr，而不是釘住 Remedy 的值。
      */
     private static final String STDERR =
             "GraphQL: Could not resolve to a Repository with the name 'DemianLi/nope'. "
@@ -73,8 +70,8 @@ class FailureContractAcceptanceTest {
                         .as("`%s` could not do its job", tool.name())
                         .isTrue();
 
-                // The half with teeth. Spring AI's fallback leaves this null, so a Tool that
-                // let the ToolFailure escape lands here rather than on isError above.
+                // 關鍵斷言。Spring AI 的 fallback 會讓這裡是 null，所以讓 ToolFailure 漏出去
+                // 的 Tool 會在這裡失敗，而不是在上面的 isError。
                 assertThat(structured(result))
                         .as("`%s` must report its failure through ToolResults, not by "
                                 + "letting it escape -- an escaped ToolFailure still answers "

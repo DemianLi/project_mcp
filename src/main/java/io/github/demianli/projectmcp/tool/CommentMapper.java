@@ -9,9 +9,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Maps GraphQL responses to comment result types.
+ * 把 GraphQL 回應對應成留言相關的結果型別。
  *
- * <p>Testable as a pure function against captured payloads.
+ * <p>是純函式，可直接用擷取下來的回應測試。
  */
 @Component
 public class CommentMapper {
@@ -19,8 +19,8 @@ public class CommentMapper {
     private final JsonMapper json = JsonMapper.builder().build();
 
     /**
-     * @param ghJson GraphQL response rooted at {@code data}
-     * @param issue passed to {@link Cursors} for cursor naming
+     * @param ghJson 以 {@code data} 為根的 GraphQL 回應
+     * @param issue 交給 {@link Cursors}，為 cursor 標註所屬的 issue
      */
     public CommentPage toPage(String ghJson, IssueRef issue) {
         JsonNode comments = json.readTree(ghJson)
@@ -46,13 +46,13 @@ public class CommentMapper {
                 comments.path("totalCount").asInt(0), nextCursor);
     }
 
-    /** Extracts the issue's node id from the lookup response. */
+    /** 從查詢回應取出 issue 的 node id。 */
     public String toIssueId(String ghJson) {
         return json.readTree(ghJson)
                 .path("data").path("repository").path("issue").path("id").asString("");
     }
 
-    /** Reads the new comment's permalink out of what {@code addComment} answered. */
+    /** 從 {@code addComment} 的回應讀出新留言的永久連結。 */
     public NewComment toNewComment(String ghJson) {
         return new NewComment(json.readTree(ghJson)
                 .path("data").path("addComment").path("commentEdge").path("node").path("url")

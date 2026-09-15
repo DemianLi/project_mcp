@@ -15,17 +15,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Verifies {@code add_issue_comment}'s response shape and the argv it builds to GitHub.
+ * 驗證 {@code add_issue_comment} 的回應形狀，以及它送往 GitHub 的 argv。
  *
- * <p>The argv decisions are not visible in the success result, so this layer asserts them:
- * that the lookup uses {@code repository.issue} (pull-request guard), that all values go
- * under {@code -f} (preserves numeric bodies), and that no {@code clientMutationId} is sent.
+ * <p>argv 上的決定在成功結果中看不到，所以由這一層斷言：查詢使用
+ * {@code repository.issue}（擋下 pull request）、所有值都以 {@code -f} 送出（保留像
+ * 數字的 body），而且不送 {@code clientMutationId}。
  */
 class AddIssueCommentTest {
 
     @TempDir Path tmp;
 
-    /** Stand-in that answers lookup then mutation, recording both invocations. */
+    /** 先回應查詢、再回應 mutation 的替身，兩次呼叫都會記錄。 */
     private CommentTools tools() throws IOException {
         return tools(new WriteLimiter());
     }
@@ -44,7 +44,7 @@ class AddIssueCommentTest {
                 writes);
     }
 
-    /** What the stand-in was called with on its nth invocation, one argument per element. */
+    /** 替身第 n 次被呼叫時收到的參數，每個元素一個參數。 */
     private List<String> argv(int call) throws IOException {
         return Files.readAllLines(tmp.resolve("argv" + call + ".txt"));
     }
@@ -97,7 +97,7 @@ class AddIssueCommentTest {
 
     @Test
     void everyStringGoesOutUnderMinusFSoANumericBodyStaysAString() throws Exception {
-        // Using -f preserves "123" as a string; -F would coerce it to a JSON number.
+        // 用 -f 讓 "123" 維持字串；-F 會把它轉成 JSON 數字。
         tools().addIssueComment("DemianLi", "project-mcp-sandbox", 1, "123");
 
         assertThat(argv(2)).containsSequence("-f", "body=123");
@@ -116,7 +116,7 @@ class AddIssueCommentTest {
 
     @Test
     void theMutationCarriesNoClientMutationId() throws Exception {
-        // clientMutationId does not provide idempotency; same key/body produces two comments.
+        // clientMutationId 不提供冪等性：相同的 key 與 body 仍會產生兩則留言。
         tools().addIssueComment("DemianLi", "project-mcp-sandbox", 1, "hello");
 
         assertThat(String.join(" ", argv(2)))
@@ -126,9 +126,8 @@ class AddIssueCommentTest {
 
     @Test
     void theIdFromCallOneIsWhatCallTwoWritesTo() throws Exception {
-        // The two calls are joined by a value parsed out of the first response. Nothing in
-        // the returned url would reveal a Tool that sent the wrong subjectId, because the
-        // url comes from the stand-in either way.
+        // 兩次呼叫由第一次回應中解析出的值串接。從回傳的 url 看不出 Tool 是否送錯
+        // subjectId，因為 url 無論如何都來自替身。
         tools().addIssueComment("DemianLi", "project-mcp-sandbox", 1, "hello");
 
         String idFromFixture = "I_kwDOUPQgXc8AAAABP10LbA";
@@ -139,7 +138,7 @@ class AddIssueCommentTest {
 
     @Test
     void aBlankBodyIsRefusedWithoutCallingGhAtAll() throws Exception {
-        // Blank (not empty) bodies are rejected to prevent whitespace-only comments.
+        // 拒絕空白（而不只是空字串）的 body，避免只有空白字元的留言。
         for (String blank : List.of("", " ", "  ", "\n", "\t\n ")) {
             CommentTools tools = tools();
             CallToolResult result =
@@ -191,7 +190,7 @@ class AddIssueCommentTest {
 
     @Test
     void aFailureOnTheLookupNeverReachesTheMutation() throws Exception {
-        // When lookup fails, the mutation is never invoked.
+        // 查詢失敗時，mutation 永遠不會被呼叫。
         String script = "printf '%s\\n' \"$@\" >> " + tmp.resolve("argv1.txt") + "\n"
                 + "echo 'gh: Could not resolve to an Issue with the number of 3.' >&2\n"
                 + "exit 1";

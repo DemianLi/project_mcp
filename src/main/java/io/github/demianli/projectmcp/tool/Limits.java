@@ -1,10 +1,9 @@
 package io.github.demianli.projectmcp.tool;
 
 /**
- * Limit validation rule shared by all {@code list_*} Tools: default 30, clamped to 1–100.
+ * 所有 {@code list_*} Tools 共用的 limit 規則：預設 30，限制在 1–100。
  *
- * <p>The ceiling protects Client context. The floor accommodates {@code gh} which rejects 0
- * and negative values.
+ * <p>上限保護 Client 的 context；下限配合 {@code gh}，因為它拒絕 0 與負值。
  */
 final class Limits {
 

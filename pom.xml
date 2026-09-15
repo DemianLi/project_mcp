@@ -35,16 +35,15 @@
   </dependencyManagement>
 
   <dependencies>
-    <!-- The stdio/standard MCP server starter. Deliberately NOT the -webmvc or
-         -webflux variants: this Server speaks Stdio only. -->
+    <!-- 標準（stdio）MCP server starter，刻意不用 -webmvc 或 -webflux 版本：
+         本 Server 只走 stdio。 -->
     <dependency>
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-mcp-server</artifactId>
     </dependency>
 
-    <!-- Parsing `gh`'s JSON output. Already on the classpath transitively via
-         Spring AI's MCP JSON support, but declared here because this code uses it
-         directly rather than by accident. -->
+    <!-- 解析 `gh` 的 JSON 輸出。雖已經由 Spring AI 的 MCP JSON 支援間接帶入，
+         程式碼直接使用它，因此明確宣告。 -->
     <dependency>
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>

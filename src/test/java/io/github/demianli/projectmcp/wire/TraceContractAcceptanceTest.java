@@ -14,24 +14,22 @@ import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Tests what the Server writes to logs and what it must not include.
+ * 驗證 Server 寫進 log 的內容，以及不得寫入的內容。
  *
- * <p>Two assertions: one protects format (each call writes one line with required fields),
- * one protects a boundary (nothing the Server writes into the log is GitHub content). If the
- * second breaks, the Server's log becomes a copy of user content outside the protocol.
- * GhCli logs gh stderr verbatim; if GitHub quotes the comment body on refusal, content
- * reaches the file via a route redaction cannot touch. This test asserts what the Server
- * itself writes, as a limitation documented in docs/design.md#logging. Reads from a
- * redirected file because asserting absence from a shared file would pass/fail on history.
+ * <p>兩類斷言：一類保護格式（每次呼叫寫一行、含必要欄位），一類保護邊界（Server 寫進 log
+ * 的都不是 GitHub 內容）。第二類若失守，log 就成了協定之外的一份使用者內容副本。GhCli 會
+ * 原樣記錄 gh 的 stderr；若 GitHub 拒絕時引用留言內文，內容會經由遮蔽處理碰不到的路徑進入
+ * 檔案，這是 docs/design.md#logging 記載的限制，因此本測試只斷言 Server 自己寫的內容。
+ * log 導向獨立檔案，因為在共用檔案上斷言「不存在」，結果會取決於過去的執行。
  */
 class TraceContractAcceptanceTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
-    /** In the issue this Server reads back. */
+    /** 放在此 Server 讀回的 issue 中。 */
     private static final String READ_CANARY = "canary-read-8f21ac";
 
-    /** In the comment a Client asks this Server to write. */
+    /** 放在 Client 要求此 Server 寫入的留言中。 */
     private static final String WRITE_CANARY = "canary-write-3d90be";
 
     @TempDir
@@ -81,9 +79,8 @@ class TraceContractAcceptanceTest {
     void aWriteThatFailsAtTheMutationLeavesTheCommentOutOfTheFile() throws Exception {
         Path logFile = tmp.resolve("trace.log");
 
-        // The lookup succeeds and the mutation does not, so the argv GhCli logs is the one
-        // ending in `-f body=...`. A stand-in that failed on the first call would leave this
-        // test green with the leak still open.
+        // 查 id 成功、mutation 失敗，所以 GhCli 記下的 argv 是以 `-f body=...` 結尾的那一個。
+        // 若替身在第一次呼叫就失敗，測試會通過，但洩漏仍然存在。
         try (McpSyncClient client = LaunchedServer.withGhLoggingTo(tmp, """
                 case "$*" in
                   *addComment*) echo "gh: refused" >&2; exit 1 ;;
@@ -113,9 +110,8 @@ class TraceContractAcceptanceTest {
         Map<String, Object> trace = onlyTraceLine(log, "add_issue_comment failed");
         assertThat(trace)
                 .containsEntry("outcome", "error")
-                // The mutation exited non-zero with unrecognized stderr, so it classifies
-                // as UNKNOWN whether the write succeeded before the failure. See
-                // docs/design.md#writes.
+                // mutation 以非零結束且 stderr 無法辨識，因此分類為 UNKNOWN：無從得知
+                // 失敗前寫入是否已成功。見 docs/design.md#writes。
                 .containsEntry("remedy", "UNKNOWN")
                 .containsKey("callId");
         assertThat(argvLine(log).get("callId"))

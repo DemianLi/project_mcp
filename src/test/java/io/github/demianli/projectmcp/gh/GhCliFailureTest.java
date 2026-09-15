@@ -11,20 +11,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests the process machinery under real subprocess conditions.
+ * 在真正的子行程條件下測試行程處理機制。
  *
- * <p>No network and no real {@code gh}. These tests keep the spawn, pipes, exit codes and
- * timeout real so {@link GhCli}'s actual behavior is observed, not mocked. They exercise
- * machinery that {@link GhStderr} cannot (which tests as strings). Each test needs a real
- * subprocess.
+ * <p>沒有網路，也沒有真正的 {@code gh}。這些測試讓啟動行程、pipe、結束碼與逾時都是
+ * 真的，觀察 {@link GhCli} 的實際行為而不是 mock。它們涵蓋 {@link GhStderr}（以字串
+ * 測試）測不到的機制，每個測試都需要真正的子行程。
  *
- * <p>The write route reclassifies three specific exits; a non-zero exit must be classified
- * the same way on both routes to prove which path was taken.
+ * <p>寫入路徑會重新分類三種特定的結束方式；非零結束在兩條路徑上必須分類相同，以此對照
+ * 才能證明實際走了哪條路徑。
  *
- * <p>One branch is unreachable: the {@code ExecutionException} arm when {@code readAllBytes}
- * throws. A stand-in binary cannot trigger this — a killed process gives EOF. Testing it
- * would require seaming {@link ProcessBuilder}, which {@link GhCli}'s javadoc rejects because
- * that is what makes the absent binary, timeout and full pipe scenarios testable at all.
+ * <p>有一個分支測不到：{@code readAllBytes} 拋出例外時的 {@code ExecutionException}
+ * 分支。替身執行檔無法觸發它，因為被終止的行程只會給出 EOF。要測它就得替
+ * {@link ProcessBuilder} 開接縫；不這麼做，是因為直接使用 ProcessBuilder，「執行檔
+ * 不存在」、逾時與 pipe 塞滿的情境才測得到。
  */
 class GhCliFailureTest {
 
@@ -36,8 +35,8 @@ class GhCliFailureTest {
 
     @Test
     void timeoutOnAReadIsRetryAndCarriesNoWait() throws Exception {
-        // "exit 0" after the sleep stops shell exec-optimization so sleep is genuinely
-        // a grandchild holding the pipe open, reproducing reliably across shells.
+        // sleep 後的 "exit 0" 阻止 shell 的 exec 最佳化，讓 sleep 確實成為握著 pipe 的
+        // 孫行程，在各種 shell 上都能穩定重現。
         GhCli gh = new GhCli(FakeGh.writing(tmp, "sleep 30\nexit 0"), 1);
         long start = System.nanoTime();
         assertThatThrownBy(() -> gh.run(List.of("issue", "list")))
@@ -71,10 +70,9 @@ class GhCliFailureTest {
 
     @Test
     void interruptionIsRetryOnAReadAndCheckOnAWrite() throws Exception {
-        // Pre-set the flag before the call to avoid guessing an interrupt window on a second
-        // thread. Shell is `sleep 1 & exit 0` so the exit returns immediately while the
-        // backgrounded sleep holds the pipe open, exercising both the waitFor and Future.get
-        // code paths that could notice the interrupted flag.
+        // 呼叫前先設好中斷旗標，不必在另一個執行緒上猜中斷時機。shell 內容是
+        // `sleep 1 & exit 0`：exit 立即返回，背景的 sleep 則握著 pipe，於是 waitFor 與
+        // Future.get 兩條可能察覺中斷旗標的程式路徑都會執行到。
         String slow = FakeGh.writing(tmp, "sleep 1 & exit 0");
         long start = System.nanoTime();
 
@@ -87,8 +85,7 @@ class GhCliFailureTest {
                         assertThat(f.getMessage()).doesNotContain("list_issue_comments");
                     });
         } finally {
-            // GhCli re-sets the flag on its way out, which is correct and must not leak
-            // to subsequent tests.
+            // GhCli 返回時會重新設定中斷旗標，這是正確的行為，但不能洩漏到後續測試。
             assertThat(Thread.interrupted()).isTrue();
         }
 
@@ -114,9 +111,8 @@ class GhCliFailureTest {
 
     @Test
     void aWriteThatFailsForAnyOtherReasonIsClassifiedExactlyAsAReadWouldBe() throws Exception {
-        // The write route changes only the three exits that abandon the call without
-        // learning the outcome. A non-zero exit gives gh's answer, so classification is
-        // independent of the route.
+        // 寫入路徑只改變三種「沒得知結果就放棄呼叫」的結束方式。非零結束帶有 gh 的回答，
+        // 所以分類與路徑無關。
         GhCli gh = new GhCli(FakeGh.failing(tmp,
                 "GraphQL: Could not resolve to a Repository with the name 'a/b'. (repository)"),
                 30);
@@ -130,8 +126,8 @@ class GhCliFailureTest {
 
     @Test
     void anAbsentBinaryIsAskOperatorAndCarriesNoStderr() {
-        // An absent binary never reaches a non-zero exit and produces no stderr. The path
-        // truly does not exist so the IOException comes from ProcessBuilder.start() itself.
+        // 執行檔不存在時不會有非零結束，也沒有 stderr。路徑確實不存在，
+        // 所以 IOException 直接來自 ProcessBuilder.start()。
         GhCli gh = pointingAt(tmp.resolve("no-such-gh").toString());
         assertThatThrownBy(() -> gh.run(List.of("issue", "list")))
                 .asInstanceOf(type(ToolFailure.class))
@@ -144,9 +140,8 @@ class GhCliFailureTest {
 
     @Test
     void stderrLargerThanThePipeBufferDoesNotDeadlock() throws Exception {
-        // Tests concurrent draining to prevent deadlock when stderr exceeds the pipe buffer.
-        // Only a real process can fill a real buffer, which is why the seam is at the
-        // executable name rather than lower.
+        // 驗證兩個 pipe 同時讀取，避免 stderr 超過 pipe 緩衝區時死結。
+        // 只有真正的行程能塞滿真正的緩衝區，所以接縫設在執行檔名稱，而不是更底層。
         GhCli gh = pointingAt(FakeGh.writing(tmp,
                 "i=0; while [ $i -lt 4000 ]; do echo 'noise noise noise noise' >&2; "
                         + "i=$((i+1)); done; echo '[]'"));

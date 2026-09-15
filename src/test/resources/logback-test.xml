@@ -1,8 +1,7 @@
-<!-- Tests provoke GhCli failures on purpose; at WARN level their argv is logged. This config
-     silences that noise. It also prevents Spring Boot's file appender from being installed
-     when the test classpath includes target/test-classes, making the Server's output invisible
-     except to tests that explicitly redirect logging. TraceContractAcceptanceTest drops
-     test-classes and redirects the log to assert on contents. -->
+<!-- 測試會刻意觸發 GhCli 失敗，WARN 等級會記下其 argv；此設定關掉這些雜訊。
+     classpath 含 target/test-classes 時，此檔也讓 Spring Boot 不安裝檔案 appender，
+     因此除非測試明確重導 log，否則看不到 Server 的 log 輸出。
+     TraceContractAcceptanceTest 會移除 test-classes 並重導 log，以斷言其內容。 -->
 <configuration>
   <logger name="io.github.demianli.projectmcp.gh.GhCli" level="OFF"/>
   <root level="WARN"/>

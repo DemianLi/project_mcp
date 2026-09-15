@@ -20,55 +20,48 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests that each GraphQL variable uses the flag its declared type requires.
+ * 驗證每個 GraphQL 變數都以其宣告型別要求的旗標送出。
  *
- * <p><strong>The danger in -F.</strong> {@code gh api}'s -f sends strings literally. {@code -F}
- * has three magic readings: 123 and true become JSON scalars; {owner}, {repo}, {branch} are
- * replaced with the current repository; @path reads a file. So {@code -F body=} on
- * add_issue_comment would let a Client name a file on this machine and post its contents to
- * GitHub, contradicting the Tool's read-only annotations.
+ * <p><strong>-F 的風險。</strong>{@code gh api} 的 -f 把值當字串原樣送出；{@code -F} 則有
+ * 三種特殊解讀：123 與 true 變成 JSON 純量；{owner}、{repo}、{branch} 換成目前的
+ * repository；@path 讀取檔案。因此 add_issue_comment 若用 {@code -F body=}，Client 就能
+ * 指定本機上的檔案並把內容貼到 GitHub，與 Tool 的 annotations 所宣告的行為不符。
  *
- * <p><strong>The rule is two-sided.</strong> {@code Int}, {@code Float}, {@code Boolean}
- * must use -F (sending them as strings would violate GraphQL type constraints). All other
- * scalars use -f. {@code ID} uses -f by design: GraphQL's ID takes a string.
+ * <p><strong>規則是雙向的。</strong>{@code Int}、{@code Float}、{@code Boolean} 必須用
+ * -F（以字串送出會違反 GraphQL 型別）；其他純量一律用 -f。{@code ID} 刻意用 -f，因為
+ * GraphQL 的 ID 接受字串。
  *
- * <p><strong>Both sides of the check live in one place.</strong> Types are declared in the
- * GraphQL document, which travels in the argv as {@code -f query=…}. A captured argv carries
- * both what was sent and what the document says it should be, so no separate table is needed
- * here — and new variables added with wrong flags turn the test red without editing this file.
+ * <p><strong>檢查的兩端在同一處。</strong>型別宣告在 GraphQL 文件裡，文件以
+ * {@code -f query=…} 放在 argv 中送出。擷取到的 argv 同時帶有實際送出的旗標與文件要求的
+ * 型別，所以不需要另一張對照表；新增變數時用錯旗標，不必改這個檔案測試就會失敗。
  *
- * <p><strong>Why at the Acceptance layer.</strong> "Every Tool" is only visible at
- * listTools(), above the wire. Below it, the test would either reflect on @McpTool or
- * hand-list call sites, coupling itself to implementation details. The argv is reachable
- * here: the stand-in gh writes it down. The test is cheap: one Server, one standin, one call
- * per Tool.
+ * <p><strong>為何放在 Acceptance 層。</strong>「每個 Tool」只有在 wire 之上的 listTools()
+ * 才看得到；更下層的測試只能反射 @McpTool 或手列呼叫點，會綁死實作細節。這一層也拿得到
+ * argv：替身 gh 會把它記下來。成本低：一個 Server、一個替身、每個 Tool 呼叫一次。
  */
 class ArgvFlagAcceptanceTest {
 
     @TempDir Path tmp;
 
-    /** Scalars whose JSON form is not a string, and which therefore need {@code -F}. */
+    /** JSON 形式不是字串的純量，因此必須用 {@code -F}。 */
     private static final Set<String> SENT_TYPED = Set.of("Int", "Float", "Boolean");
 
-    /** {@code $name:Type} in an operation's parameter list. Usages carry no {@code :Type}. */
+    /** 操作參數列中的 {@code $name:Type}；使用處不帶 {@code :Type}。 */
     private static final Pattern DECLARATION = Pattern.compile("\\$(\\w+)\\s*:\\s*(\\w+)");
 
-    /** Recognises {@code call<n>.arg<i>}, the one element of one call. */
+    /** 比對 {@code call<n>.arg<i>}，即某次呼叫的某個 argv 元素。 */
     private static final Pattern CAPTURED = Pattern.compile("call(\\d+)\\.arg(\\d+)");
 
     /**
-     * A {@code gh} that writes down every argv element and then answers.
+     * 記下每個 argv 元素後再回應的 {@code gh}。
      *
-     * <p>One file per element, and no separator anywhere. A GraphQL document is several
-     * lines long, so the {@code printf '%s\n' "$@"} the Coverage layer uses would split one
-     * argv element across lines and there would be no way to put it back — and a
-     * NUL-separated capture would rest on {@code /bin/sh} being the same shell here and on
-     * CI, which it is not.
+     * <p>每個元素存成一個檔案，完全不用分隔符。GraphQL 文件有好幾行，用
+     * {@code printf '%s\n' "$@"} 會把一個 argv 元素拆成多行且無法還原；改用 NUL 分隔則要
+     * 假設本機與 CI 的 {@code /bin/sh} 是同一種 shell，而兩者並不相同。
      *
-     * <p>It answers rather than failing because {@code add_issue_comment} makes two calls and
-     * only the second is the one with a body: a stand-in that failed the id lookup would
-     * never let the mutation's argv be written at all, and this test would pass having
-     * examined the wrong half of the Tool.
+     * <p>替身會正常回應而不是失敗，因為 {@code add_issue_comment} 呼叫 gh 兩次，只有第二次
+     * 帶 body：若替身在查 id 時就失敗，mutation 的 argv 根本不會被記下，測試會在檢查錯的
+     * 那一半時通過。
      */
     private String recordingGh(Path dir) throws IOException {
         Path calls = dir.resolve("calls");
@@ -92,7 +85,7 @@ class ArgvFlagAcceptanceTest {
                 esac""".formatted(calls, calls, dir, id, added);
     }
 
-    /** Every call the stand-in recorded, in the order it recorded them. */
+    /** 替身記下的每次呼叫，依記錄順序排列。 */
     private static List<List<String>> captured(Path dir) throws IOException {
         Map<Integer, Map<Integer, String>> calls = new TreeMap<>();
         try (Stream<Path> files = Files.list(dir)) {
@@ -111,7 +104,7 @@ class ArgvFlagAcceptanceTest {
         return argvs;
     }
 
-    /** {@code name -> declared type}, read out of the operation's parameter list. */
+    /** {@code name -> declared type}，從操作的參數列讀出。 */
     private static Map<String, String> declarationsIn(String document) {
         String header = document.substring(document.indexOf('('), document.indexOf('{'));
         Map<String, String> declared = new TreeMap<>();
@@ -123,11 +116,10 @@ class ArgvFlagAcceptanceTest {
     }
 
     /**
-     * Checks one {@code api graphql} argv against the document it carries.
+     * 以一次 {@code api graphql} 呼叫自帶的 GraphQL 文件檢查它的 argv。
      *
-     * <p>Everything from index two on is a flag and its {@code key=value}, so the pairs are
-     * walked rather than searched for — a value that happened to read {@code -f} could
-     * otherwise shift the whole scan by one.
+     * <p>索引 2 之後都是旗標與 {@code key=value} 成對出現，所以逐對走訪而不是搜尋；
+     * 否則某個值剛好是 {@code -f} 時，整段掃描會錯位一格。
      */
     private static void checkFlags(List<String> argv) {
         assertThat((argv.size() - 2) % 2)
@@ -193,19 +185,17 @@ class ArgvFlagAcceptanceTest {
                                 + "add it to ToolCalls", tool.name())
                         .isNotNull();
 
-                // The result is deliberately not read. What a Tool answers is
-                // WireAcceptanceTest's subject and FailureContractAcceptanceTest's; this
-                // test's whole evidence is what the stand-in wrote down.
+                // 刻意不讀結果：Tool 回什麼由 WireAcceptanceTest 與
+                // FailureContractAcceptanceTest 驗證；本測試唯一的證據是替身記下的 argv。
                 client.callTool(new CallToolRequest(tool.name(), arguments));
             }
         }
 
         List<List<String>> calls = captured(tmp);
 
-        // Not merely non-empty. Every Tool was driven and every Tool reaches gh at least
-        // once, so a total below the Tool count means one of them was refused before the
-        // subprocess -- and that Tool's argv is simply absent here rather than wrong. A
-        // bare isNotEmpty() would let the other four cover for it.
+        // 不只檢查非空。每個 Tool 都被呼叫過，且每個 Tool 至少呼叫 gh 一次，所以總數少於
+        // Tool 數，代表有 Tool 在啟動子行程前就被拒絕，它的 argv 不是錯而是缺席。
+        // 只用 isNotEmpty() 的話，其他 Tool 會替它掩護。
         assertThat(calls)
                 .as("%d Tools were driven, so at least that many gh calls should have been "
                         + "recorded -- a Tool stopped before gh contributes no argv and is "
@@ -218,10 +208,9 @@ class ArgvFlagAcceptanceTest {
                 graphql++;
                 checkFlags(argv);
             } else {
-                // Porcelain. The type rule does not apply, but its absence is the assertion:
-                // a Tool that starts passing fields without going through `api graphql` is
-                // not exempt from the reason those flags are dangerous, and would otherwise
-                // be skipped here rather than caught.
+                // 非 `api graphql` 的一般 gh 指令。型別規則不適用，但「不帶欄位旗標」本身
+                // 就是斷言：不經 `api graphql` 傳欄位的 Tool 同樣有旗標的風險，不能在這裡
+                // 被略過。
                 assertThat(argv)
                         .as("`%s` is not an `api graphql` call, so it must carry no field "
                                 + "flags -- a value sent with -F is read for `@path` and "

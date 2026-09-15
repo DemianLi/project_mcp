@@ -16,44 +16,38 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests that every Tool declaring writes actually takes the write route.
+ * 驗證每個宣告會寫入的 Tool，實際都走寫入路徑。
  *
- * <p>Write declaration (readOnlyHint = false on the wire) and write implementation
- * (GhCli.runWrite) are in different parts of the code. Both are tested separately, but the
- * gap between them is not: a Tool could declare false and call run(), causing silent contract
- * violations. This test drives each write Tool through the write route's timeout to detect
- * that gap. See docs/design.md#writes.
+ * <p>寫入宣告（wire 上的 readOnlyHint = false）與寫入實作（GhCli.runWrite）位在程式的
+ * 不同地方。兩者各自有測試，但兩者之間的落差沒有：Tool 可能宣告 false 卻呼叫 run()，
+ * 悄悄違反契約。本測試讓每個寫入 Tool 撞上寫入路徑的逾時，以抓出這種落差。見
+ * docs/design.md#writes。
  *
- * <p>The test keeps no list of write Tools; it reads readOnlyHint from the Server. A Tool
- * with no annotations defaults to write (the spec default). The test costs 30 seconds per
- * write Tool because CHECK_BEFORE_RETRY requires reaching GhCli's real timeout — there is
- * no cheaper way to exercise that code path. See docs/design.md#writes.
+ * <p>本測試不維護寫入 Tool 清單，而是從 Server 讀 readOnlyHint；沒有 annotations 的 Tool
+ * 依規格預設視為寫入。每個寫入 Tool 要花 30 秒，因為 CHECK_BEFORE_RETRY 必須真的等到
+ * GhCli 逾時才會出現，沒有更便宜的方式走到這條路徑。
  */
 class WritePartitionAcceptanceTest {
 
     @TempDir Path tmp;
 
     /**
-     * Long enough to outlast {@code GhCli.TIMEOUT_SECONDS}.
+     * 比 {@code GhCli.TIMEOUT_SECONDS} 更長。
      *
-     * <p>At {@link LaunchedServer#DEFAULT_REQUEST_TIMEOUT} the two budgets expire together
-     * and which lands first is a race — the Client has to be the patient one for the
-     * Server's answer to arrive at all.
+     * <p>若用 {@link LaunchedServer#DEFAULT_REQUEST_TIMEOUT}，兩個時限同時到期，誰先到是
+     * 競態；Client 必須等得比較久，Server 的回應才送得到。
      */
     private static final Duration OUTWAITS_THE_GH_TIMEOUT = Duration.ofSeconds(60);
 
     /**
-     * The stand-in table: how to make each write Tool's write, and only its write, hang.
+     * 替身對照表：讓每個寫入 Tool 的寫入呼叫卡住，而且只卡寫入呼叫。
      *
-     * <p>Per-Tool by necessity, not by preference — a stand-in has to know how many calls the
-     * Tool makes and which of them is the write. The arguments that go with it live in
-     * {@link ToolCalls}, which the failure-contract tests need too; this half is the one only
-     * a write test wants.
+     * <p>必須逐個 Tool 定義：替身得知道 Tool 呼叫 gh 幾次、哪一次是寫入。搭配的參數放在
+     * {@link ToolCalls}，失敗契約測試也會用到；這一半只有寫入測試需要。
      *
-     * <p>Neither table is the partition. The partition comes off the wire; these say how to
-     * drive each of its members, and a member missing from either fails the test rather than
-     * being skipped. That is the whole mechanism: a write Tool added without
-     * {@code runWrite} goes red without anyone having to remember this file exists.
+     * <p>兩張表都不決定哪些 Tool 是寫入：那來自 wire，兩張表只說明如何驅動其中每個
+     * Tool，任一表缺少某個 Tool 時測試失敗而非略過。因此新增寫入 Tool 卻沒走
+     * {@code runWrite} 時，不必有人記得這個檔案，測試就會失敗。
      */
     private String standInFor(String tool, Path dir) throws IOException {
         return switch (tool) {
@@ -63,9 +57,8 @@ class WritePartitionAcceptanceTest {
                         Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
                 Path count = dir.resolve("count.txt");
 
-                // Call one is the id lookup and goes through `run`; hanging it would produce
-                // RETRY and fail this test for entirely the wrong reason. Only call two is
-                // the write, so only call two hangs.
+                // 第一次呼叫是查 id，走 `run`；讓它卡住會得到 RETRY，使測試因錯誤的原因
+                // 失敗。只有第二次呼叫是寫入，所以只讓第二次卡住。
                 yield "n=$(cat " + count + " 2>/dev/null || echo 0)\n"
                         + "n=$((n+1)); echo $n > " + count + "\n"
                         + "if [ $n -eq 1 ]; then cat " + id + "; else sleep 35; fi";
@@ -75,12 +68,11 @@ class WritePartitionAcceptanceTest {
     }
 
     /**
-     * Whether a Tool declares that it writes.
+     * Tool 是否宣告會寫入。
      *
-     * <p>Anything short of an explicit {@code readOnlyHint = true} counts. The spec's default
-     * for the field is false, and a Tool that declares nothing is therefore telling a Client
-     * it writes — reading it any other way here would let the one mistake this test exists
-     * for slip through as an omission.
+     * <p>只要不是明確的 {@code readOnlyHint = true} 都算。規格中此欄位預設為 false，什麼都
+     * 沒宣告的 Tool 等於告訴 Client 它會寫入；若這裡另作解讀，本測試要抓的錯誤就會因為
+     * 「沒宣告」而漏網。
      */
     private static boolean declaresAWrite(Tool tool) {
         return tool.annotations() == null
@@ -96,8 +88,8 @@ class WritePartitionAcceptanceTest {
     void everyToolThatDeclaresAWriteIsRoutedAsOne() throws Exception {
         List<String> partition;
 
-        // A stand-in that would fail if it ran. Listing Tools never reaches gh, and one that
-        // could succeed would hide a call this step is not supposed to be making.
+        // 一旦被執行就失敗的替身：列出 Tools 不會呼叫 gh，若替身能成功，
+        // 就會掩蓋這一步不該發出的呼叫。
         Path probe = Files.createDirectory(tmp.resolve("probe"));
         try (McpSyncClient client = LaunchedServer.withGh(probe, "exit 1")) {
             partition = client.listTools().tools().stream()
@@ -135,10 +127,8 @@ class WritePartitionAcceptanceTest {
                         .as("`%s` was abandoned before its result could be read", tool)
                         .isTrue();
 
-                // The Remedy only. The sentence beside it names `list_issue_comments` by
-                // hand today, and GhCli's javadoc keeps that until a second write Tool
-                // forces it to be parameterised -- asserting the wording here would make
-                // that day cost this test too.
+                // 只斷言 Remedy。訊息句子直接寫出 `list_issue_comments`，
+                // 措辭不屬於契約，因此不在這裡斷言。
                 assertThat(structured(result))
                         .as("`%s` declares that it writes, so an abandoned call must tell "
                                 + "its caller to check whether it landed -- not to retry. "

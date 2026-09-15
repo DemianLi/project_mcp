@@ -4,9 +4,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Entry point for the MCP server. Tools are discovered by Spring AI from
- * {@code @McpTool} methods on beans. stdout carries JSON-RPC; see application.yml
- * for why the banner, web server, and console logging are off.
+ * MCP Server 的進入點。Spring AI 從 bean 上的 {@code @McpTool} 方法找出 Tools。
+ * stdout 承載 JSON-RPC；banner、web server 與 console log 為何關閉，見 application.yml。
  */
 @SpringBootApplication
 public class ProjectMcpApplication {

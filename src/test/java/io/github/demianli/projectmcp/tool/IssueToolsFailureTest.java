@@ -13,9 +13,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Verifies failure response shapes: structured content, messages, and remedies.
+ * 驗證失敗回應的形狀：structured content、訊息與 Remedy。
  *
- * <p>Tests the Tool's output structure without verifying network transport.
+ * <p>只測 Tool 的輸出結構，不涉及網路傳輸。
  */
 class IssueToolsFailureTest {
 
@@ -48,15 +48,14 @@ class IssueToolsFailureTest {
                 .containsEntry("stderr", stderr)
                 .doesNotContainKey("retryAfterSeconds");
 
-        // The human half and the machine half are one message to two readers, not two
-        // different pieces of information.
+        // 給人讀的一半與給機器讀的一半，是同一則訊息給兩種讀者，而不是兩份不同的資訊。
         assertThat(text(result))
                 .isEqualTo(structured.get("message") + "\n\n" + stderr);
     }
 
     @Test
     void theMessageAppearsExactlyOnce() throws Exception {
-        // Without ToolResults.attempt, exceptions would duplicate the message in the response.
+        // 若沒有 ToolResults.attempt，例外會讓訊息在回應中重複出現。
         String stderr = "HTTP 401: Bad credentials";
         CallToolResult result = call(FakeGh.failing(tmp, stderr));
 
@@ -89,13 +88,13 @@ class IssueToolsFailureTest {
 
     @Test
     void successIsUnchangedByAnyOfThis() throws Exception {
-        // Success responses follow the standard envelope shape.
+        // 成功回應遵循標準 Envelope 形狀。
         String fixture = Files.readString(Path.of("src/test/resources/gh/issue-list.json"));
         Path out = tmp.resolve("payload.json");
         Files.writeString(out, fixture);
         CallToolResult result = call(FakeGh.writing(tmp, "cat " + out));
 
-        // isError defaults to false in CallToolResult.
+        // CallToolResult 的 isError 預設為 false。
         assertThat(result.isError()).isFalse();
         assertThat(result.structuredContent()).isNull();
         assertThat(text(result))

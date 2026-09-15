@@ -12,10 +12,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests that the write limit holds across calls in one running Server.
+ * 驗證寫入上限在同一個執行中的 Server 內跨呼叫生效。
  *
- * <p>Unit tests prove the limiting windows; this proves the Server shares one limiter
- * between all calls rather than making a fresh one per call.
+ * <p>單元測試驗證限流視窗；本測試證明 Server 的所有呼叫共用同一個 limiter，而不是每次
+ * 呼叫各建一個。
  */
 class WriteLimitAcceptanceTest {
 
@@ -34,7 +34,7 @@ class WriteLimitAcceptanceTest {
         Files.writeString(id, Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
         Files.writeString(added, Files.readString(Path.of("src/test/resources/gh/add-comment.json")));
 
-        // Each write is two gh calls: odd ones are the id lookup, even ones the mutation.
+        // 每次寫入呼叫 gh 兩次：奇數次是查 id，偶數次是 mutation。
         String standIn = "n=$(cat " + count + " 2>/dev/null || echo 0)\n"
                 + "n=$((n+1)); echo $n > " + count + "\n"
                 + "if [ $((n % 2)) -eq 1 ]; then cat " + id + "; else cat " + added + "; fi";

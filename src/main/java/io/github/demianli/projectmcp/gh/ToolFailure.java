@@ -1,14 +1,13 @@
 package io.github.demianli.projectmcp.gh;
 
 /**
- * A Tool call that could not do its job.
+ * 無法完成工作的 Tool 呼叫。
  *
- * <p>Carries the {@link Remedy}, {@code gh}'s stderr verbatim, and—for
- * {@link Remedy#RETRY}—how long to wait. The message is the human-readable half.
+ * <p>帶有 {@link Remedy}、原樣的 {@code gh} stderr，以及（{@link Remedy#RETRY} 時）
+ * 要等多久。message 是給人讀的那一半。
  *
- * <p>Named for the Tool rather than for {@code gh} because not every failure comes from
- * {@code gh}. Some failures are invented here (e.g., a response exceeding the size limit).
- * The argv is not here; it is written to the log file for diagnosis only.
+ * <p>以 Tool 而非 {@code gh} 命名，因為不是每個失敗都來自 {@code gh}，有些由本 Server
+ * 產生（例如回應超過大小上限）。argv 不在這裡，它只寫入 log 檔供診斷。
  */
 public class ToolFailure extends RuntimeException {
 
@@ -27,14 +26,14 @@ public class ToolFailure extends RuntimeException {
         return remedy;
     }
 
-    /** {@code gh}'s stderr, exactly as emitted. Empty when there was none. */
+    /** {@code gh} 的 stderr，與輸出時完全相同；沒有時為空字串。 */
     public String stderr() {
         return stderr;
     }
 
     /**
-     * Seconds to wait before retrying, or {@code null} when not applicable. Filled only by
-     * rate limits (from {@code gh} or {@code WriteLimiter}), never by timeouts.
+     * 重試前要等的秒數；不適用時為 {@code null}。只由 rate limit 填入（來自 {@code gh} 或
+     * {@code WriteLimiter}），從不由逾時填入。
      */
     public Integer retryAfterSeconds() {
         return retryAfterSeconds;

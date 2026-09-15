@@ -12,31 +12,29 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests two things the SDK decides without code in src/main/java: capabilities and schema
- * validation failures.
+ * 驗證兩件由 SDK 決定、src/main/java 中沒有對應程式碼的行為：capabilities 與 schema
+ * 驗證失敗。
  *
- * <p>These tests pin current SDK behavior as a tripwire. The SDK is a dependency with its
- * own roadmap; if either behavior changes, this Server's contract changes silently. See
- * docs/design.md#identity-and-permissions.
+ * <p>這些測試把 SDK 目前的行為釘住作為警報線。SDK 是有自己路線圖的相依套件，任一行為
+ * 改變，本 Server 的契約都會悄悄跟著改變。見 docs/design.md#identity-and-permissions。
  */
 class SdkBoundaryAcceptanceTest {
 
     @TempDir Path tmp;
 
     /**
-     * Tests the failure contract gap: SDK schema validation before dispatch.
+     * 驗證失敗契約的缺口：SDK 在 dispatch 前做 schema 驗證。
      *
-     * <p>ToolInputValidator validates arguments against inputSchema before dispatch, building
-     * a CallToolResult with content and isError only — no Remedy. A Tool never runs, so no
-     * ToolFailure is constructed. This test asserts the current behavior as a tripwire: if
-     * the SDK grows a way to populate structuredContent here, the hole closes automatically.
+     * <p>ToolInputValidator 在 dispatch 前依 inputSchema 驗證參數，產生只有 content 與
+     * isError 的 CallToolResult，沒有 Remedy。Tool 從未執行，因此不會建立 ToolFailure。
+     * 本測試把目前行為當作警報線：若 SDK 改為在此填入 structuredContent，缺口就自動補上。
      */
     @Test
     void aCallTheSchemaRejectsCarriesNoRemedy() throws Exception {
         try (McpSyncClient client = LaunchedServer.withGh(tmp, "exit 1")) {
 
             CallToolResult result = client.callTool(new CallToolRequest(
-                    "get_issue", Map.of("owner", "DemianLi")));   // `repo` and `number` missing
+                    "get_issue", Map.of("owner", "DemianLi")));   // 缺少 `repo` 與 `number`
 
             assertThat(result.isError())
                     .as("the SDK does refuse it, and refuses it as a Tool result rather "
@@ -57,11 +55,10 @@ class SdkBoundaryAcceptanceTest {
     }
 
     /**
-     * Tests the declared Server capabilities.
+     * 驗證 Server 宣告的 capabilities。
      *
-     * <p>Spring AI defaults to resources, prompts and completions on. Three lines in
-     * application.yml turn them off because this Server is Tools only. logging is
-     * undisabled but unused, which this test documents.
+     * <p>Spring AI 預設開啟 resources、prompts 與 completions；本 Server 只提供 Tools，由
+     * application.yml 的三行關閉它們。logging 無法關閉但未使用，本測試記下這一點。
      */
     @Test
     void onlyTheImplementedCapabilitiesAreDeclared() throws Exception {

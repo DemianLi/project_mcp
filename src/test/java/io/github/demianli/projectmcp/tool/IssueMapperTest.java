@@ -10,10 +10,10 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests {@code IssueMapper} as a pure function against captured {@code gh} output.
+ * 以擷取的 {@code gh} 輸出，把 {@code IssueMapper} 當純函式測試。
  *
- * <p>Fixture contains real field shapes including empty assignee arrays and issues with no
- * labels or assignees.
+ * <p>fixture 保有真實的欄位形狀，包括空的 assignee 陣列，以及沒有 label 或 assignee
+ * 的 issue。
  */
 class IssueMapperTest {
 
@@ -21,7 +21,7 @@ class IssueMapperTest {
 
     private final IssueMapper mapper = new IssueMapper();
 
-    /** Fixtures live in one place, {@code src/test/resources/gh}, and are all real captures. */
+    /** fixture 集中放在 {@code src/test/resources/gh}，全是真實擷取。 */
     private static String fixture(String name) {
         try {
             return Files.readString(Path.of("src/test/resources/gh", name));
@@ -40,8 +40,8 @@ class IssueMapperTest {
         assertThat(first.url()).isEqualTo("https://github.com/DemianLi/project_mcp/issues/6");
         assertThat(first.updatedAt()).isEqualTo("2026-09-04T15:12:34Z");
 
-        // The node id, description and colour that gh sends alongside each label are gone;
-        // what survives is the same string the labels parameter takes.
+        // gh 隨每個 label 送來的 node id、description 與 colour 都被捨棄；
+        // 留下的正是 labels 參數所用的字串。
         assertThat(first.labels()).containsExactly("wayfinder:task");
         assertThat(first.assignees()).containsExactly("DemianLi");
     }
@@ -56,7 +56,7 @@ class IssueMapperTest {
 
     @Test
     void theSpareEntryProvesMoreExistAndIsDropped() {
-        // Three fetched against a limit of two: gh was asked for limit + 1 and filled it.
+        // limit 為 2 時取回三筆：gh 被要求取 limit + 1 筆，而且取滿了。
         ListResult<IssueSummary> envelope = mapper.toEnvelope(THREE_ISSUES, 2);
 
         assertThat(envelope.truncated()).isTrue();

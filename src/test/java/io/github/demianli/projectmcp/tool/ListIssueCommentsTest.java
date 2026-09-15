@@ -17,11 +17,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests {@code list_issue_comments} response and argv, including cursor handling.
+ * 驗證 {@code list_issue_comments} 的回應與 argv，包括 cursor 的處理。
  *
- * <p>The argv assertions verify critical decisions not visible in success responses: opening
- * with {@code last:} not {@code first:}, asking for no spare row at the cap, and unwrapping
- * cursors before sending. Fixtures are real captures from {@code gh api graphql}.
+ * <p>argv 斷言驗證成功回應中看不到的關鍵決定：以 {@code last:} 而非 {@code first:}
+ * 開始、在上限時不多要一列，以及送出前先拆開 cursor。fixture 都是
+ * {@code gh api graphql} 的真實輸出。
  */
 class ListIssueCommentsTest {
 
@@ -36,12 +36,12 @@ class ListIssueCommentsTest {
         return new CommentTools(new GhCli(script, 30), new CommentMapper(), new WriteLimiter());
     }
 
-    /** What the stand-in was called with, one argument per element. */
+    /** 替身收到的參數，每個元素一個參數。 */
     private List<String> argv() throws IOException {
         return Files.readAllLines(tmp.resolve("argv.txt"));
     }
 
-    /** Whether the stand-in ran at all. */
+    /** 替身是否被執行過。 */
     private boolean ghWasCalled() {
         return Files.exists(tmp.resolve("argv.txt"));
     }
@@ -107,8 +107,8 @@ class ListIssueCommentsTest {
 
     @Test
     void aTerminalPageReportsNoCursorEvenThoughGitHubStillSendsOne() throws Exception {
-        // Must check hasPreviousPage, not cursor presence. On a terminal page, GitHub may
-        // send a startCursor pointing at the last comment, but there is no next page.
+        // 必須檢查 hasPreviousPage，而不是有沒有 cursor。在最後一頁，GitHub 仍可能送來指向
+        // 最後一則留言的 startCursor，但其實沒有下一頁。
         CallToolResult result = toolsReturning("comments-last-page.json")
                 .listIssueComments("cli", "cli", 14361, 30, null);
 
@@ -130,9 +130,8 @@ class ListIssueCommentsTest {
 
     @Test
     void theCursorHandedBackIsUnwrappedToGitHubsBeforeItIsSent() throws Exception {
-        // The round trip, end to end: read the cursor out of a real response, hand it
-        // straight back, and watch GitHub's own cursor -- not this Server's wrapper --
-        // arrive on the argv.
+        // 完整往返：從真實回應讀出 cursor、原樣交回，確認送上 argv 的是 GitHub 自己的
+        // cursor，而不是本 Server 的包裝。
         String issued = cursorFrom(toolsReturning("comments-page.json")
                 .listIssueComments("cli", "cli", 13840, 3, null));
 
@@ -150,7 +149,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aCursorFromAnotherIssueIsRefusedBeforeGhIsCalled() throws Exception {
-        // Rejecting cross-issue cursors before GitHub is called prevents silent failures.
+        // 在呼叫 GitHub 前拒絕其他 issue 的 cursor，避免悄悄出錯。
         CommentTools tools = toolsReturning("comments-page.json");
         String elsewhere = Cursors.wrap(new IssueRef("cli", "cli", 13840),
                 startCursorIn("comments-page.json"));
@@ -169,7 +168,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aCursorFromAnotherRepositoryIsRefusedToo() throws Exception {
-        // Cross-repository cursor validation prevents silent data mixing.
+        // 驗證 cursor 所屬的 repository，避免不同 repository 的資料悄悄混在一起。
         CallToolResult result = toolsReturning("comments-page.json").listIssueComments(
                 "ollama", "ollama", 5000,
                 30, Cursors.wrap(new IssueRef("cli", "cli", 13840),
@@ -185,7 +184,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aCursorStaysUsableWhenTheRepositoryIsSpelledInAnotherCase() throws Exception {
-        // GitHub resolves owner and repository names case-insensitively, so cursors should too.
+        // GitHub 解析 owner 與 repository 名稱時不分大小寫，cursor 的比對也一樣。
         String issued = Cursors.wrap(new IssueRef("cli", "cli", 13840),
                 startCursorIn("comments-page.json"));
 
@@ -206,8 +205,8 @@ class ListIssueCommentsTest {
                 .listIssueComments("cli", "cli", 13840, 30, "!!! not base64 !!!");
         assertThat(structured(garbage)).containsEntry("remedy", "FIX_REQUEST");
 
-        // Decodes cleanly and carries no separator -- a different branch from the above,
-        // and the same Remedy, because the Client does the same thing about either.
+        // 能正常解碼但沒有分隔符：與上一個是不同分支，Remedy 相同，因為 Client 對兩者的
+        // 處理方式相同。
         String noSeparator = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString("Y3Vyc29yOnYyOpE=".getBytes(StandardCharsets.UTF_8));
         CallToolResult bare = toolsReturning("comments-page.json")
@@ -219,8 +218,8 @@ class ListIssueCommentsTest {
 
     @Test
     void aBlankCursorMeansTheFirstPageRatherThanAnError() throws Exception {
-        // Spring AI hands through what the Client sent, and a Client that stores "no
-        // cursor" as an empty string is not making a mistake worth a failure.
+        // Spring AI 原樣轉交 Client 送來的值；把「沒有 cursor」存成空字串的 Client 並沒有犯
+        // 值得判為失敗的錯。
         CallToolResult result = toolsReturning("comments-page.json")
                 .listIssueComments("cli", "cli", 13840, 3, "   ");
 
@@ -230,7 +229,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aDeletedAccountLeavesTheAuthorEmptyRatherThanBreakingTheRow() throws Exception {
-        // When author is null (deleted account), mapper returns empty string to keep the row valid.
+        // author 為 null（帳號已刪除）時，mapper 回傳空字串，讓該列仍然有效。
         CallToolResult result = toolsReturning("comments-ghost-author.json")
                 .listIssueComments("cli", "cli", 13840, 3, null);
 
@@ -243,7 +242,7 @@ class ListIssueCommentsTest {
 
     @Test
     void aGhFailureTravelsTheOrdinaryWay() throws Exception {
-        // GraphQL errors are classified and mapped to Remedies like porcelain errors.
+        // GraphQL 的錯誤與 porcelain 指令的錯誤一樣，會被分類並對應到 Remedy。
         var tools = new CommentTools(
                 new GhCli(FakeGh.failing(tmp,
                         "gh: Could not resolve to an Issue with the number of 14362."), 30),
@@ -256,14 +255,14 @@ class ListIssueCommentsTest {
         assertThat(text(result)).contains("may be a pull request");
     }
 
-    /** GitHub's own {@code startCursor}, read out of the fixture rather than transcribed. */
+    /** GitHub 自己的 {@code startCursor}，從 fixture 讀出而不是手抄。 */
     private static String startCursorIn(String fixture) throws IOException {
         String json = Files.readString(Path.of("src/test/resources/gh/" + fixture));
         int at = json.indexOf("\"startCursor\":\"") + "\"startCursor\":\"".length();
         return json.substring(at, json.indexOf('"', at));
     }
 
-    /** Reads the {@code nextCursor} back out of a response, the way a Client would. */
+    /** 像 Client 一樣，從回應讀回 {@code nextCursor}。 */
     private static String cursorFrom(CallToolResult result) {
         String json = text(result);
         int at = json.indexOf("\"nextCursor\":\"") + "\"nextCursor\":\"".length();

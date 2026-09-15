@@ -13,16 +13,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests the Server running as a subprocess, answering over Stdio.
+ * 以子行程執行 Server，驗證它透過 stdio 的回應。
  *
- * <p>This is the only layer observing wire behavior: isError, structuredContent, message
- * format. These are produced by the callback layer building CallToolResult and the
- * transport serializing it — invisible in-JVM.
+ * <p>只有這一層看得到 wire 上的行為：isError、structuredContent、訊息格式。這些由 callback
+ * 層組出 CallToolResult、再由 transport 序列化產生，在 JVM 內看不到。
  *
- * <p>Thin by design: proves the wire shape. Remedy coverage belongs in the cheaper layer.
+ * <p>刻意保持精簡，只證明 wire 上的形狀；各 Remedy 的覆蓋放在成本較低的層。
  *
- * <p>Offline: the subprocess has only a stand-in gh on PATH, so no real calls leave the
- * machine.
+ * <p>離線執行：子行程的 PATH 上只有替身 gh，不會有真正的呼叫離開本機。
  */
 class WireAcceptanceTest {
 
@@ -77,8 +75,8 @@ class WireAcceptanceTest {
 
     @Test
     void anAbsentGhCrossesTheWireToo() throws Exception {
-        // Absent binary produces no stderr. Empty PATH ensures gh is truly unreachable;
-        // not shadowing a real gh at /usr/bin/gh which would make the test live.
+        // 找不到執行檔時沒有 stderr。PATH 只有空目錄，確保真的找不到 gh；
+        // 否則 /usr/bin/gh 上的真正 gh 會讓測試連上 GitHub。
         Path empty = Files.createDirectory(tmp.resolve("empty"));
         try (McpSyncClient client = LaunchedServer.onPath(empty.toString())) {
             CallToolResult result = listIssues(client);
@@ -92,11 +90,9 @@ class WireAcceptanceTest {
 
     @Test
     void aFailureThisServerInventedCrossesTheWireIdentically() throws Exception {
-        // The first failure whose origin is not GhCli: gh succeeded and returned a pull
-        // request, and IssueTools refused it. Worth a place in this thin layer precisely
-        // because the origin is new -- the question is whether a ToolFailure built above
-        // GhCli produces the same wire shape as one built inside it, and only this layer
-        // can see a wire shape at all.
+        // 失敗來源不在 GhCli：gh 成功回傳一個 pull request，由 IssueTools 拒絕。本測試驗證
+        // 在 GhCli 之上建立的 ToolFailure 與在 GhCli 內建立的，在 wire 上形狀相同，而只有
+        // 這一層看得到 wire 上的形狀。
         String fixture = Files.readString(
                 Path.of("src/test/resources/gh/issue-view-pull-request.json"));
         Path payload = tmp.resolve("pr.json");
@@ -137,11 +133,9 @@ class WireAcceptanceTest {
 
     @Test
     void aToolOnASecondComponentIsDeclaredAndCallable() throws Exception {
-        // list_labels is the first Tool that is not a method on IssueTools, which makes it
-        // the first test of a claim ProjectMcpApplication has been making in prose since
-        // the Server was scaffolded: "adding a Tool means adding a component -- not editing
-        // this class". Discovery happens in the Spring context of a separate process, so
-        // this layer is the only one that can watch it happen.
+        // list_labels 不在 IssueTools 上，用來驗證 ProjectMcpApplication 註解中的說法：
+        // 「新增 Tool 就是新增一個 component，不必修改這個 class」。Tool 的掃描發生在另一個
+        // 行程的 Spring context 裡，只有這一層看得到。
         String fixture = Files.readString(Path.of("src/test/resources/gh/label-list.json"));
         Path payload = tmp.resolve("labels.json");
         Files.writeString(payload, fixture);
@@ -164,9 +158,9 @@ class WireAcceptanceTest {
 
     @Test
     void theEnvelopeThatGrewCrossesTheWireWithBothExtraKeys() throws Exception {
-        // list_issue_comments adds keys to the Envelope. On the wire, null values must
-        // arrive as explicit null, not missing keys, so "no next page" stays distinct from
-        // "this Server does not page". See docs/design.md#list_issue_comments.
+        // list_issue_comments 在 Envelope 上多了欄位。wire 上的 null 值必須是明確的 null，
+        // 不能省略欄位，「沒有下一頁」才能與「此 Server 不分頁」區分。見
+        // docs/design.md#list_issue_comments。
         String fixture = Files.readString(
                 Path.of("src/test/resources/gh/comments-last-page.json"));
         Path payload = tmp.resolve("comments.json");
@@ -192,10 +186,8 @@ class WireAcceptanceTest {
 
     @Test
     void aCursorFromTheWrongIssueIsRefusedAcrossTheWireWithoutTouchingGh() throws Exception {
-        // The second failure this Server invents rather than inherits, and the first that
-        // is refused before `gh` runs at all. The stand-in here exits non-zero with a
-        // stderr that would classify as something else entirely, so if the check were
-        // happening after the call this assertion could not pass.
+        // 在 `gh` 執行前就拒絕的失敗。替身會以非零結束，並輸出會被分類成完全不同結果的
+        // stderr；若檢查發生在呼叫之後，這個斷言不可能通過。
         try (McpSyncClient client = LaunchedServer.withGh(tmp, (
                 "echo 'GraphQL: Could not resolve to a Repository' >&2\nexit 1"))) {
 
@@ -213,9 +205,9 @@ class WireAcceptanceTest {
     }
     @Test
     void theFirstToolThatWritesCrossesTheWireWithItsHintsAndItsOneKey() throws Exception {
-        // Observes annotations and payload shape for the first write Tool. Annotations
-        // (readOnlyHint false, destructiveHint and idempotentHint false) reach the wire via
-        // Spring AI. Payload is one key only, no Envelope or structuredContent.
+        // 驗證寫入 Tool 的 annotations 與回應形狀。annotations（readOnlyHint、
+        // destructiveHint、idempotentHint 皆為 false）經由 Spring AI 送上 wire。回應只有
+        // 一個欄位，沒有 Envelope，也沒有 structuredContent。
         Path id = tmp.resolve("id.json");
         Path added = tmp.resolve("added.json");
         Files.writeString(id, Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
@@ -258,10 +250,8 @@ class WireAcceptanceTest {
 
     @Test
     void aBlankBodyIsRefusedAcrossTheWireBeforeAnythingCouldBeWritten() throws Exception {
-        // The third failure this Server invents rather than inherits, and the first on a
-        // write. The stand-in would succeed and answer with a node id, so if the check ran
-        // after the call this could not pass -- and on a write "after the call" is the
-        // difference between refusing and having already written.
+        // 寫入前就拒絕的失敗。替身會成功並回傳 node id，所以若檢查發生在呼叫之後，本測試
+        // 不可能通過；對寫入而言，「呼叫之後」就是拒絕與已經寫入的差別。
         Path id = tmp.resolve("id.json");
         Files.writeString(id, Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
 

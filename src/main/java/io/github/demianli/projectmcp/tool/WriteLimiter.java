@@ -10,12 +10,11 @@ import io.github.demianli.projectmcp.gh.ToolFailure;
 import org.springframework.stereotype.Component;
 
 /**
- * Rate limits write Tools using GitHub's published limits: 80 per minute, 500 per hour.
- * Uses two sliding windows to track admission times of recent writes. A write that exceeds
- * either limit is refused with {@link Remedy#RETRY} and the retry delay, before any gh runs.
+ * 以 GitHub 公布的上限限制寫入 Tools：每分鐘 80 次、每小時 500 次。用兩個滑動視窗追蹤
+ * 近期寫入的放行時間。超過任一上限的寫入，在任何 gh 執行前就以 {@link Remedy#RETRY}
+ * 加上重試等待時間拒絕。
  *
- * <p>The limit is per-Server process, not per-account. Writes from other clients on the same
- * account are not tracked here.
+ * <p>上限以 Server 行程為單位，不是以帳號為單位。同一帳號在其他 client 的寫入不在此計算。
  */
 @Component
 public class WriteLimiter {
@@ -33,15 +32,16 @@ public class WriteLimiter {
         this(System::nanoTime);
     }
 
-    /** @param clock monotonic nanoseconds */
+    /** @param clock 單調遞增的奈秒值 */
     WriteLimiter(LongSupplier clock) {
         this.clock = clock;
     }
 
     /**
-     * Admits one write, or throws.
+     * 放行一次寫入，或拋出例外。
      *
-     * @throws ToolFailure {@link Remedy#RETRY} with {@code retryAfterSeconds} when a window is full
+     * @throws ToolFailure 任一視窗已滿時，為附帶 {@code retryAfterSeconds} 的
+     *     {@link Remedy#RETRY}
      */
     synchronized void acquire() {
         long now = clock.getAsLong();
@@ -61,7 +61,7 @@ public class WriteLimiter {
         admitted.addLast(now);
     }
 
-    /** The admission time {@code n} places back from the newest; the deque holds at least n. */
+    /** 從最新一筆往回數第 {@code n} 筆的放行時間；deque 至少有 n 筆。 */
     private long nthNewest(int n) {
         Iterator<Long> newestFirst = admitted.descendingIterator();
         long t = 0;

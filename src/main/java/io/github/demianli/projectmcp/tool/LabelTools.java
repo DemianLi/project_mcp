@@ -10,12 +10,12 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 /**
- * The label-reading Tool. A separate component to keep labels independent from issues.
+ * 讀取 label 的 Tool。獨立成一個 component，讓 label 與 issue 互不相依。
  */
 @Component
 public class LabelTools {
 
-    /** The two fields of {@link LabelSummary}, in the spelling {@code gh} expects. */
+    /** {@link LabelSummary} 的兩個欄位，採 {@code gh} 要求的拼法。 */
     private static final String FIELDS = "name,description";
 
     private final GhCli gh;
@@ -67,17 +67,16 @@ public class LabelTools {
         boolean filtering = search != null && !search.isBlank();
 
         return ToolResults.attempt("list_labels", owner, repo, () -> {
-            // Compose argv inside the lambda so validation failures carry structured content.
+            // 在 lambda 內組 argv，驗證失敗才會帶有 structured content。
             List<String> args = new ArrayList<>(List.of(
                     "label", "list",
                     "--repo", Repos.slug(owner, repo),
-                    // Request one extra to detect whether more labels exist.
+                    // 多要一筆，以偵測是否還有更多 label。
                     "--limit", Integer.toString(effectiveLimit + 1),
                     "--json", FIELDS));
 
-            // --search and --sort/--order are mutually exclusive in gh. We expose search
-            // but not sort, so a search request omits the sort flags. This makes the illegal
-            // combination unreachable at the schema level.
+            // gh 的 --search 與 --sort/--order 互斥。本 Server 開放搜尋但不開放排序，所以搜尋時
+            // 省略排序旗標，讓這種不合法的組合在 schema 層就不可能出現。
             if (filtering) {
                 args.add("--search");
                 args.add(search);

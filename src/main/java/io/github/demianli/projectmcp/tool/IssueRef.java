@@ -1,24 +1,24 @@
 package io.github.demianli.projectmcp.tool;
 
 /**
- * Repository and issue number together.
+ * repository 與 issue 編號的組合。
  *
- * <p>Carried as a bundle to {@link Cursors} for cursor naming and cross-issue validation.
- * Spring AI derives each Tool's input schema from its parameters, so owner, repo, and number
- * arrive separately from a Client and are grouped here.
+ * <p>作為一組交給 {@link Cursors}，用來標註 cursor 與做跨 issue 驗證。Spring AI 從參數
+ * 推導每個 Tool 的 input schema，所以 owner、repo 與 number 從 Client 分開傳入，在這裡
+ * 組合。
  */
 public record IssueRef(String owner, String repo, int number) {
 
-    /** Format for cursor names and failure messages: {@code owner/repo#number}. */
+    /** cursor 名稱與失敗訊息使用的格式：{@code owner/repo#number}。 */
     String reference() {
         return owner + "/" + repo + "#" + number;
     }
 
     /**
-     * Whether {@code other} names this issue, case-insensitively.
+     * {@code other} 是否指向這個 issue（不分大小寫）。
      *
-     * <p>GitHub resolves owner and repository names that way. Uses {@code equalsIgnoreCase}
-     * to avoid locale-dependent folding (Turkish {@code I} to {@code i}).
+     * <p>GitHub 解析 owner 與 repository 名稱時不分大小寫。使用 {@code equalsIgnoreCase}，
+     * 避免依 locale 轉換大小寫（例如土耳其語把 {@code I} 轉成 {@code i}）。
      */
     boolean isNamedBy(String other) {
         return reference().equalsIgnoreCase(other);

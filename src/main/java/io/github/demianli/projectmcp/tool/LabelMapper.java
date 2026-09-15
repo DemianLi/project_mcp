@@ -9,9 +9,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Maps {@code gh label list} JSON output to the response envelope.
+ * 把 {@code gh label list} 的 JSON 輸出對應成回應 Envelope。
  *
- * <p>Testable as a pure function against captured payloads.
+ * <p>是純函式，可直接用擷取下來的回應測試。
  */
 @Component
 public class LabelMapper {
@@ -19,9 +19,9 @@ public class LabelMapper {
     private final JsonMapper json = JsonMapper.builder().build();
 
     /**
-     * @param ghJson the array {@code gh label list --json name,description} printed, fetched
-     *     with one spare entry so truncation can be detected
-     * @param limit the effective, already-clamped limit the Client is owed
+     * @param ghJson {@code gh label list --json name,description} 印出的陣列，多要了一筆
+     *     以便偵測截斷
+     * @param limit 應回給 Client 的有效上限，已限制在範圍內
      */
     public ListResult<LabelSummary> toEnvelope(String ghJson, int limit) {
         JsonNode root = json.readTree(ghJson);

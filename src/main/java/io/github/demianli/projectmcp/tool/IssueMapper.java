@@ -9,10 +9,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Maps issue JSON from {@code gh} to issue result types.
+ * 把 {@code gh} 的 issue JSON 對應成 issue 相關的結果型別。
  *
- * <p>Testable as a pure function against captured payloads. Semantic validation (e.g.
- * rejecting pull requests) happens at the Tool level, not here.
+ * <p>是純函式，可直接用擷取下來的回應測試。語意驗證（例如拒絕 pull request）在 Tool
+ * 層進行，不在這裡。
  */
 @Component
 public class IssueMapper {
@@ -20,9 +20,9 @@ public class IssueMapper {
     private final JsonMapper json = JsonMapper.builder().build();
 
     /**
-     * @param ghJson the array {@code gh issue list --json ...} printed, fetched with one
-     *     spare entry so truncation can be detected
-     * @param limit the effective, already-clamped limit the Client is owed
+     * @param ghJson {@code gh issue list --json ...} 印出的陣列，多要了一筆以便偵測
+     *     截斷
+     * @param limit 應回給 Client 的有效上限，已限制在範圍內
      */
     public ListResult<IssueSummary> toEnvelope(String ghJson, int limit) {
         JsonNode root = json.readTree(ghJson);
@@ -40,7 +40,7 @@ public class IssueMapper {
         return ListResult.of(issues, limit);
     }
 
-    /** Maps issue view JSON to {@code IssueDetail}. */
+    /** 把 issue view 的 JSON 對應成 {@code IssueDetail}。 */
     public IssueDetail toDetail(String ghJson) {
         JsonNode issue = json.readTree(ghJson);
         return new IssueDetail(
@@ -58,7 +58,7 @@ public class IssueMapper {
                 issue.path("stateReason").asString(""));
     }
 
-    /** Reduces an array of objects to the one field worth keeping. */
+    /** 把物件陣列縮減成值得保留的單一欄位。 */
     private static List<String> flatten(JsonNode array, String field) {
         List<String> values = new ArrayList<>();
         for (JsonNode element : array) {

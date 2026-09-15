@@ -15,17 +15,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Tests {@code list_labels} response shape and verifies sort/search exclusion in argv.
+ * 驗證 {@code list_labels} 的回應形狀，並從 argv 驗證 sort 與 search 互斥。
  *
- * <p>Sort and search are mutually exclusive in GitHub's API; the Server enforces this by
- * never sending both, which tests verify through argv inspection. Fixtures are real captures
- * from {@code gh label list}.
+ * <p>在 GitHub 的 API 中 sort 與 search 互斥；Server 從不同時送出兩者，測試透過檢查
+ * argv 驗證這一點。fixture 都是 {@code gh label list} 的真實輸出。
  */
 class ListLabelsTest {
 
     @TempDir Path tmp;
 
-    /** A stand-in {@code gh} that writes down its arguments, then prints the fixture. */
+    /** 記下參數後印出 fixture 的替身 {@code gh}。 */
     private LabelTools toolsReturning(String fixture) throws IOException {
         Path payload = tmp.resolve("payload.json");
         Files.writeString(payload, Files.readString(Path.of("src/test/resources/gh/" + fixture)));
@@ -35,7 +34,7 @@ class ListLabelsTest {
         return new LabelTools(new GhCli(script, 30), new LabelMapper());
     }
 
-    /** What the stand-in was called with, one argument per element. */
+    /** 替身收到的參數，每個元素一個參數。 */
     private List<String> argv() throws IOException {
         return Files.readAllLines(tmp.resolve("argv.txt"));
     }
@@ -76,7 +75,7 @@ class ListLabelsTest {
 
     @Test
     void aSearchDropsTheSortFlagsBecauseGhRefusesBothTogether() throws Exception {
-        // gh forbids combining --sort with --search; Server omits sort when searching.
+        // gh 禁止 --sort 與 --search 並用；搜尋時 Server 省略 sort。
         toolsReturning("label-list.json").listLabels("DemianLi", "project_mcp", null, "wayfinder");
 
         assertThat(argv()).containsSequence("--search", "wayfinder");
@@ -85,7 +84,7 @@ class ListLabelsTest {
 
     @Test
     void aBlankSearchIsOmittedRatherThanSentAsAnEmptyValue() throws Exception {
-        // Blank search is treated as no search, preserving sort flags.
+        // 空白的搜尋字串視同沒有搜尋，保留 sort 旗標。
         toolsReturning("label-list.json").listLabels("DemianLi", "project_mcp", null, "   ");
 
         assertThat(argv()).doesNotContain("--search");
@@ -94,7 +93,7 @@ class ListLabelsTest {
 
     @Test
     void oneSpareIsAskedForSoTruncatedMeansMoreExist() throws Exception {
-        // The fixture is a real `--limit 6` capture: six rows for a limit of five.
+        // fixture 是真實的 `--limit 6` 輸出：limit 為 5 時取回六列。
         CallToolResult result = toolsReturning("label-list-with-spare.json")
                 .listLabels("DemianLi", "project_mcp", 5, null);
 
@@ -124,7 +123,7 @@ class ListLabelsTest {
 
     @Test
     void aLabelWithoutADescriptionKeepsTheKey() throws Exception {
-        // Empty descriptions stay in the response; omitting them would be ambiguous.
+        // 空的 description 保留在回應中；省略會造成歧義。
         CallToolResult result = toolsReturning("label-list-empty-description.json")
                 .listLabels("cli", "cli", 30, "blocked");
 
@@ -133,7 +132,7 @@ class ListLabelsTest {
 
     @Test
     void aGhFailureTravelsTheOrdinaryWay() throws Exception {
-        // Failures are classified to Remedies by the standard path.
+        // 失敗經由標準路徑分類為 Remedy。
         var tools = new LabelTools(
                 new GhCli(FakeGh.failing(tmp, "GraphQL: Could not resolve to a Repository "
                         + "with the name 'DemianLi/nope'. (repository)"), 30),

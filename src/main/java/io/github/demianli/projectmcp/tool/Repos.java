@@ -4,11 +4,11 @@ import io.github.demianli.projectmcp.gh.Remedy;
 import io.github.demianli.projectmcp.gh.ToolFailure;
 
 /**
- * Validation rule shared by all Tools: owner and repo must not contain slashes.
+ * 所有 Tools 共用的驗證規則：owner 與 repo 不得含斜線。
  *
- * <p>A slash in owner would be read as a hostname by {@code gh --repo [HOST/]OWNER/REPO},
- * routing to a different host. Checked on every Tool so the same bad parameter gets the
- * same answer regardless of which Tool receives it. See design.md#identity-and-permissions.
+ * <p>owner 中的斜線會被 {@code gh --repo [HOST/]OWNER/REPO} 當成主機名稱，把請求送到
+ * 別的主機。每個 Tool 都做這項檢查，同樣的錯誤參數無論送到哪個 Tool 都得到同樣的回應。
+ * 見 design.md#identity-and-permissions。
  */
 final class Repos {
 
@@ -16,16 +16,16 @@ final class Repos {
     }
 
     /**
-     * Composes {@code owner/repo} after validation.
+     * 驗證後組出 {@code owner/repo}。
      *
-     * @throws ToolFailure if either half contains a slash
+     * @throws ToolFailure 任一半含有斜線時
      */
     static String slug(String owner, String repo) {
         check(owner, repo);
         return owner + "/" + repo;
     }
 
-    /** Validates owner and repo without composing the slug. */
+    /** 驗證 owner 與 repo，但不組出 slug。 */
     static void check(String owner, String repo) {
         refuseSlash("owner", owner);
         refuseSlash("repo", repo);
