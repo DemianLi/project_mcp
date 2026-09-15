@@ -19,7 +19,8 @@ public enum Remedy {
 
     /**
      * Try the same call again. May carry a wait, in which case do not retry before it — the
-     * wait comes only from a rate limit {@code gh} has named, never from a timeout.
+     * wait comes only from a rate limit, either one {@code gh} has named or this Server's own
+     * limit on writes, never from a timeout.
      */
     RETRY,
 

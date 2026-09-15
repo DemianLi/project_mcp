@@ -126,10 +126,12 @@ public class CommentTools {
 
     private final GhCli gh;
     private final CommentMapper mapper;
+    private final WriteLimiter writes;
 
-    public CommentTools(GhCli gh, CommentMapper mapper) {
+    public CommentTools(GhCli gh, CommentMapper mapper, WriteLimiter writes) {
         this.gh = gh;
         this.mapper = mapper;
+        this.writes = writes;
     }
 
     @McpTool(name = "list_issue_comments",
@@ -268,6 +270,10 @@ public class CommentTools {
 
             // Inert on this route too, and refused for the same reason: see Repos.
             Repos.check(owner, repo);
+
+            // After validation, so a request that could never reach GitHub does not use up
+            // a slot; before call one, so a refused write starts no gh at all.
+            writes.acquire();
 
             // Call one is a read, and takes the read route deliberately. A timeout here
             // means nothing was written, so CHECK_BEFORE_RETRY would send a Client looking

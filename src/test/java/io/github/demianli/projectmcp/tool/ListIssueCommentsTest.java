@@ -40,7 +40,7 @@ class ListIssueCommentsTest {
         String script = FakeGh.writing(tmp,
                 "printf '%s\\n' \"$@\" > " + tmp.resolve("argv.txt") + "\n"
                         + "cat " + payload);
-        return new CommentTools(new GhCli(script, 30), new CommentMapper());
+        return new CommentTools(new GhCli(script, 30), new CommentMapper(), new WriteLimiter());
     }
 
     /** What the stand-in was called with, one argument per element. */
@@ -273,7 +273,7 @@ class ListIssueCommentsTest {
         var tools = new CommentTools(
                 new GhCli(FakeGh.failing(tmp,
                         "gh: Could not resolve to an Issue with the number of 14362."), 30),
-                new CommentMapper());
+                new CommentMapper(), new WriteLimiter());
 
         CallToolResult result = tools.listIssueComments("cli", "cli", 14362, 30, null);
 

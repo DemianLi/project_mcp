@@ -43,6 +43,10 @@ class AddIssueCommentTest {
      * the lookup's repeated.
      */
     private CommentTools tools() throws IOException {
+        return tools(new WriteLimiter());
+    }
+
+    private CommentTools tools(WriteLimiter writes) throws IOException {
         Path id = tmp.resolve("id.json");
         Path added = tmp.resolve("added.json");
         Files.writeString(id, Files.readString(Path.of("src/test/resources/gh/issue-node-id.json")));
@@ -52,7 +56,8 @@ class AddIssueCommentTest {
                 + "n=$((n+1)); echo $n > " + tmp.resolve("count.txt") + "\n"
                 + "printf '%s\\n' \"$@\" > " + tmp.resolve("argv") + "$n.txt\n"
                 + "if [ $n -eq 1 ]; then cat " + id + "; else cat " + added + "; fi";
-        return new CommentTools(new GhCli(FakeGh.writing(tmp, script), 30), new CommentMapper());
+        return new CommentTools(new GhCli(FakeGh.writing(tmp, script), 30), new CommentMapper(),
+                writes);
     }
 
     /** What the stand-in was called with on its nth invocation, one argument per element. */
@@ -179,6 +184,36 @@ class AddIssueCommentTest {
     }
 
     @Test
+    void aWriteOverTheLimitIsRefusedWithoutCallingGhAtAll() throws Exception {
+        WriteLimiter full = new WriteLimiter(() -> 0L);
+        for (int i = 0; i < WriteLimiter.PER_MINUTE; i++) {
+            full.acquire();
+        }
+
+        CallToolResult result = tools(full)
+                .addIssueComment("DemianLi", "project-mcp-sandbox", 1, "hello");
+
+        assertThat(result.isError()).isTrue();
+        assertThat(structured(result))
+                .containsEntry("remedy", "RETRY")
+                .containsEntry("retryAfterSeconds", 60)
+                .containsEntry("stderr", "");
+        assertThat(ghWasCalled()).isFalse();
+    }
+
+    @Test
+    void anInvalidRequestDoesNotUseASlot() throws Exception {
+        WriteLimiter writes = new WriteLimiter(() -> 0L);
+        CommentTools tools = tools(writes);
+        for (int i = 0; i < WriteLimiter.PER_MINUTE; i++) {
+            tools.addIssueComment("DemianLi", "project-mcp-sandbox", 1, " ");
+        }
+
+        assertThat(tools.addIssueComment("DemianLi", "project-mcp-sandbox", 1, "hello").isError())
+                .isFalse();
+    }
+
+    @Test
     void aFailureOnTheLookupNeverReachesTheMutation() throws Exception {
         // The pull-request case as a Client meets it: `gh` exits 1 on call one, so call two
         // does not happen. Captured verbatim from the sandbox's pull request #3.
@@ -186,7 +221,8 @@ class AddIssueCommentTest {
                 + "echo 'gh: Could not resolve to an Issue with the number of 3.' >&2\n"
                 + "exit 1";
         CommentTools tools =
-                new CommentTools(new GhCli(FakeGh.writing(tmp, script), 30), new CommentMapper());
+                new CommentTools(new GhCli(FakeGh.writing(tmp, script), 30), new CommentMapper(),
+                        new WriteLimiter());
 
         CallToolResult result =
                 tools.addIssueComment("DemianLi", "project-mcp-sandbox", 3, "must not appear");
