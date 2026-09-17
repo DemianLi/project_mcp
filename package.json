@@ -16,8 +16,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run typecheck && npm run build && node --import tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\"",
     "start": "node dist/main.js",
-    "test": "npm run typecheck && npm run build && node --import tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\""
+    "ask": "npm run build --silent && node scripts/ask.mjs",
+    "inspect": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 node dist/main.js",
+    "inspect:cli": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --cli node dist/main.js"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",

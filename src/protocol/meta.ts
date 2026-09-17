@@ -5,7 +5,8 @@
  * MUST NOT 從前一則請求推斷任何事——這個模組是那條規則的守門處，讀完就丟，
  * 不留任何跨請求狀態。
  */
-import { ErrorCode, type JsonRpcId, type JsonRpcFailure, failure } from './jsonrpc.js';
+import { ErrorCode } from './errors.js';
+import { failure, type JsonRpcFailure, type JsonRpcId } from './messages.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from './versions.js';
 
 const PROTOCOL_VERSION_KEY = 'io.modelcontextprotocol/protocolVersion';

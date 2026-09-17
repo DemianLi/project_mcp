@@ -17,19 +17,32 @@
 
 ## 版面
 
+每個檔案只有一個改動的理由。
+
 ```
 src/
-  main.ts              進入點：接上 stdin／stdout，stdin 關閉就結束
+  main.ts              進入點與組裝：讀行 → 處理 → 寫行 → 記錄
   log.ts               寫 stderr。記方法、耗時、結果，不記 issue 與留言內容
+  declarations.ts      Server 對自己的宣告：serverInfo、capabilities
   protocol/
-    versions.ts        本 Server 講哪幾版，以及自報身分
-    jsonrpc.ts         JSON-RPC 2.0 的形狀與錯誤碼
-    meta.ts            每則請求的 `_meta`
+    versions.ts        支援的版本
+    errors.ts          錯誤碼
+    messages.ts        JSON-RPC 訊息型別與建構
+    parse.ts           一行文字 → 訊息
+    meta.ts            檢查每則請求的 `_meta`
     results.ts         `resultType` 與清單的快取提示
-    dispatch.ts        依 method 分派
-    stdio.ts           行框架，逐則序列處理
+    router.ts          請求 → handler，以及所有請求都要過的版本關卡
+    handle.ts          一行進、一行出。不碰 stream
+    methods/
+      discover.ts      `server/discover`
+      toolsList.ts     `tools/list`
+      toolsCall.ts     `tools/call`
+  transport/
+    stdio.ts           行框架與 IO。不認識 JSON，也不認識 MCP
   tools/
-    registry.ts        Tool 清單
+    registry.ts        Tool 定義與清單
+scripts/
+  ask.mjs              對建好的 Server 問一句話
 test/
   wire.test.ts         Acceptance 層：啟動子行程，走 stdin／stdout
 ```
@@ -47,10 +60,22 @@ npm test     # typecheck → build → 兩層測試
 npm start    # 等同 node dist/main.js
 ```
 
-手動對一句話：
+手動問一句話。`_meta` 由腳本填上：
 
 ```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"server/discover"}' | npm start --silent
+npm run ask server/discover
+npm run ask tools/list
+npm run ask tools/call '{"name":"list_labels","arguments":{}}'
 ```
 
-Log 走 stderr，因此上面那行看到的只有協定訊息。要看 log 就別把 stderr 丟掉。
+MCP Inspector：
+
+```bash
+npm run inspect        # Web UI
+npm run inspect:cli -- --method tools/list
+```
+
+Inspector 2.7.0 講到 2025-11-25，連線時送 `initialize`，本 Server 回
+`-32602 _meta is required on every request` 後它就停住。等它支援 2026-07-28 這兩個指令即可使用。
+
+Log 走 stderr，協定訊息走 stdout。

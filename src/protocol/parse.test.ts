@@ -1,6 +1,7 @@
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { ErrorCode, parse } from './jsonrpc.js';
+import { ErrorCode } from './errors.js';
+import { parse } from './parse.js';
 
 describe('parse', () => {
   it('reads a request', () => {
@@ -20,8 +21,7 @@ describe('parse', () => {
   });
 
   it('reads a notification as a notification, not a request', () => {
-    const parsed = parse('{"jsonrpc":"2.0","method":"notifications/cancelled"}');
-    strictEqual(parsed.kind, 'notification');
+    strictEqual(parse('{"jsonrpc":"2.0","method":"notifications/cancelled"}').kind, 'notification');
   });
 
   it('reports a parse error with a null id, because no id could be read', () => {
@@ -48,8 +48,7 @@ describe('parse', () => {
   });
 
   it('rejects array params, which MCP never sends', () => {
-    const parsed = parse('{"jsonrpc":"2.0","id":1,"method":"tools/list","params":[1,2]}');
-    strictEqual(parsed.kind, 'error');
+    strictEqual(parse('{"jsonrpc":"2.0","id":1,"method":"tools/list","params":[1,2]}').kind, 'error');
   });
 
   it('rejects a batch', () => {

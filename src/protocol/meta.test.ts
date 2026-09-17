@@ -1,6 +1,6 @@
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { ErrorCode } from './jsonrpc.js';
+import { ErrorCode } from './errors.js';
 import { readMeta } from './meta.js';
 import { PROTOCOL_VERSION } from './versions.js';
 
