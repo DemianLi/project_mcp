@@ -1,0 +1,33 @@
+# Runs the test suite on every push and pull request.
+#
+# The suite is offline today because nothing in it reaches the network. That is a
+# property worth defending rather than assuming: the first Tool will shell out to
+# `gh`, and the step that shadows the real binary belongs here the moment it does.
+name: CI
+
+on:
+  push:
+    branches: [develop-ts]
+  pull_request:
+    branches: [develop-ts]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Matches the floor in package.json's engines. The suite spawns the built
+          # server as a subprocess, so the Node that runs the tests is also the Node
+          # the server runs under.
+          node-version: '22'
+          cache: npm
+
+      # `npm test` is typecheck, then build, then the tests — in that order, because
+      # the acceptance layer speaks to dist/main.js and would otherwise test a stale
+      # build, or none at all.
+      - run: npm ci
+      - run: npm test

@@ -1,0 +1,27 @@
+{
+  "name": "project-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An MCP server exposing GitHub platform operations as Tools, speaking MCP 2026-07-28",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "bin": {
+    "project-mcp": "dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js",
+    "test": "npm run typecheck && npm run build && node --import tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
