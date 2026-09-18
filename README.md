@@ -41,6 +41,7 @@ src/
     pool.ts            連線池、query、交易、關池
 scripts/
   ask.mjs              對建好的 Server 問一句話
+  inspect-docker.sh    建 image，再把 Inspector 接到容器上
 test/
   wire.test.ts         Acceptance 層：啟動子行程，走 stdin／stdout
 Dockerfile             兩階段 image。不開 port，沒有 healthcheck
@@ -82,9 +83,24 @@ npm run inspect:cli -- --method tools/call --tool-name get_weather --tool-arg ci
 
 ### Docker
 
+建 image 並用 Inspector 連上容器裡的 Server，一行：
+
 ```bash
-docker build -t project-mcp .
-docker run -i --rm project-mcp
+npm run inspect:docker                                    # Web UI
+npm run inspect:docker -- --cli --method tools/list
+npm run inspect:docker -- --cli --method tools/call \
+  --tool-name get_weather --tool-arg city=Taipei
+```
+
+它做三件事：`docker build -t project-mcp:dev`、把 `docker run` 包成一個暫時的啟動腳本
+（Inspector 的 target 只吃一個字，多字詞會被拆錯），然後帶 `--protocol-era modern` 起
+Inspector。暫時的腳本在結束時刪掉。
+
+分開來做也可以：
+
+```bash
+docker build -t project-mcp:dev .
+docker run -i --rm project-mcp:dev
 ```
 
 `-i` 是必要的：Server 從 stdin 讀，沒有 stdin 就等於開機即關機。這個 image 不開 port、
@@ -93,16 +109,7 @@ docker run -i --rm project-mcp
 `ask.mjs` 可以改問容器裡的 Server：
 
 ```bash
-MCP_SERVER_CMD='docker run -i --rm project-mcp' npm run ask tools/list
-```
-
-Inspector 連容器時，把啟動指令包成一個腳本再指過去，參數才不會被拆錯：
-
-```bash
-printf '#!/bin/sh\nexec docker run -i --rm project-mcp\n' > /tmp/mcp-docker.sh
-chmod +x /tmp/mcp-docker.sh
-npx @modelcontextprotocol/inspector --cli /tmp/mcp-docker.sh --protocol-era modern \
-  --method tools/call --tool-name get_weather --tool-arg city=Taipei
+MCP_SERVER_CMD='docker run -i --rm project-mcp:dev' npm run ask tools/list
 ```
 
 要連資料庫就用 compose。Server 不是常駐服務，所以用 `run` 而不是 `up`，`-T` 關掉 TTY 讓

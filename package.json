@@ -20,7 +20,8 @@
     "start": "node dist/main.js",
     "ask": "npm run build --silent && node scripts/ask.mjs",
     "inspect": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --web node dist/main.js --protocol-era modern",
-    "inspect:cli": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --cli node dist/main.js --protocol-era modern"
+    "inspect:cli": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --cli node dist/main.js --protocol-era modern",
+    "inspect:docker": "sh scripts/inspect-docker.sh"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",
