@@ -78,19 +78,43 @@ describe('over HTTP', () => {
 });
 
 describe('over HTTP, shutting down', () => {
-  it('turns readiness red first, then exits cleanly', async () => {
-    const server = await HttpServer.start({ MCP_HTTP_SHUTDOWN_GRACE_MS: '300' });
+  it('turns readiness red first, keeps serving, then exits cleanly', async () => {
+    // grace 要夠長，才有時間在排空當中觀察。太短的話這個測試量到的是排程運氣。
+    const server = await HttpServer.start({ DATABASE_URL: '', MCP_HTTP_SHUTDOWN_GRACE_MS: '2000' });
     strictEqual((await server.get('/readyz')).status, 200);
 
     const stopped = server.stop();
-    // 排空期間還在服務，但 readiness 已經轉紅，k8s 才會先把流量移開。
-    const draining = await server.get('/readyz');
-    strictEqual(draining.status, 503);
+
+    // 訊號送達與處理器跑起來之間有一小段空窗，所以是等它翻紅，不是假設它已經翻了。
+    const draining = await until(async () => {
+      const probe = await server.get('/readyz');
+      return probe.status === 503 ? probe : undefined;
+    });
     match(String(draining.body['detail']), /shutting down/);
+
+    // 這才是 grace 存在的理由：readiness 已經紅了，但請求還照常服務，讓 k8s 有時間
+    // 把流量移開，在飛的呼叫有時間做完。
+    const stillServing = await server.post(1, 'tools/list');
+    strictEqual(stillServing.status, 200);
 
     strictEqual(await stopped, 0);
   });
 });
+
+/** 等一個條件成立，逾時就放棄。CI 的機器比本機慢，直接斷言會變成賭排程。 */
+async function until<T>(check: () => Promise<T | undefined>, timeoutMs = 5_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = await check();
+    if (value !== undefined) {
+      return value;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`condition did not hold within ${timeoutMs}ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
 
 describe('over HTTP, refusing to start', () => {
   it('will not serve off loopback with no authentication', async () => {

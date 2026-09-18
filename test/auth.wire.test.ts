@@ -95,18 +95,18 @@ describe('with a JWT authenticator', () => {
 
   it('records which agency called which Tool', async () => {
     await server.post(10, 'tools/call', { name: 'get_weather', arguments: { city: 'Taipei' } }, await bearer(goodClaims('LG-042')));
-    // log 是非同步寫出去的，等它落地。
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const entry = server.logLines.find((line) => line['event'] === 'audit' && line['tool'] === 'get_weather');
-    ok(entry !== undefined, JSON.stringify(server.logLines));
-    strictEqual(entry['agency'], 'LG-042');
+    // log 是非同步寫到 stderr 再被讀回來的，所以是等它出現，不是睡一個猜出來的秒數。
+    const entry = await until(() =>
+      server.logLines.find((line) => line['event'] === 'audit' && line['agency'] === 'LG-042'),
+    );
+    strictEqual(entry['tool'], 'get_weather');
     strictEqual(entry['outcome'], 'ok');
     ok(typeof entry['ms'] === 'number');
   });
 
   it('keeps the call arguments out of the audit trail', async () => {
-    await server.post(11, 'tools/call', { name: 'get_weather', arguments: { city: 'Tokyo' } }, await bearer(goodClaims()));
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await server.post(11, 'tools/call', { name: 'get_weather', arguments: { city: 'Tokyo' } }, await bearer(goodClaims('LG-tokyo')));
+    await until(() => server.logLines.find((line) => line['agency'] === 'LG-tokyo'));
     // 稽核記的是 Shape 不是 Content：要看內容應該去查資料本身，不是翻 log。
     const audits = server.logLines.filter((line) => line['event'] === 'audit');
     strictEqual(audits.some((line) => JSON.stringify(line).includes('Tokyo')), false);
@@ -119,9 +119,8 @@ describe('with no authenticator', () => {
     try {
       const { status } = await server.post(1, 'tools/call', { name: 'get_weather', arguments: { city: 'Taipei' } });
       strictEqual(status, 200);
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      const entry = server.logLines.find((line) => line['event'] === 'audit');
-      strictEqual(entry?.['agency'], 'anonymous');
+      const entry = await until(() => server.logLines.find((line) => line['event'] === 'audit'));
+      strictEqual(entry['agency'], 'anonymous');
     } finally {
       await server.stop();
     }
@@ -157,6 +156,21 @@ describe('configuring authentication', () => {
     await refused({ MCP_AUTH_MODE: 'jwt', MCP_AUTH_JWT_ISSUER: ISSUER }, /MCP_AUTH_JWT_AUDIENCE/);
   });
 });
+
+/** 等一個條件成立，逾時就放棄。CI 的機器比本機慢，睡一個猜出來的秒數等於賭排程。 */
+async function until<T>(find: () => T | undefined, timeoutMs = 5_000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = find();
+    if (value !== undefined) {
+      return value;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`condition did not hold within ${timeoutMs}ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
 
 async function refused(env: NodeJS.ProcessEnv, expected: RegExp): Promise<void> {
   try {
