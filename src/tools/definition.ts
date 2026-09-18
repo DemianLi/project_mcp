@@ -8,18 +8,31 @@
  * 型別都不一樣，一個異質陣列裝不下它們，但裝得下一個統一的註冊函式。抹掉型別的地方就在
  * 這個檔案裡，一處；換來的是每個 Tool 的 `call` 都從自己的 schema 推出參數型別。
  */
-import type {
-  CallToolResult,
-  McpServer,
-  StandardSchemaWithJSON,
-  ToolAnnotations,
-  ToolCallback,
+import {
+  isInputRequiredResult,
+  type CallToolResult,
+  type InputRequiredResult,
+  type McpServer,
+  type ServerContext,
+  type StandardSchemaWithJSON,
+  type ToolAnnotations,
+  type ToolCallback,
 } from '@modelcontextprotocol/server';
 import type { z } from 'zod';
+import { trackInFlight } from '../lifecycle.js';
 import type { CallToolBody } from './result.js';
 
 /** Zod schema 同時是 Standard Schema——SDK 靠後者驗參數並轉出 JSON Schema。 */
 type ToolInputSchema = z.ZodObject & StandardSchemaWithJSON;
+
+/**
+ * 一次呼叫的結局：做完了，或是還差一份輸入。
+ *
+ * `InputRequiredResult` 是 2026-07-28 的多回合流程（MRTR）：Tool 先回一份「我需要什麼」，
+ * Client 去問到答案，再帶著 `inputResponses` 重送同一個請求。用 SDK 的 `inputRequired()`
+ * 建它。
+ */
+export type ToolOutcome = CallToolBody | InputRequiredResult;
 
 export interface ToolDefinition<Schema extends ToolInputSchema> {
   readonly name: string;
@@ -34,8 +47,13 @@ export interface ToolDefinition<Schema extends ToolInputSchema> {
    * 它們的作用是宣告與測試分區。
    */
   readonly annotations?: ToolAnnotations;
-  /** 參數已經過 schema 驗證才會進來，所以這裡不必再驗一次形狀。 */
-  readonly call: (args: z.output<Schema>) => Promise<CallToolBody>;
+  /**
+   * 參數已經過 schema 驗證才會進來，所以這裡不必再驗一次形狀。
+   *
+   * `ctx` 是這一回合的上下文：`ctx.mcpReq.inputResponses` 是 Client 帶回來的答案，
+   * `ctx.mcpReq.requestState()` 是我們上一回合自己封好的狀態。不做多回合的 Tool 用不到它。
+   */
+  readonly call: (args: z.output<Schema>, ctx: ServerContext) => Promise<ToolOutcome>;
 }
 
 /** 抹掉參數型別之後剩下的：名字，以及怎麼把自己掛上去。 */
@@ -47,13 +65,21 @@ export interface RegisterableTool {
 export function defineTool<Schema extends ToolInputSchema>(
   tool: ToolDefinition<Schema>,
 ): RegisterableTool {
-  const handler = async (args: z.output<Schema>): Promise<CallToolResult> => {
-    const body = await tool.call(args);
+  const handler = async (
+    args: z.output<Schema>,
+    ctx: ServerContext,
+  ): Promise<CallToolResult | InputRequiredResult> => {
+    // 記在帳上，關機才知道要等誰。
+    const outcome = await trackInFlight(() => tool.call(args, ctx));
+    if (isInputRequiredResult(outcome)) {
+      // 多回合的結果原樣送出去：`resultType: 'input_required'` 是它的辨識欄位。
+      return outcome;
+    }
     // 唯讀陣列複製成可變陣列：SDK 的結果型別要的是後者。
     return {
-      content: [...body.content],
-      structuredContent: body.structuredContent,
-      isError: body.isError,
+      content: [...outcome.content],
+      structuredContent: outcome.structuredContent,
+      isError: outcome.isError,
     };
   };
 

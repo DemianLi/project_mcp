@@ -12,6 +12,7 @@
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { closePool } from './db/pool.js';
 import { PROTOCOL_VERSION, SERVER_INFO } from './declarations.js';
+import { whenIdle } from './lifecycle.js';
 import { log } from './log.js';
 import { createServer } from './server.js';
 
@@ -22,7 +23,7 @@ log({
   protocol: PROTOCOL_VERSION,
 });
 
-const connection = serveStdio(createServer, {
+serveStdio(createServer, {
   /**
    * 只講 2026-07-28。
    *
@@ -45,8 +46,16 @@ process.stdin.once('end', () => {
   void stop('stdin closed');
 });
 
+/**
+ * 關機。
+ *
+ * 先等在飛的請求做完，再收池子。順序反過來的話，還在跑的查詢會斷在半路。
+ *
+ * 不主動關 transport：關掉之後 SDK 要送回應會拿到「已關閉」，那一則就永遠送不出去了。
+ * stdin 已經結束，沒有東西再撐著事件迴圈，所以剩下的 stdout 寫完行程就自己結束。
+ */
 async function stop(reason: string): Promise<void> {
-  await connection.close();
+  await whenIdle();
   await closePool();
   log({ event: 'stop', reason });
 }

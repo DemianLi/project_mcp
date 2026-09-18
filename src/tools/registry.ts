@@ -5,6 +5,9 @@
  */
 import type { McpServer } from '@modelcontextprotocol/server';
 import { getWeather } from './getWeather.js';
+import { addNote } from './notes/addNote.js';
+import { deleteNote } from './notes/deleteNote.js';
+import { listNotes } from './notes/listNotes.js';
 import type { RegisterableTool } from './definition.js';
 
 /**
@@ -13,7 +16,7 @@ import type { RegisterableTool } from './definition.js';
  * 規格說 `tools/list` 的順序 SHOULD 穩定；寫死成字面陣列就是最便宜的保證——SDK 按註冊
  * 順序列出，而註冊順序就是這個陣列的順序。
  */
-export const TOOLS: readonly RegisterableTool[] = [getWeather];
+export const TOOLS: readonly RegisterableTool[] = [getWeather, listNotes, addNote, deleteNote];
 
 export function registerTools(server: McpServer): void {
   for (const tool of TOOLS) {

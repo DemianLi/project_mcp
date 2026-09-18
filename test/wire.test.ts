@@ -4,65 +4,23 @@
  * 跨過 wire 邊界——真的啟動一個子行程，真的在 stdin／stdout 上講 JSON-RPC。
  * 協定的實作是 `@modelcontextprotocol/server` 的，所以這一層測的不是它對不對，而是
  * 「我們把它接成了什麼」：講哪一版、菜單上有誰、清單多久算新鮮、log 有沒有汙染協定通道。
+ *
+ * 這一檔不碰資料庫。碰資料庫的在 notes.wire.test.ts。
  */
 import { deepStrictEqual, match, ok, strictEqual } from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 import { before, describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
-import {
-  CLIENT_CAPABILITIES_META_KEY,
-  PROTOCOL_VERSION_META_KEY,
-} from '@modelcontextprotocol/server';
 import { PROTOCOL_VERSION } from '../src/declarations.js';
-
-const SERVER = fileURLToPath(new URL('../dist/main.js', import.meta.url));
-const META = {
-  [PROTOCOL_VERSION_META_KEY]: PROTOCOL_VERSION,
-  [CLIENT_CAPABILITIES_META_KEY]: {},
-};
-
-/** 啟動一個 Server，送進這些行，收集 stdout 與 stderr，然後關掉 stdin。 */
-async function converse(lines: readonly string[]): Promise<{
-  stdout: string;
-  stderr: string;
-  code: number | null;
-}> {
-  const child = spawn(process.execPath, [SERVER], { stdio: ['pipe', 'pipe', 'pipe'] });
-  let stdout = '';
-  let stderr = '';
-  child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout += chunk; });
-  child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk; });
-
-  for (const line of lines) {
-    child.stdin.write(`${line}\n`);
-  }
-  child.stdin.end();
-
-  const [code] = (await once(child, 'exit')) as [number | null];
-  return { stdout, stderr, code };
-}
-
-function responses(stdout: string): Record<string, unknown>[] {
-  return stdout
-    .split('\n')
-    .filter((line) => line !== '')
-    .map((line) => JSON.parse(line) as Record<string, unknown>);
-}
-
-function call(id: number, method: string, params: Record<string, unknown> = {}): string {
-  return JSON.stringify({ jsonrpc: '2.0', id, method, params: { ...params, _meta: META } });
-}
+import { converse, request as call, responses, META } from './support/client.js';
 
 function resultOf(stdout: string, index = 0): Record<string, unknown> {
-  const response = responses(stdout)[index] as { result?: Record<string, unknown> };
-  ok(response.result !== undefined, `expected a result, got ${JSON.stringify(response)}`);
+  const response = responses(stdout)[index];
+  ok(response?.result !== undefined, `expected a result, got ${JSON.stringify(response)}`);
   return response.result;
 }
 
 function errorOf(stdout: string, index = 0): { code: number; data?: Record<string, unknown> } {
-  const response = responses(stdout)[index] as { error?: { code: number; data?: Record<string, unknown> } };
-  ok(response.error !== undefined, `expected an error, got ${JSON.stringify(response)}`);
+  const response = responses(stdout)[index];
+  ok(response?.error !== undefined, `expected an error, got ${JSON.stringify(response)}`);
   return response.error;
 }
 
@@ -117,9 +75,9 @@ describe('over the wire', () => {
     strictEqual(list['cacheScope'], 'private');
   });
 
-  it('lists the tools this server registered', () => {
+  it('lists the tools this server registered, in a stable order', () => {
     const tools = resultOf(transcript.stdout, 1)['tools'] as { name: string }[];
-    deepStrictEqual(tools.map((tool) => tool.name), ['get_weather']);
+    deepStrictEqual(tools.map((tool) => tool.name), ['get_weather', 'list_notes', 'add_note', 'delete_note']);
   });
 
   it('runs a tool end to end, saying the same thing to the model and to the program', () => {

@@ -1,8 +1,10 @@
-# Runs the test suite on every push and pull request.
+# Runs the test suite on every push and pull request, twice: once without a
+# database and once with one.
 #
-# The suite is offline today because nothing in it reaches the network. That is a
-# property worth defending rather than assuming: the first Tool will shell out to
-# `gh`, and the step that shadows the real binary belongs here the moment it does.
+# Both runs matter. The skeleton is meant to start and serve Tools with no
+# database configured — the pool is lazy precisely so that holds — and the
+# offline job is what keeps that true. The PostgreSQL job is what stops the
+# database path from being "verified by hand, once".
 name: CI
 
 on:
@@ -12,6 +14,7 @@ on:
     branches: [develop-ts]
 
 jobs:
+  # 沒有資料庫。碰資料庫的那一段測試會自己跳過。
   test:
     runs-on: ubuntu-latest
 
@@ -29,5 +32,44 @@ jobs:
       # `npm test` is typecheck, then build, then the tests — in that order, because
       # the acceptance layer speaks to dist/main.js and would otherwise test a stale
       # build, or none at all.
+      - run: npm ci
+      - run: npm test
+
+  # 有資料庫。同一份測試，只是多了 DATABASE_URL，所以碰資料庫的那一段會真的跑。
+  test-postgres:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: mcp
+          POSTGRES_PASSWORD: mcp
+          POSTGRES_DB: mcp
+        ports:
+          - 5432:5432
+        # 沒有這一段，測試會比資料庫先就緒。
+        options: >-
+          --health-cmd "pg_isready -U mcp -d mcp"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://mcp:mcp@localhost:5432/mcp
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # compose 是靠 /docker-entrypoint-initdb.d 套用同一個檔案；這裡沒有 compose，
+      # 所以直接餵給 psql。同一份 schema，兩條路。
+      - name: Apply the schema
+        run: psql "$DATABASE_URL" --set ON_ERROR_STOP=1 --file db/schema.sql
+
       - run: npm ci
       - run: npm test
