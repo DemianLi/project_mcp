@@ -8,6 +8,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { createRequestStateCodec, type ServerContext } from '@modelcontextprotocol/server';
+import { agencyOf } from '../auth/context.js';
 import { log } from '../log.js';
 
 /**
@@ -42,6 +43,15 @@ function readKey(): Uint8Array | string {
 export const requestState = createRequestStateCodec<RequestState>({
   key: readKey(),
   ttlSeconds: TTL_SECONDS,
-  // 綁住 method：在 tools/call 封的狀態，不能拿去 prompts/get 用。
-  bind: (ctx: ServerContext) => ctx.mcpReq.method,
+  /**
+   * 綁住 method 與機關。
+   *
+   * method：在 `tools/call` 封的狀態不能拿去 `prompts/get` 用。
+   * 機關：甲機關拿到的確認不能被乙機關重送——即使兩邊看的是同一份資料，「誰批准了這次
+   * 刪除」也必須對得起來，否則稽核紀錄會指向錯的人。
+   *
+   * 綁定的值不會出現在 Client 拿到的字串裡（codec 把它做成 HMAC 標籤），所以機關代碼
+   * 不會因此外流。
+   */
+  bind: (ctx: ServerContext) => `${ctx.mcpReq.method}\u0000${agencyOf(ctx)}`,
 });

@@ -19,6 +19,8 @@ import {
   type ToolCallback,
 } from '@modelcontextprotocol/server';
 import type { z } from 'zod';
+import { audit } from '../audit.js';
+import { agencyOf } from '../auth/context.js';
 import { trackInFlight } from '../lifecycle.js';
 import type { CallToolBody } from './result.js';
 
@@ -70,7 +72,21 @@ export function defineTool<Schema extends ToolInputSchema>(
     ctx: ServerContext,
   ): Promise<CallToolResult | InputRequiredResult> => {
     // 記在帳上，關機才知道要等誰。
-    const outcome = await trackInFlight(() => tool.call(args, ctx));
+    const started = Date.now();
+    let outcome: ToolOutcome;
+    try {
+      outcome = await trackInFlight(() => tool.call(args, ctx));
+    } catch (cause) {
+      // Tool 自己沒接住的例外也要留下紀錄，否則稽核上會看到一個沒有結果的呼叫。
+      audit({ agency: agencyOf(ctx), tool: tool.name, outcome: 'threw', ms: Date.now() - started });
+      throw cause;
+    }
+    audit({
+      agency: agencyOf(ctx),
+      tool: tool.name,
+      outcome: isInputRequiredResult(outcome) ? 'input_required' : outcome.isError ? 'failed' : 'ok',
+      ms: Date.now() - started,
+    });
     if (isInputRequiredResult(outcome)) {
       // 多回合的結果原樣送出去：`resultType: 'input_required'` 是它的辨識欄位。
       return outcome;

@@ -6,7 +6,9 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import type { McpHttpHandler } from '@modelcontextprotocol/server';
+import type { AuthInfo, McpHttpHandler } from '@modelcontextprotocol/server';
+import type { Authenticator } from '../auth/authenticator.js';
+import { AuthError, type Principal } from '../auth/principal.js';
 import { liveness, readiness, type Health } from './health.js';
 
 export const LIVENESS_PATH = '/healthz';
@@ -17,6 +19,8 @@ export interface RouterOptions {
   readonly handler: McpHttpHandler;
   /** 關機排空期間讀到 false，readiness 就一律答不。 */
   readonly accepting: () => boolean;
+  /** 驗身分。健康檢查不經過它——kubelet 沒有 token，也不該有。 */
+  readonly authenticator: Authenticator;
 }
 
 export function createRouter(
@@ -47,15 +51,63 @@ export function createRouter(
     }
 
     if (path === options.mcpPath) {
-      // 轉接器要的是 method 與 url 一定存在的形狀。Server 端的 IncomingMessage 一定有這兩個，
-      // 型別上卻是 optional（同一個型別也用在 Client 端的回應）。這是唯一要斷言的地方。
-      void mcp(req as IncomingMessage & { method: string; url: string }, res);
+      void serveMcp(req, res, options, mcp);
       return;
     }
 
     res.writeHead(404, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: 'not found' }));
   };
+}
+
+async function serveMcp(
+  req: IncomingMessage,
+  res: ServerResponse,
+  options: RouterOptions,
+  mcp: (req: IncomingMessage & { method: string; url: string }, res: ServerResponse) => Promise<void>,
+): Promise<void> {
+  let principal: Principal;
+  try {
+    principal = await options.authenticator.authenticate(headersOf(req));
+  } catch (cause) {
+    refuse(res, cause);
+    return;
+  }
+
+  // 轉接器把 `req.auth` 原樣當成 `authInfo` 傳進 handler，Tool 那邊就讀得到
+  // `ctx.http.authInfo.clientId`。它只負責搬運，不會自己去解 header。
+  (req as IncomingMessage & { auth?: AuthInfo }).auth = {
+    token: '',
+    clientId: principal.agency,
+    scopes: [...principal.scopes],
+    expiresAt: principal.expiresAt,
+  };
+
+  // 轉接器要的是 method 與 url 一定存在的形狀。Server 端的 IncomingMessage 一定有這兩個，
+  // 型別上卻是 optional（同一個型別也用在 Client 端的回應）。這是唯一要斷言的地方。
+  await mcp(req as IncomingMessage & { method: string; url: string }, res);
+}
+
+function headersOf(req: IncomingMessage): Headers {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (typeof value === 'string') {
+      headers.set(name, value);
+    } else if (Array.isArray(value)) {
+      headers.set(name, value.join(', '));
+    }
+  }
+  return headers;
+}
+
+function refuse(res: ServerResponse, cause: unknown): void {
+  const error = cause instanceof AuthError ? cause : new AuthError(401, 'invalid_request', 'Unauthenticated.');
+  res.writeHead(error.status, {
+    'content-type': 'application/json',
+    // RFC 6750：401 要說回來的人該怎麼補。細節不寫，那是給攻擊者的提示。
+    'www-authenticate': `Bearer error="${error.code}"`,
+  });
+  res.end(JSON.stringify({ error: error.code, detail: error.message }));
 }
 
 function answer(res: ServerResponse, health: Health): void {

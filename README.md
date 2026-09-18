@@ -33,8 +33,10 @@
   是攻擊者控制的輸入
 - PostgreSQL 連線池，懶建：沒有人查詢就沒有連線。沒設 `DATABASE_URL` 時 Server 照常
   啟動，碰資料庫的 Tool 回 `ASK_OPERATOR`
-- HTTP 的守門：綁 loopback 是開發，什麼都可以省；綁其他位址少了驗證宣告或
-  `REQUEST_STATE_SECRET` 就拒絕啟動
+- 驗證層是一個接縫：`none`（開發）或 `jwt`（驗中央簽發的 token，只認非對稱簽章）。
+  機關代碼進稽核紀錄，也綁進多回合流程的狀態
+- HTTP 的守門：綁 loopback 是開發，什麼都可以省；綁其他位址少了驗證層（或明寫的
+  無驗證宣告）與 `REQUEST_STATE_SECRET` 就拒絕啟動
 - 關機照 k8s 的節奏：readiness 先轉紅、等一段時間、才停止收新連線並排空在飛的呼叫
 - Log 寫 stderr，從不寫 stdout
 
@@ -53,6 +55,12 @@ src/
   server.ts            Server 工廠：宣告 ＋ 註冊 Tools
   log.ts               寫 stderr。記方法、耗時、結果，不記呼叫的內容
   declarations.ts      Server 對自己的宣告：serverInfo、capabilities、快取提示、版本
+  audit.ts             稽核紀錄：誰呼叫了什麼、結果如何
+  auth/
+    principal.ts       「這個請求是誰送來的」
+    config.ts          驗證層設定
+    authenticator.ts   接縫：headers → 機關身分
+    context.ts         從請求上下文取機關代碼
   security/
     requestState.ts    多回合狀態的 HMAC 封裝
   tools/
@@ -77,8 +85,10 @@ scripts/
 test/
   support/client.ts    stdio 的 Acceptance Client
   support/httpClient.ts HTTP 的 Acceptance Client
+  support/tokens.ts    測試用的簽發端，簽真的 ES256
   wire.test.ts         協定怎麼接的。不碰資料庫
   http.wire.test.ts    探測端點、守門、關機順序
+  auth.wire.test.ts    驗證層與稽核紀錄
   notes.wire.test.ts   碰真的資料庫。沒有 DATABASE_URL 就整段跳過
 deploy/k8s/            部署範本與上線前要決定的事
 Dockerfile             兩階段 image。一個 image，兩個進入點
@@ -186,6 +196,48 @@ curl -s -X POST http://127.0.0.1:8080/mcp \
 或 k8s 的 Service 都連不進來，而行程看起來一切正常——啟動時會記一行 `notice` 提醒這件事。
 
 部署到 k8s 看 [`deploy/k8s/`](./deploy/k8s)。
+
+### 驗證
+
+預設 `MCP_AUTH_MODE=none`：不驗身分。只有綁 loopback 的部署可以這樣，這也是開發時
+走 stdio 的情況——能啟動子行程的人就是擁有者。
+
+要驗身分就設 `MCP_AUTH_MODE=jwt`。這台是 **resource server**：只驗 token，不發 token。
+發放留在外面，日後換成甲方既有的簽入系統時，改的是幾個環境變數，程式碼不動。
+
+```bash
+MCP_AUTH_MODE=jwt \
+MCP_AUTH_JWT_ISSUER=https://auth.example.gov.tw \
+MCP_AUTH_JWT_AUDIENCE=https://mcp.example.gov.tw \
+MCP_AUTH_JWT_JWKS_URL=https://auth.example.gov.tw/.well-known/jwks.json \
+npm run start:http
+```
+
+驗的是簽章、`iss`、`aud`、`exp`。`sub`（或 `client_id`）就是呼叫者代碼。
+
+三件刻意的事：
+
+- **只認非對稱簽章**（預設 `ES256,RS256`）。`HS*` 會被拒絕——共用密鑰表示這台自己就
+  簽得出 token，而它是對外的那一台。
+- **`aud` 必填**。少了它，同一個簽發端發給別的系統的 token 也能打進這台。
+- **401 不說原因**。過期、簽章不對、受眾不符，對攻擊者是三種不同的提示，所以回應裡
+  分不出來；細節只留在 Server 自己的 log。
+
+設好驗證之後，綁非 loopback 位址就不必再寫 `MCP_HTTP_ALLOW_UNAUTHENTICATED`。
+
+### 稽核
+
+每一次 Tool 呼叫在 stderr 留一行：
+
+```json
+{"at":"...","event":"audit","agency":"LG-042","tool":"delete_note","outcome":"ok","ms":12}
+```
+
+記的是 Shape 不是 Content：哪個機關、哪個 Tool、成不成功、花多久——不含參數，也不含
+回傳的資料。要看內容應該去查資料本身，而不是翻 log。`outcome` 有四種：`ok`、`failed`
+（Tool 回報的失敗）、`input_required`（多回合的第一回合）、`threw`（沒接住的例外）。
+
+沒有驗證層時 `agency` 是 `anonymous`——在 log 裡看到它就知道那台沒有驗證層。
 
 ### Docker
 

@@ -39,7 +39,14 @@ export function isLoopback(host: string): boolean {
   return LOOPBACK.has(host);
 }
 
-export function readHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfigResult {
+/**
+ * @param authenticated 這台是不是設了驗證層。設了的話，對外服務就不必再明寫
+ *   `MCP_HTTP_ALLOW_UNAUTHENTICATED`——那個旗標的意思本來就是「我知道現在沒有驗證」。
+ */
+export function readHttpConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  authenticated = false,
+): HttpConfigResult {
   const host = env['MCP_HTTP_HOST'] ?? HTTP_DEFAULTS.host;
 
   const port = readNumber(env['MCP_HTTP_PORT'], HTTP_DEFAULTS.port, 'MCP_HTTP_PORT');
@@ -65,7 +72,7 @@ export function readHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig
 
   if (!isLoopback(host)) {
     // 對外服務的兩個前提。兩個都是「少了就會出事」而不是「少了會不方便」。
-    if (!allowUnauthenticated) {
+    if (!authenticated && !allowUnauthenticated) {
       return {
         ok: false,
         reason:

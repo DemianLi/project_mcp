@@ -10,6 +10,8 @@
  */
 import { createServer as createHttpServer } from 'node:http';
 import { createMcpHandler } from '@modelcontextprotocol/server';
+import { createAuthenticator } from './auth/authenticator.js';
+import { readAuthConfig } from './auth/config.js';
 import { closePool } from './db/pool.js';
 import { PROTOCOL_VERSION, SERVER_INFO } from './declarations.js';
 import { readHttpConfig, isLoopback } from './http/config.js';
@@ -18,7 +20,16 @@ import { whenIdle } from './lifecycle.js';
 import { log } from './log.js';
 import { createServer } from './server.js';
 
-const configured = readHttpConfig();
+// 驗證層先讀：它決定 HTTP 那邊要不要再要求一次「我知道沒有驗證」的宣告。
+const auth = readAuthConfig();
+if (!auth.ok) {
+  log({ event: 'start.refused', reason: auth.reason });
+  process.exitCode = 2;
+  process.exit(2);
+}
+const authenticator = createAuthenticator(auth.config);
+
+const configured = readHttpConfig(process.env, auth.config.mode !== 'none');
 if (!configured.ok) {
   // 設定不對就不要聽 port。用一行讀得懂的紀錄加一個離開碼收場，而不是丟出例外——
   // 在 k8s 上那會變成一段 stack trace，而讀它的人只需要知道哪個變數不對。
@@ -37,7 +48,7 @@ const handler = createMcpHandler(createServer, {
 });
 
 let accepting = true;
-const router = createRouter({ mcpPath: config.path, handler, accepting: () => accepting });
+const router = createRouter({ mcpPath: config.path, handler, accepting: () => accepting, authenticator });
 const http = createHttpServer(router);
 
 http.listen(config.port, config.host, () => {
@@ -54,6 +65,7 @@ http.listen(config.port, config.host, () => {
     path: config.path,
     liveness: LIVENESS_PATH,
     readiness: READINESS_PATH,
+    auth: authenticator.describe,
   });
   if (isLoopback(config.host)) {
     // 在容器裡這是最容易踩的一個坑：綁 loopback 表示 -p 對映或 Service 都連不進來，
@@ -62,7 +74,7 @@ http.listen(config.port, config.host, () => {
       event: 'notice',
       message: `Listening on ${config.host} only — not reachable from outside this host or container. Set MCP_HTTP_HOST=0.0.0.0 to serve externally.`,
     });
-  } else if (config.allowUnauthenticated) {
+  } else if (auth.config.mode === 'none') {
     // 這件事每次啟動都要講一次。它是刻意的，但它不該安靜。
     log({ event: 'warning', message: 'Serving without authentication. Anyone who can reach this port can call every Tool.' });
   }

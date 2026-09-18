@@ -15,6 +15,7 @@ const HTTP_SERVER = fileURLToPath(new URL('../../dist/httpMain.js', import.meta.
 
 export class HttpServer {
   readonly #child: ChildProcessByStdio<null, Readable, Readable>;
+  readonly #logs: Record<string, unknown>[] = [];
   #port = 0;
 
   private constructor(child: ChildProcessByStdio<null, Readable, Readable>) {
@@ -40,6 +41,7 @@ export class HttpServer {
         } catch {
           return;
         }
+        server.#logs.push(event as Record<string, unknown>);
         if (event.event === 'start' && typeof event.port === 'number') {
           resolve(event.port);
         }
@@ -63,6 +65,7 @@ export class HttpServer {
     id: number,
     method: string,
     params: Record<string, unknown> = {},
+    token?: string,
   ): Promise<{ status: number; body: Response }> {
     const headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -73,12 +76,24 @@ export class HttpServer {
     if (typeof name === 'string') {
       headers['Mcp-Name'] = name;
     }
+    if (token !== undefined) {
+      headers['authorization'] = token;
+    }
     const response = await fetch(`${this.origin}/mcp`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ jsonrpc: '2.0', id, method, params: { ...params, _meta: META } }),
     });
-    return { status: response.status, body: (await response.json()) as Response };
+    const text = await response.text();
+    return {
+      status: response.status,
+      body: (text === '' ? {} : JSON.parse(text)) as Response,
+    };
+  }
+
+  /** stderr 上的 log，一行一則 JSON。稽核測試要看它。 */
+  get logLines(): readonly Record<string, unknown>[] {
+    return this.#logs;
   }
 
   async get(path: string): Promise<{ status: number; body: Record<string, unknown> }> {

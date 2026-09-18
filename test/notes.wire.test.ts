@@ -10,6 +10,7 @@ import { deepStrictEqual, match, notStrictEqual, ok, strictEqual } from 'node:as
 import { after, before, describe, it } from 'node:test';
 import { converse, request, responses, Conversation, type Response } from './support/client.js';
 import { HttpServer } from './support/httpClient.js';
+import { AUDIENCE, ISSUER, createIssuer, goodClaims } from './support/tokens.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'];
 const OFFLINE = DATABASE_URL === undefined || DATABASE_URL.trim() === '';
@@ -59,6 +60,51 @@ describe('notes, against a real database', { skip: OFFLINE ? 'DATABASE_URL is no
       const { status, body } = await http.get('/readyz');
       strictEqual(status, 200);
       match(String(body['detail']), /database reachable/);
+    } finally {
+      await http.stop();
+    }
+  });
+
+  it('will not let one agency use another agency\'s confirmation', async () => {
+    // 這是 requestState 綁身分的用處。即使兩個機關看的是同一份資料，「誰批准了這次刪除」
+    // 也必須對得起來——否則稽核紀錄會指向錯的人。
+    const issuer = await createIssuer();
+    const http = await HttpServer.start({
+      MCP_AUTH_MODE: 'jwt',
+      MCP_AUTH_JWT_ISSUER: ISSUER,
+      MCP_AUTH_JWT_AUDIENCE: AUDIENCE,
+      MCP_AUTH_JWT_PUBLIC_KEY: issuer.publicKeyPem,
+    });
+    const tokenFor = async (agency: string): Promise<string> =>
+      `Bearer ${await issuer.sign(goodClaims(agency), { expiresIn: '5m' })}`;
+
+    try {
+      const written = await http.post(1, 'tools/call', { name: 'add_note', arguments: { body: `cross ${Date.now()}` } }, await tokenFor('LG-A'));
+      const id = (written.body.result?.['structuredContent'] as { id: number }).id;
+
+      // 甲機關問出確認。
+      const asked = await http.post(2, 'tools/call', { name: 'delete_note', arguments: { id } }, await tokenFor('LG-A'));
+      const state = asked.body.result?.['requestState'];
+      strictEqual(asked.body.result?.['resultType'], 'input_required');
+      ok(typeof state === 'string');
+
+      // 乙機關拿它去刪。
+      const replayed = await http.post(3, 'tools/call', {
+        name: 'delete_note',
+        arguments: { id },
+        inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+        requestState: state,
+      }, await tokenFor('LG-B'));
+      strictEqual(replayed.body.error?.code, -32602);
+
+      // 甲機關自己用同一份狀態就成立。
+      const own = await http.post(4, 'tools/call', {
+        name: 'delete_note',
+        arguments: { id },
+        inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+        requestState: state,
+      }, await tokenFor('LG-A'));
+      deepStrictEqual(own.body.result?.['structuredContent'], { id, deleted: true });
     } finally {
       await http.stop();
     }

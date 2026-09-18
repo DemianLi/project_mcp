@@ -30,10 +30,18 @@ spec:
               value: '0.0.0.0'
             - name: MCP_HTTP_PORT
               value: '8080'
-            # 還沒有驗證層。這一行是明知故犯的宣告，補上 Bearer 驗證之後就拿掉。
-            # 在那之前務必用 NetworkPolicy 限制來源。
-            - name: MCP_HTTP_ALLOW_UNAUTHENTICATED
-              value: 'yes-i-know'
+            # 驗中央機關簽發的 token。設好這一組之後，就不必再寫
+            # MCP_HTTP_ALLOW_UNAUTHENTICATED——那個旗標的意思本來就是「我知道現在沒有驗證」。
+            - name: MCP_AUTH_MODE
+              value: 'jwt'
+            - name: MCP_AUTH_JWT_ISSUER
+              value: 'https://auth.example.gov.tw' # 換成中央機關的簽發端
+            # 這台 Server 的資源識別碼。少了它，發給別的系統的 token 也能打進來。
+            - name: MCP_AUTH_JWT_AUDIENCE
+              value: 'https://mcp.example.gov.tw'
+            # 簽發端的 JWKS。用端點而不是寫死公鑰，簽發端才能自己輪替金鑰。
+            - name: MCP_AUTH_JWT_JWKS_URL
+              value: 'https://auth.example.gov.tw/.well-known/jwks.json'
             # readiness 轉紅之後等多久才開始排空，讓 kube-proxy 追上。
             - name: MCP_HTTP_SHUTDOWN_GRACE_MS
               value: '5000'
