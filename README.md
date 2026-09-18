@@ -45,7 +45,7 @@ scripts/
 test/
   wire.test.ts         Acceptance 層：啟動子行程，走 stdin／stdout
 Dockerfile             兩階段 image。不開 port，沒有 healthcheck
-compose.yaml           PostgreSQL ＋ 接上它的 Server
+compose.yaml           PostgreSQL ＋ 接上它的 Server。資料放具名 volume
 ```
 
 測試分兩層：`src/**/*.test.ts` 不跨 wire 邊界，`test/wire.test.ts` 測 Client 真正看得到的
@@ -83,7 +83,7 @@ npm run inspect:cli -- --method tools/call --tool-name get_weather --tool-arg ci
 
 ### Docker
 
-建 image 並用 Inspector 連上容器裡的 Server，一行：
+一行就有一整套：Server 加一個 PostgreSQL，再用 Inspector 連上去。
 
 ```bash
 npm run inspect:docker                                    # Web UI
@@ -92,37 +92,39 @@ npm run inspect:docker -- --cli --method tools/call \
   --tool-name get_weather --tool-arg city=Taipei
 ```
 
-它做三件事：`docker build -t project-mcp:dev`、把 `docker run` 包成一個暫時的啟動腳本
-（Inspector 的 target 只吃一個字，多字詞會被拆錯），然後帶 `--protocol-era modern` 起
-Inspector。暫時的腳本在結束時刪掉。
+它做的事：`docker compose build mcp`、把資料庫叫起來等它 healthy、把 `docker compose run`
+包成一個暫時的啟動腳本（Inspector 的 target 只吃一個字，多字詞會被拆錯），然後帶
+`--protocol-era modern` 起 Inspector。Server 從 compose 起，所以它拿得到 `DATABASE_URL`，
+碰資料庫的 Tool 不必另外設定。
 
-分開來做也可以：
+結束時暫存檔會刪掉，**資料庫留著**——收掉用 `docker compose down`。資料在 `db-data` 這個
+volume 裡，`down` 不會清掉它。
+
+手動做也可以：
+
+```bash
+docker compose run --rm -T mcp    # Server ＋ 資料庫
+docker compose up -d db           # 只要資料庫
+```
+
+`-T` 關掉 TTY，stdin／stdout 才是乾淨的管子。Server 走 stdio，不是常駐服務，所以用 `run`
+而不是 `up`。這個 image 不開 port、也沒有 healthcheck——stdio Server 沒有可以探測的端點，
+而往 stdout 寫探測結果會弄壞協定通道。
+
+不要資料庫的話，單獨跑那個 image 就好：
 
 ```bash
 docker build -t project-mcp:dev .
 docker run -i --rm project-mcp:dev
-```
-
-`-i` 是必要的：Server 從 stdin 讀，沒有 stdin 就等於開機即關機。這個 image 不開 port、
-也沒有 healthcheck——stdio Server 沒有可以探測的端點，而往 stdout 寫探測結果會弄壞協定通道。
-
-`ask.mjs` 可以改問容器裡的 Server：
-
-```bash
 MCP_SERVER_CMD='docker run -i --rm project-mcp:dev' npm run ask tools/list
 ```
 
-要連資料庫就用 compose。Server 不是常駐服務，所以用 `run` 而不是 `up`，`-T` 關掉 TTY 讓
-stdin／stdout 維持乾淨的管子：
-
-```bash
-docker compose run --rm -T mcp
-docker compose up -d db      # 只要資料庫
-```
+`-i` 是必要的：Server 從 stdin 讀，沒有 stdin 就等於開機即關機。
 
 ### 配置資料庫
 
-複製 [`.env.example`](./.env.example) 成 `.env`，填 `DATABASE_URL`，然後：
+用 compose 跑的話 `DATABASE_URL` 已經設好了（`npm run inspect:docker` 也是），不必再做什麼。
+在本機跑就複製 [`.env.example`](./.env.example) 成 `.env`，填 `DATABASE_URL`，然後：
 
 ```bash
 node --env-file=.env dist/main.js

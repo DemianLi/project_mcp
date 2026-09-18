@@ -5,6 +5,7 @@
 #   docker compose run --rm -T mcp
 #
 # `-T` 關掉 TTY，stdin／stdout 才是乾淨的管子。只想要資料庫的話：`docker compose up -d db`。
+# 用 Inspector 連這一套：`npm run inspect:docker`。
 
 services:
   db:
@@ -15,6 +16,11 @@ services:
       POSTGRES_DB: mcp
     ports:
       - '5432:5432'
+    volumes:
+      # PostgreSQL 18 的 PGDATA 是 /var/lib/postgresql/18/docker，image 宣告的 volume 是它的
+      # 上一層。照舊慣例掛 /var/lib/postgresql/data 不會報錯，但那不是資料所在，`down` 之後
+      # 資料就沒了。
+      - db-data:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U mcp -d mcp']
       interval: 5s
@@ -31,3 +37,6 @@ services:
       DATABASE_URL: postgres://mcp:mcp@db:5432/mcp
     stdin_open: true
     tty: false
+
+volumes:
+  db-data:
