@@ -54,6 +54,8 @@ export const getWeather = defineTool({
   inputSchema: weatherInput,
   // Client MUST 把這些當成不可信的自述。Server 不因為它們改變行為。
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  // 不宣告 requiredScope：它回的是寫死的資料，不碰任何人的東西，通過驗證就能呼叫。
+  // 要限制某個 Tool 只給部分機關用，就在這裡宣告一個 scope。
   call: readWeather,
 });
 

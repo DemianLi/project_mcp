@@ -7,6 +7,7 @@
 import { match, ok, strictEqual } from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { HttpServer } from './support/httpClient.js';
+import { META } from './support/client.js';
 import { AUDIENCE, ISSUER, createIssuer, goodClaims, type Issuer } from './support/tokens.js';
 
 describe('with a JWT authenticator', () => {
@@ -181,3 +182,90 @@ async function refused(env: NodeJS.ProcessEnv, expected: RegExp): Promise<void> 
     match(cause instanceof Error ? cause.message : String(cause), expected);
   }
 }
+
+describe('scopes', () => {
+  let issuer: Awaited<ReturnType<typeof createIssuer>>;
+  let server: HttpServer;
+
+  before(async () => {
+    issuer = await createIssuer();
+    server = await HttpServer.start({
+      DATABASE_URL: '',
+      MCP_AUTH_MODE: 'jwt',
+      MCP_AUTH_JWT_ISSUER: ISSUER,
+      MCP_AUTH_JWT_AUDIENCE: AUDIENCE,
+      MCP_AUTH_JWT_PUBLIC_KEY: issuer.publicKeyPem,
+    });
+  });
+
+  after(async () => {
+    await server.stop();
+  });
+
+  async function agency(name: string, scopes: string): Promise<string> {
+    return `Bearer ${await issuer.sign(goodClaims(name, scopes), { expiresIn: '5m' })}`;
+  }
+
+  let id = 100;
+  async function call(tool: string, token: string): Promise<{ status: number; body: Record<string, unknown> }> {
+    id += 1;
+    const args = tool === 'delete_note' ? { id: 1 } : tool === 'add_note' ? { body: 'x' } : {};
+    const response = await server.post(id, 'tools/call', { name: tool, arguments: args }, token);
+    return { status: response.status, body: (response.body.result ?? {}) as Record<string, unknown> };
+  }
+
+  it('lets a read-only agency list, but not write or delete', async () => {
+    const token = await agency('LG-READ', 'notes:read');
+    // 資料庫沒設定，所以成不成功不是重點——重點是它有沒有被授權擋在門外。
+    strictEqual((await call('list_notes', token)).status, 200);
+    strictEqual((await call('add_note', token)).status, 403);
+    strictEqual((await call('delete_note', token)).status, 403);
+  });
+
+  it('lets a writing agency add, but not delete', async () => {
+    const token = await agency('LG-WRITE', 'notes:read notes:write');
+    strictEqual((await call('add_note', token)).status, 200);
+    strictEqual((await call('delete_note', token)).status, 403);
+  });
+
+  it('lets an agency with the delete scope delete', async () => {
+    const token = await agency('LG-FULL', 'notes:read notes:write notes:delete');
+    strictEqual((await call('delete_note', token)).status, 200);
+  });
+
+  it('does not treat write as covering delete', async () => {
+    const token = await agency('LG-WRITE2', 'notes:write');
+    strictEqual((await call('delete_note', token)).status, 403);
+  });
+
+  it('lets anyone authenticated call a Tool that declares no scope', async () => {
+    const token = await agency('LG-NONE', '');
+    const response = await server.post(200, 'tools/call', { name: 'get_weather', arguments: { city: 'Taipei' } }, token);
+    strictEqual(response.status, 200);
+    strictEqual(response.body.result?.['isError'], false);
+  });
+
+  it('says which scope is missing, since the caller has to go and ask for it', async () => {
+    const response = await fetch(`${server.origin}/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'Mcp-Method': 'tools/call',
+        'Mcp-Name': 'delete_note',
+        authorization: await agency('LG-READ2', 'notes:read'),
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 300, method: 'tools/call', params: { name: 'delete_note', arguments: { id: 1 }, _meta: META } }),
+    });
+    strictEqual(response.status, 403);
+    match(response.headers.get('www-authenticate') ?? '', /insufficient_scope/);
+    match(await response.text(), /notes:delete/);
+  });
+
+  it('records a refusal in the audit trail', async () => {
+    await call('delete_note', await agency('LG-DENIED', 'notes:read'));
+    const entry = await until(() => server.logLines.find((line) => line['agency'] === 'LG-DENIED'));
+    strictEqual(entry['outcome'], 'denied');
+    strictEqual(entry['tool'], 'delete_note');
+  });
+});

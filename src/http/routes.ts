@@ -7,8 +7,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import type { AuthInfo, McpHttpHandler } from '@modelcontextprotocol/server';
+import { audit } from '../audit.js';
 import type { Authenticator } from '../auth/authenticator.js';
 import { AuthError, type Principal } from '../auth/principal.js';
+import { allows } from '../auth/scopes.js';
+import { scopeFor } from '../tools/registry.js';
 import { liveness, readiness, type Health } from './health.js';
 
 export const LIVENESS_PATH = '/healthz';
@@ -74,6 +77,24 @@ async function serveMcp(
     return;
   }
 
+  // 符合 RFC 6750 的快速拒絕：`Mcp-Name` 已經指名要呼叫哪個 Tool，所以權限不足可以在
+  // 分派之前就回 403，而不是讓它跑到一半再回一個成功的錯誤結果。
+  //
+  // 這不是安全邊界。header 與 body 不一致時是 SDK 在分派前才擋（-32020），所以只信
+  // header 等於把授權建在一個下游檢查上。真正的關卡在 `defineTool`，那裡才確定是哪個
+  // Tool 要跑；兩邊查的是同一份對照表。
+  const named = req.headers['mcp-name'];
+  if (typeof named === 'string') {
+    const required = scopeFor(named);
+    if (!allows(principal.scopes, required)) {
+      // 拒絕也要留紀錄。「某機關試圖刪除」正是稽核最需要回答的一種問題，而這條路徑
+      // 在分派之前就結束了，Tool 那層的稽核不會跑。
+      audit({ agency: principal.agency, tool: named, outcome: 'denied', ms: 0 });
+      refuse(res, new AuthError(403, 'insufficient_scope', `Calling ${named} requires the ${required ?? ''} scope.`));
+      return;
+    }
+  }
+
   // 轉接器把 `req.auth` 原樣當成 `authInfo` 傳進 handler，Tool 那邊就讀得到
   // `ctx.http.authInfo.clientId`。它只負責搬運，不會自己去解 header。
   (req as IncomingMessage & { auth?: AuthInfo }).auth = {
@@ -105,6 +126,7 @@ function refuse(res: ServerResponse, cause: unknown): void {
   res.writeHead(error.status, {
     'content-type': 'application/json',
     // RFC 6750：401 要說回來的人該怎麼補。細節不寫，那是給攻擊者的提示。
+    // 403 不一樣：權限不足時對方已經通過驗證，講清楚缺什麼是幫他去申請，不是洩漏。
     'www-authenticate': `Bearer error="${error.code}"`,
   });
   res.end(JSON.stringify({ error: error.code, detail: error.message }));

@@ -19,6 +19,7 @@ import {
   type ServerContext,
 } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import { Scope } from '../../auth/scopes.js';
 import { query } from '../../db/pool.js';
 import { requestState, type RequestState } from '../../security/requestState.js';
 import { databaseFailure } from '../dbFailure.js';
@@ -44,6 +45,7 @@ export const deleteNote = defineTool({
   description: 'Deletes one note. Asks for confirmation first, then deletes on the retry.',
   inputSchema: deleteNoteInput,
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  requiredScope: Scope.NotesDelete,
   call: async ({ id }, ctx): Promise<ToolOutcome> => {
     // 型別參數只是宣告「我封進去的是什麼」；真正的保證來自 codec 的 verify。
     const sealed = ctx.mcpReq.requestState<RequestState>();

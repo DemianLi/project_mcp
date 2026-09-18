@@ -75,8 +75,9 @@ describe('notes, against a real database', { skip: OFFLINE ? 'DATABASE_URL is no
       MCP_AUTH_JWT_AUDIENCE: AUDIENCE,
       MCP_AUTH_JWT_PUBLIC_KEY: issuer.publicKeyPem,
     });
+    // 兩個機關都拿得到刪除權限——這個測試要驗的是「誰批准的」，不是「誰有權限」。
     const tokenFor = async (agency: string): Promise<string> =>
-      `Bearer ${await issuer.sign(goodClaims(agency), { expiresIn: '5m' })}`;
+      `Bearer ${await issuer.sign(goodClaims(agency, 'notes:read notes:write notes:delete'), { expiresIn: '5m' })}`;
 
     try {
       const written = await http.post(1, 'tools/call', { name: 'add_note', arguments: { body: `cross ${Date.now()}` } }, await tokenFor('LG-A'));

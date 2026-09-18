@@ -60,10 +60,28 @@ token，而它是對外的那一台。
 **連線數要算。** `DATABASE_POOL_MAX` × 副本數 不能超過 PostgreSQL 的 `max_connections`
 （預設 100）。三個副本配 `DATABASE_POOL_MAX=10` 就是 30 條，還有餘裕給維運。
 
+## 權限分級
+
+token 的 `scope` claim 決定哪個機關能做什麼，三級並列：
+
+| scope | 能呼叫 |
+| --- | --- |
+| `notes:read` | `list_notes` |
+| `notes:write` | `add_note` |
+| `notes:delete` | `delete_note` |
+
+不是包含關係：要能刪就要明寫 `notes:delete`。`get_weather` 不需要任何 scope。
+
+各機關拿到哪幾級是簽發端的事，不是這台 Server 的設定——它只讀 token 裡有什麼。所以
+「哪個機關可以刪」這個政策集中在中央機關的簽發流程裡，改的時候不必動 Server。
+
+權限不足回 403 `insufficient_scope`，並且**留下稽核紀錄**（`outcome: "denied"`）。
+
 **稽核紀錄要收走。** Server 把 `{"event":"audit","agency":...,"tool":...,"outcome":...}`
 寫到 stderr，一行一則 JSON。政府機關的案子通常要求可追溯，所以叢集的日誌收集要涵蓋它，
 保存期限依甲方的規定。記的是 Shape 不是 Content——哪個機關呼叫了哪個 Tool、成不成功、
-花多久，不含參數與回傳的資料。
+花多久，不含參數與回傳的資料。`outcome: "denied"` 是權限不足被擋下的那一種，這類紀錄
+在稽核上通常比成功的呼叫更重要。
 
 ## 兩個探測端點
 

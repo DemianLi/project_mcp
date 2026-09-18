@@ -23,3 +23,14 @@ export function registerTools(server: McpServer): void {
     tool.register(server);
   }
 }
+
+/**
+ * 某個 Tool 需要哪個 scope。
+ *
+ * HTTP 那層用它做符合 RFC 6750 的快速拒絕；真正的關卡在 `defineTool`，因為那裡才確定
+ * 是哪個 Tool 要跑。兩邊查的是同一份資料，所以不會各說各話。不認得的名字回 undefined，
+ * 讓 SDK 去回「沒有這個 Tool」，而不是在這裡多發明一種錯誤。
+ */
+export function scopeFor(name: string): string | undefined {
+  return TOOLS.find((tool) => tool.name === name)?.requiredScope;
+}

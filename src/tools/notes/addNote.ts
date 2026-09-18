@@ -5,6 +5,7 @@
  * `connect()` 然後忘記 `release()` 是連線池最常見的死法。
  */
 import { z } from 'zod';
+import { Scope } from '../../auth/scopes.js';
 import { withTransaction } from '../../db/pool.js';
 import { databaseFailure } from '../dbFailure.js';
 import { defineTool } from '../definition.js';
@@ -21,6 +22,7 @@ export const addNote = defineTool({
   inputSchema: addNoteInput,
   // 不是唯讀，也不冪等：同樣的參數呼叫兩次會有兩筆。
   annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
+  requiredScope: Scope.NotesWrite,
   call: async ({ body }) => {
     try {
       const row = await withTransaction(async (client) => {

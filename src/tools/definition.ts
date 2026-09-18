@@ -21,6 +21,7 @@ import {
 import type { z } from 'zod';
 import { audit } from '../audit.js';
 import { agencyOf } from '../auth/context.js';
+import { allows, scopesOf } from '../auth/scopes.js';
 import { trackInFlight } from '../lifecycle.js';
 import type { CallToolBody } from './result.js';
 
@@ -50,6 +51,13 @@ export interface ToolDefinition<Schema extends ToolInputSchema> {
    */
   readonly annotations?: ToolAnnotations;
   /**
+   * 呼叫這個 Tool 需要的 scope。
+   *
+   * 不宣告就是任何通過驗證的人都能呼叫。宣告了的話，沒有驗證層的部署仍然放行——沒有
+   * 身分就沒有授權可言，而那種部署已經被啟動守門限制在 loopback 上了。
+   */
+  readonly requiredScope?: string;
+  /**
    * 參數已經過 schema 驗證才會進來，所以這裡不必再驗一次形狀。
    *
    * `ctx` 是這一回合的上下文：`ctx.mcpReq.inputResponses` 是 Client 帶回來的答案，
@@ -58,9 +66,10 @@ export interface ToolDefinition<Schema extends ToolInputSchema> {
   readonly call: (args: z.output<Schema>, ctx: ServerContext) => Promise<ToolOutcome>;
 }
 
-/** 抹掉參數型別之後剩下的：名字，以及怎麼把自己掛上去。 */
+/** 抹掉參數型別之後剩下的：名字、需要的 scope，以及怎麼把自己掛上去。 */
 export interface RegisterableTool {
   readonly name: string;
+  readonly requiredScope?: string;
   readonly register: (server: McpServer) => void;
 }
 
@@ -71,8 +80,21 @@ export function defineTool<Schema extends ToolInputSchema>(
     args: z.output<Schema>,
     ctx: ServerContext,
   ): Promise<CallToolResult | InputRequiredResult> => {
-    // 記在帳上，關機才知道要等誰。
     const started = Date.now();
+
+    // 授權，依實際要跑的 Tool。HTTP 那一層已經依 `Mcp-Name` 擋過一次，所以這裡今天
+    // 碰不到；留著是為了不讓授權的正確性依賴那個 header 檢查存在（見 auth/scopes.ts）。
+    if (!allows(scopesOf(ctx), tool.requiredScope)) {
+      audit({ agency: agencyOf(ctx), tool: tool.name, outcome: 'denied', ms: Date.now() - started });
+      // 呼叫者改不了自己的 token，要由人去核發權限，所以是 ASK_OPERATOR 不是 FIX_REQUEST。
+      return {
+        content: [{ type: 'text', text: `Calling ${tool.name} requires the ${tool.requiredScope ?? ''} scope.` }],
+        structuredContent: { remedy: 'ASK_OPERATOR', requiredScope: tool.requiredScope },
+        isError: true,
+      };
+    }
+
+    // 記在帳上，關機才知道要等誰。
     let outcome: ToolOutcome;
     try {
       outcome = await trackInFlight(() => tool.call(args, ctx));
@@ -101,6 +123,7 @@ export function defineTool<Schema extends ToolInputSchema>(
 
   return {
     name: tool.name,
+    ...(tool.requiredScope === undefined ? {} : { requiredScope: tool.requiredScope }),
     register: (server) => {
       server.registerTool<StandardSchemaWithJSON, Schema>(
         tool.name,

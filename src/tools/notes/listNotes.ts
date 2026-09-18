@@ -4,6 +4,7 @@
  * 一次 `query` 就夠了。失敗的分類交給 `databaseFailure`，Tool 自己只負責「查什麼」。
  */
 import { z } from 'zod';
+import { Scope } from '../../auth/scopes.js';
 import { query } from '../../db/pool.js';
 import { databaseFailure } from '../dbFailure.js';
 import { defineTool } from '../definition.js';
@@ -25,6 +26,7 @@ export const listNotes = defineTool({
   description: 'Notes, newest first.',
   inputSchema: listNotesInput,
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  requiredScope: Scope.NotesRead,
   call: async ({ limit }) => {
     try {
       // bigint 在 pg 預設會讀成字串，因為 JS 的 number 裝不下它的全部範圍。

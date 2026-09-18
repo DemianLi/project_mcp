@@ -35,6 +35,7 @@
   啟動，碰資料庫的 Tool 回 `ASK_OPERATOR`
 - 驗證層是一個接縫：`none`（開發）或 `jwt`（驗中央簽發的 token，只認非對稱簽章）。
   機關代碼進稽核紀錄，也綁進多回合流程的狀態
+- 每個 Tool 宣告自己要的 scope，權限不足回 403 `insufficient_scope`，而且留下稽核紀錄
 - HTTP 的守門：綁 loopback 是開發，什麼都可以省；綁其他位址少了驗證層（或明寫的
   無驗證宣告）與 `REQUEST_STATE_SECRET` 就拒絕啟動
 - 關機照 k8s 的節奏：readiness 先轉紅、等一段時間、才停止收新連線並排空在飛的呼叫
@@ -61,6 +62,7 @@ src/
     config.ts          驗證層設定
     authenticator.ts   接縫：headers → 機關身分
     context.ts         從請求上下文取機關代碼
+    scopes.ts          誰可以呼叫哪個 Tool
   security/
     requestState.ts    多回合狀態的 HMAC 封裝
   tools/
@@ -225,6 +227,33 @@ npm run start:http
 
 設好驗證之後，綁非 loopback 位址就不必再寫 `MCP_HTTP_ALLOW_UNAUTHENTICATED`。
 
+### 權限
+
+每個 Tool 宣告自己要的 scope，三級並列（不是包含關係——要能刪就要明寫 `notes:delete`）：
+
+| Tool | 需要 |
+| --- | --- |
+| `get_weather` | 無。它回寫死的資料，不碰任何人的東西，通過驗證就能呼叫 |
+| `list_notes` | `notes:read` |
+| `add_note` | `notes:write` |
+| `delete_note` | `notes:delete` |
+
+token 的 `scope` claim 是空白分隔的字串（有些簽發端給陣列，兩種都收）：
+
+```
+"scope": "notes:read notes:write"
+```
+
+權限不足回 **403 `insufficient_scope`**，並在 `WWW-Authenticate` 與回應裡講清楚缺哪一個
+——對方已經通過驗證，講清楚是幫他去申請，不是洩漏。**被拒絕的呼叫一樣留稽核紀錄**
+（`outcome: "denied"`）：「某機關試圖刪除」正是稽核最需要回答的一種問題。
+
+檢查有兩處，查的是同一份對照表。HTTP 路由依 `Mcp-Name` 擋下請求，這是實際生效的那一處；
+`defineTool` 依實際要跑的 Tool 再檢查一次。第二處今天在 HTTP 上碰不到（header 與 body
+不一致時 SDK 會先回 `-32020`），留著是為了不讓授權的正確性依賴那個 header 檢查存在。
+
+沒有驗證層時一律放行——沒有身分就沒有授權可言，而那種部署已經被啟動守門限制在 loopback 上。
+
 ### 稽核
 
 每一次 Tool 呼叫在 stderr 留一行：
@@ -234,8 +263,9 @@ npm run start:http
 ```
 
 記的是 Shape 不是 Content：哪個機關、哪個 Tool、成不成功、花多久——不含參數，也不含
-回傳的資料。要看內容應該去查資料本身，而不是翻 log。`outcome` 有四種：`ok`、`failed`
-（Tool 回報的失敗）、`input_required`（多回合的第一回合）、`threw`（沒接住的例外）。
+回傳的資料。要看內容應該去查資料本身，而不是翻 log。`outcome` 有五種：`ok`、`failed`
+（Tool 回報的失敗）、`input_required`（多回合的第一回合）、`denied`（權限不足）、
+`threw`（沒接住的例外）。
 
 沒有驗證層時 `agency` 是 `anonymous`——在 log 裡看到它就知道那台沒有驗證層。
 
@@ -305,6 +335,9 @@ node --env-file=.env dist/main.js
 - [`addNote.ts`](./src/tools/notes/addNote.ts) 用 `withTransaction` 的寫入。不要自己
   `connect()`——忘記 `release()` 是連線池最常見的死法
 - [`deleteNote.ts`](./src/tools/notes/deleteNote.ts) 破壞性動作，先問過人再做
+
+要限制某個 Tool 只給部分機關用，就在它的定義裡宣告 `requiredScope`；不宣告就是任何通過
+驗證的人都能呼叫。
 
 參數的形狀交給 zod schema，`call` 裡只處理「形狀對但做不到」的失敗。資料庫的例外丟給
 [`databaseFailure`](./src/tools/dbFailure.ts)，它按 SQLSTATE 決定 Remedy：逾時與死結是

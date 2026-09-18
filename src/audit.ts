@@ -14,7 +14,7 @@ export interface AuditEntry {
   /** 哪個機關。沒有驗證層時是 `anonymous`。 */
   readonly agency: string;
   readonly tool: string;
-  readonly outcome: 'ok' | 'failed' | 'input_required' | 'threw';
+  readonly outcome: 'ok' | 'failed' | 'input_required' | 'threw' | 'denied';
   readonly ms: number;
 }
 
