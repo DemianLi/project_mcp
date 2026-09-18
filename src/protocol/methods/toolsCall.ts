@@ -24,5 +24,6 @@ export async function callTool(request: JsonRpcRequest): Promise<JsonRpcResponse
       ? (args as Record<string, unknown>)
       : {},
   );
-  return success(request.id, complete(result));
+  // 展開一次，把 Tool 的具名型別攤成結果物件。
+  return success(request.id, complete({ ...result }));
 }

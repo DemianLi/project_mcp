@@ -32,7 +32,8 @@ describe('route', () => {
     const response = await route(request('tools/list'));
     ok('result' in response);
     strictEqual(response.result['resultType'], 'complete');
-    deepStrictEqual(response.result['tools'], []);
+    const tools = response.result['tools'] as { name: string }[];
+    deepStrictEqual(tools.map((t) => t.name), ['get_weather']);
     strictEqual(typeof response.result['ttlMs'], 'number');
     strictEqual(response.result['cacheScope'], 'private');
   });
@@ -41,6 +42,28 @@ describe('route', () => {
     const response = await route({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
     ok('error' in response);
     strictEqual(response.error.code, ErrorCode.InvalidParams);
+  });
+
+  it('never puts `call` on the menu', async () => {
+    const response = await route(request('tools/list'));
+    ok('result' in response);
+    for (const tool of response.result['tools'] as Record<string, unknown>[]) {
+      strictEqual('call' in tool, false);
+      strictEqual(typeof tool['inputSchema'], 'object');
+    }
+  });
+
+  it('runs a known tool and marks the result complete', async () => {
+    const response = await route(request('tools/call', { name: 'get_weather', arguments: { city: 'Taipei' } }));
+    ok('result' in response);
+    strictEqual(response.result['resultType'], 'complete');
+    strictEqual(response.result['isError'], false);
+  });
+
+  it('reports a tool failure as a result, not as a JSON-RPC error', async () => {
+    const response = await route(request('tools/call', { name: 'get_weather', arguments: { city: 'Atlantis' } }));
+    ok('result' in response);
+    strictEqual(response.result['isError'], true);
   });
 
   it('calls an unknown tool a parameter error, since tools/call itself exists', async () => {

@@ -5,8 +5,10 @@
  * 逐則序列處理，做完一則才讀下一則。這不是效能選擇而是契約選擇——交錯處理需要
  * 為每則請求各自管理狀態，而無狀態核心的價值正在於沒有那種狀態。
  *
- * stdin 關閉就是關機訊號，規格要求 Server 立刻結束。
+ * stdin 關閉就是關機訊號，規格要求 Server 立刻結束。收掉連線池是結束前的最後一件事；
+ * 沒開過池子時它什麼都不做。
  */
+import { closePool } from './db/pool.js';
 import { SERVER_INFO } from './declarations.js';
 import { log } from './log.js';
 import { handle } from './protocol/handle.js';
@@ -27,4 +29,5 @@ for await (const line of readLines(process.stdin)) {
   log({ ...exchange.shape, ms: Date.now() - started });
 }
 
+await closePool();
 log({ event: 'stop', reason: 'stdin closed' });

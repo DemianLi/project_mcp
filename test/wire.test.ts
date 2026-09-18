@@ -115,6 +115,24 @@ describe('over the wire', () => {
     deepStrictEqual(response.error.data, { supportedVersions: [PROTOCOL_VERSION] });
   });
 
+  it('runs a tool end to end and answers on one line', async () => {
+    const { stdout } = await converse([
+      call(1, 'tools/call', { name: 'get_weather', arguments: { city: 'Taipei' } }),
+    ]);
+    const [response] = responses(stdout) as [{ result: Record<string, unknown> }];
+    strictEqual(response.result['resultType'], 'complete');
+    strictEqual(response.result['isError'], false);
+    const content = response.result['content'] as { text: string }[];
+    deepStrictEqual(JSON.parse(content[0]!.text), response.result['structuredContent']);
+  });
+
+  it('opens no database connection just by starting up and running a tool', async () => {
+    const { stderr } = await converse([
+      call(1, 'tools/call', { name: 'get_weather', arguments: { city: 'Taipei' } }),
+    ]);
+    strictEqual(stderr.includes('db.poolOpened'), false);
+  });
+
   it('survives a bad line and keeps answering the next one', async () => {
     const { stdout } = await converse(['{ broken', call(9, 'tools/list')]);
     deepStrictEqual(responses(stdout).map((r) => r['id']), [null, 9]);

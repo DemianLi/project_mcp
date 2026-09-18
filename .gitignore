@@ -1,3 +1,8 @@
 node_modules/
 dist/
 *.log
+
+# 連線字串帶密碼。範本是 .env.example，它才進版控。
+.env
+.env.*
+!.env.example
