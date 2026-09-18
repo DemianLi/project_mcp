@@ -86,10 +86,11 @@ MCP Inspector：
 ```bash
 npm run inspect        # Web UI
 npm run inspect:cli -- --method tools/list
+npm run inspect:cli -- --method tools/call --tool-name get_weather --tool-arg city=Taipei
 ```
 
-Inspector 2.7.0 講到 2025-11-25，連線時送 `initialize`，本 Server 回
-`-32602 _meta is required on every request` 後它就停住。等它支援 2026-07-28 這兩個指令即可使用。
+兩個指令都帶了 `--protocol-era modern`。Inspector 對臨時指定的 target **預設走 legacy**，
+那會送 `initialize`，本 Server 沒有握手，只會回 `-32602`。`auto` 也可以：它先探測再決定。
 
 ### Docker
 
@@ -105,6 +106,15 @@ docker run -i --rm project-mcp
 
 ```bash
 MCP_SERVER_CMD='docker run -i --rm project-mcp' npm run ask tools/list
+```
+
+Inspector 連容器時，把啟動指令包成一個腳本再指過去，參數才不會被拆錯：
+
+```bash
+printf '#!/bin/sh\nexec docker run -i --rm project-mcp\n' > /tmp/mcp-docker.sh
+chmod +x /tmp/mcp-docker.sh
+npx @modelcontextprotocol/inspector --cli /tmp/mcp-docker.sh --protocol-era modern \
+  --method tools/call --tool-name get_weather --tool-arg city=Taipei
 ```
 
 要連資料庫就用 compose。Server 不是常駐服務，所以用 `run` 而不是 `up`，`-T` 關掉 TTY 讓

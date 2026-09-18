@@ -19,8 +19,8 @@
     "test": "npm run typecheck && npm run build && node --import tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\"",
     "start": "node dist/main.js",
     "ask": "npm run build --silent && node scripts/ask.mjs",
-    "inspect": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 node dist/main.js",
-    "inspect:cli": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --cli node dist/main.js"
+    "inspect": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --web node dist/main.js --protocol-era modern",
+    "inspect:cli": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --cli node dist/main.js --protocol-era modern"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",
