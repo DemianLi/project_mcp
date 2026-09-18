@@ -9,6 +9,7 @@
 import { deepStrictEqual, match, notStrictEqual, ok, strictEqual } from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { converse, request, responses, Conversation, type Response } from './support/client.js';
+import { HttpServer } from './support/httpClient.js';
 
 const DATABASE_URL = process.env['DATABASE_URL'];
 const OFFLINE = DATABASE_URL === undefined || DATABASE_URL.trim() === '';
@@ -49,6 +50,18 @@ describe('notes, against a real database', { skip: OFFLINE ? 'DATABASE_URL is no
     ok(response?.result !== undefined, `expected a result, got ${stdout || '(nothing on stdout)'}`);
     strictEqual(response.result['isError'], false);
     strictEqual(code, 0);
+  });
+
+  it('reports the database in its readiness probe', async () => {
+    // readiness 的用處就在這裡：資料庫連不上時這個 Pod 該被移出流量，而不是繼續收請求。
+    const http = await HttpServer.start();
+    try {
+      const { status, body } = await http.get('/readyz');
+      strictEqual(status, 200);
+      match(String(body['detail']), /database reachable/);
+    } finally {
+      await http.stop();
+    }
   });
 
   it('writes a note and reads it back', async () => {

@@ -18,6 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run typecheck && npm run build && node --import tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\"",
     "start": "node dist/main.js",
+    "start:http": "node dist/httpMain.js",
     "ask": "npm run build --silent && node scripts/ask.mjs",
     "inspect": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --web node dist/main.js --protocol-era modern",
     "inspect:cli": "npm run build --silent && npx -y @modelcontextprotocol/inspector@2.7.0 --cli node dist/main.js --protocol-era modern",
@@ -30,6 +31,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "pg": "^8.23.0",
     "zod": "^4.6.5"

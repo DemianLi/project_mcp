@@ -3,6 +3,9 @@
 以 TypeScript 寫的 [MCP](https://modelcontextprotocol.io) Server 骨架，
 實作 **MCP 2.0（2026-07-28）**，協定層用官方的 `@modelcontextprotocol/server`。
 
+兩個進入點、同一批 Tool：開發時走 **stdio**（Claude Desktop 以子行程啟動），
+上線時走 **Streamable HTTP**（k8s 裡的 Pod）。
+
 ## 骨架
 
 四個 Tool，每一個都是一種範本：
@@ -14,7 +17,8 @@
 | `add_note` | 用 `withTransaction` 寫入 |
 | `delete_note` | 多回合流程（MRTR）：破壞性動作先問過人再做 |
 
-- stdio 傳輸：一行一則，stdout 只走 MCP 訊息
+- 兩種傳輸共用同一個 Server 工廠：stdio（一行一則，stdout 只走 MCP 訊息）與
+  Streamable HTTP（`/mcp`，外加 `/healthz` 與 `/readyz` 兩個探測端點）
 - 協定機制交給 SDK：無狀態分派、每則請求自帶的 `_meta`（版本、能力、身分）、
   `resultType`、清單結果的 `ttlMs` 與 `cacheScope`
 - 只講 2026-07-28。舊版開場（`initialize`，或任何不宣告版本的請求）回 `-32022`，
@@ -29,6 +33,9 @@
   是攻擊者控制的輸入
 - PostgreSQL 連線池，懶建：沒有人查詢就沒有連線。沒設 `DATABASE_URL` 時 Server 照常
   啟動，碰資料庫的 Tool 回 `ASK_OPERATOR`
+- HTTP 的守門：綁 loopback 是開發，什麼都可以省；綁其他位址少了驗證宣告或
+  `REQUEST_STATE_SECRET` 就拒絕啟動
+- 關機照 k8s 的節奏：readiness 先轉紅、等一段時間、才停止收新連線並排空在飛的呼叫
 - Log 寫 stderr，從不寫 stdout
 
 ## 版面
@@ -37,7 +44,12 @@
 
 ```
 src/
-  main.ts              進入點與組裝：接上 stdio、選版本、記錄、關機
+  main.ts              stdio 進入點。開發時用
+  httpMain.ts          HTTP 進入點。上線時用
+  http/
+    config.ts          HTTP 設定與對外服務的守門
+    health.ts          liveness 與 readiness 的答案
+    routes.ts          哪個路徑交給誰
   server.ts            Server 工廠：宣告 ＋ 註冊 Tools
   log.ts               寫 stderr。記方法、耗時、結果，不記呼叫的內容
   declarations.ts      Server 對自己的宣告：serverInfo、capabilities、快取提示、版本
@@ -63,10 +75,13 @@ scripts/
   ask.mjs              對建好的 Server 問一句話
   inspect-docker.sh    建 image，起資料庫，再把 Inspector 接上去
 test/
-  support/client.ts    Acceptance 層共用的 Client
+  support/client.ts    stdio 的 Acceptance Client
+  support/httpClient.ts HTTP 的 Acceptance Client
   wire.test.ts         協定怎麼接的。不碰資料庫
+  http.wire.test.ts    探測端點、守門、關機順序
   notes.wire.test.ts   碰真的資料庫。沒有 DATABASE_URL 就整段跳過
-Dockerfile             兩階段 image。不開 port，沒有 healthcheck
+deploy/k8s/            部署範本與上線前要決定的事
+Dockerfile             兩階段 image。一個 image，兩個進入點
 compose.yaml           PostgreSQL ＋ 接上它的 Server。資料放具名 volume
 ```
 
@@ -84,8 +99,9 @@ compose.yaml           PostgreSQL ＋ 接上它的 Server。資料放具名 volu
 
 ```bash
 npm ci
-npm test     # typecheck → build → 兩層測試
-npm start    # 等同 node dist/main.js
+npm test          # typecheck → build → 兩層測試
+npm start         # stdio，等同 node dist/main.js
+npm run start:http   # HTTP，預設聽 127.0.0.1:8080
 ```
 
 手動問一句話。`_meta` 由腳本填上：
@@ -106,6 +122,70 @@ npm run inspect:cli -- --method tools/call --tool-name get_weather --tool-arg ci
 
 兩個指令都帶了 `--protocol-era modern`。Inspector 對臨時指定的 target **預設走 legacy**，
 那會送 `initialize`，本 Server 不做雙版相容，只會回 `-32022`。`auto` 也可以：它先探測再決定。
+
+### 接上 Claude Desktop
+
+開發時走 stdio。先 `npm run build`，再把這段加進 `claude_desktop_config.json`
+（macOS 在 `~/Library/Application Support/Claude/`，Windows 在 `%APPDATA%\\Claude\\`）：
+
+```json
+{
+  "mcpServers": {
+    "project-mcp": {
+      "command": "node",
+      "args": ["/絕對路徑/project_mcp/dist/main.js"],
+      "env": { "DATABASE_URL": "postgres://mcp:mcp@localhost:5432/mcp" }
+    }
+  }
+}
+```
+
+路徑要絕對的，Claude Desktop 不會用你的 shell 環境。改完重啟 Claude Desktop。
+Server 的 log 走 stderr，Claude Desktop 會收進它自己的 log 檔。
+
+### HTTP
+
+上線時走 Streamable HTTP。
+
+```bash
+npm run start:http                      # 127.0.0.1:8080，開發用
+curl -s http://127.0.0.1:8080/healthz   # 活著嗎
+curl -s http://127.0.0.1:8080/readyz    # 可以送流量嗎
+```
+
+送一則 MCP 請求。HTTP binding 要求 **header 與 body 講同一件事**——`Mcp-Method` 要對上
+`method`，`tools/call` 還要 `Mcp-Name` 對上 `params.name`。這是為了讓中間層（閘道、
+稽核、授權）不必解 body 就能做事：
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -H 'Mcp-Method: tools/call' -H 'Mcp-Name: get_weather' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+        "name":"get_weather","arguments":{"city":"Taipei"},
+        "_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28",
+                 "io.modelcontextprotocol/clientCapabilities":{}}}}'
+```
+
+設定：
+
+| 變數 | 預設 | 說明 |
+| --- | --- | --- |
+| `MCP_HTTP_HOST` | `127.0.0.1` | 綁 loopback 是開發，綁其他位址是上線 |
+| `MCP_HTTP_PORT` | `8080` | `0` 表示交給作業系統挑 |
+| `MCP_HTTP_PATH` | `/mcp` | MCP 端點 |
+| `MCP_HTTP_SHUTDOWN_GRACE_MS` | `5000` | readiness 轉紅之後等多久才開始排空 |
+| `MCP_HTTP_ALLOW_UNAUTHENTICATED` | 未設 | 對外服務時必須明寫 `yes-i-know` |
+
+**綁非 loopback 的位址時，少了下面任一項就拒絕啟動**：`MCP_HTTP_ALLOW_UNAUTHENTICATED=yes-i-know`
+（承認目前沒有驗證層），以及 `REQUEST_STATE_SECRET`（多回合狀態的金鑰，副本之間必須同一把）。
+這兩道是刻意的：開發時麻煩一點只是麻煩，上線時少一道就是把服務裸奔在網路上。
+
+在容器裡跑 HTTP **一定要設 `MCP_HTTP_HOST=0.0.0.0`**。預設只綁 loopback，所以 `-p` 對映
+或 k8s 的 Service 都連不進來，而行程看起來一切正常——啟動時會記一行 `notice` 提醒這件事。
+
+部署到 k8s 看 [`deploy/k8s/`](./deploy/k8s)。
 
 ### Docker
 
@@ -190,8 +270,9 @@ Client 的手，所以回來時是攻擊者控制的輸入：[`src/security/requ
 用 SDK 的 HMAC codec 封它，被改過、過期、或換一個 method 回來的，SDK 在進到 Tool 之前就回
 `-32602`。
 
-走 stdio 時一個行程服務整個流程，所以那把金鑰開機時隨機產生就夠。**改成 HTTP、或是多個
-行程可能接到同一段流程的不同回合時，必須設 `REQUEST_STATE_SECRET`**（至少 32 bytes）讓它們
-共用同一把，否則第二回合會驗不過。
+走 stdio 時一個行程服務整個流程，所以那把金鑰開機時隨機產生就夠。走 HTTP 就不是了：
+兩個回合不保證落在同一個 Pod，所以 **`REQUEST_STATE_SECRET`（至少 32 bytes）變成必填**，
+而且每個副本要同一把，否則第二回合會被判成偽造。Server 綁非 loopback 位址時找不到它
+就拒絕啟動。
 
 Log 走 stderr，協定訊息走 stdout。

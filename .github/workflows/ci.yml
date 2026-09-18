@@ -5,6 +5,9 @@
 # database configured — the pool is lazy precisely so that holds — and the
 # offline job is what keeps that true. The PostgreSQL job is what stops the
 # database path from being "verified by hand, once".
+#
+# Both jobs cover both transports: the suite spawns dist/main.js over stdio and
+# dist/httpMain.js over HTTP, so neither entry point can rot unnoticed.
 name: CI
 
 on:

@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: project-mcp
+  labels:
+    app: project-mcp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: project-mcp
+  template:
+    metadata:
+      labels:
+        app: project-mcp
+    spec:
+      # 要大於 MCP_HTTP_SHUTDOWN_GRACE_MS ＋ 最慢的一次 Tool 呼叫，否則排空到一半就被 SIGKILL。
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: mcp
+          image: project-mcp:dev # 換成甲方 registry 上的 tag
+          # image 預設的進入點是 stdio，上線要換成 HTTP 這個。
+          args: ['dist/httpMain.js']
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # 要對外服務就不能綁 loopback。
+            - name: MCP_HTTP_HOST
+              value: '0.0.0.0'
+            - name: MCP_HTTP_PORT
+              value: '8080'
+            # 還沒有驗證層。這一行是明知故犯的宣告，補上 Bearer 驗證之後就拿掉。
+            # 在那之前務必用 NetworkPolicy 限制來源。
+            - name: MCP_HTTP_ALLOW_UNAUTHENTICATED
+              value: 'yes-i-know'
+            # readiness 轉紅之後等多久才開始排空，讓 kube-proxy 追上。
+            - name: MCP_HTTP_SHUTDOWN_GRACE_MS
+              value: '5000'
+            # 每個副本的連線數。乘上副本數不要超過 PostgreSQL 的 max_connections。
+            - name: DATABASE_POOL_MAX
+              value: '10'
+          envFrom:
+            - secretRef:
+                name: project-mcp
+          # 活著嗎。刻意不碰資料庫：資料庫掛掉時重啟 Server 沒有幫助。
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          # 可以送流量進來嗎。這個才問資料庫。
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2
+          # 開機慢的時候不要被 liveness 誤殺。
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ['ALL']
