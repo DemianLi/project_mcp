@@ -2,7 +2,7 @@
   "name": "project-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "An MCP server exposing GitHub platform operations as Tools, speaking MCP 2026-07-28",
+  "description": "An MCP server skeleton in TypeScript, speaking MCP 2026-07-28 on the official SDK",
   "type": "module",
   "engines": {
     "node": ">=22.12"
@@ -29,6 +29,8 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "pg": "^8.23.0"
+    "@modelcontextprotocol/server": "^2.0.0",
+    "pg": "^8.23.0",
+    "zod": "^4.6.5"
   }
 }

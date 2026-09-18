@@ -1,21 +1,22 @@
 # project_mcp
 
-以 Tool 形式提供 GitHub 操作的 [MCP](https://modelcontextprotocol.io) Server，
-實作 **MCP 2.0（2026-07-28）**。
+以 TypeScript 寫的 [MCP](https://modelcontextprotocol.io) Server 骨架，
+實作 **MCP 2.0（2026-07-28）**，協定層用官方的 `@modelcontextprotocol/server`。
 
 ## 骨架
 
-協定層可以跑，一個 Tool：`get_weather`。它不連網、回寫死的資料，存在的目的是當範本——
+可以跑，一個 Tool：`get_weather`。它不連網、回寫死的資料，存在的目的是當範本——
 示範一個 Tool 怎麼宣告自己、怎麼驗參數、怎麼回成功、怎麼回失敗。
 
 - stdio 傳輸：一行一則，stdout 只走 MCP 訊息
-- 無狀態分派：每則請求自己讀 `_meta`（版本、能力、身分），不看前一則
-- `server/discover`：不需要先講對版本就能問
-- `resultType` 標在每一個結果上
-- 清單結果帶 `ttlMs` 與 `cacheScope`
-- 版本不符回 `-32022`，並列出自己支援的版本；未知工具回 `-32602`
-- 工具失敗走 `isError: true` 的結果而不是 JSON-RPC error，帶一個 Remedy 說明下一步：
-  `RETRY`、`CHECK_BEFORE_RETRY`、`FIX_REQUEST`、`ASK_OPERATOR`、`UNKNOWN`
+- 協定機制交給 SDK：無狀態分派、每則請求自帶的 `_meta`（版本、能力、身分）、
+  `resultType`、清單結果的 `ttlMs` 與 `cacheScope`
+- 只講 2026-07-28。舊版開場（`initialize`，或任何不宣告版本的請求）回 `-32022`，
+  並列出自己支援的版本
+- `tools/list` 帶 `ttlMs: 60000` 與 `cacheScope: private`；未知工具回 `-32602`
+- 參數形狀由 Tool 自己的 zod schema 擋，SDK 同時把它轉成 JSON Schema 放進 `tools/list`
+- Tool 自己回報的失敗走 `isError: true` 的結果而不是 JSON-RPC error，帶一個 Remedy
+  說明下一步：`RETRY`、`CHECK_BEFORE_RETRY`、`FIX_REQUEST`、`ASK_OPERATOR`、`UNKNOWN`
 - PostgreSQL 連線池，懶建：沒有人查詢就沒有連線
 - Log 寫 stderr，從不寫 stdout
 
@@ -25,26 +26,12 @@
 
 ```
 src/
-  main.ts              進入點與組裝：讀行 → 處理 → 寫行 → 記錄 → 關池
+  main.ts              進入點與組裝：接上 stdio、選版本、記錄、關機
+  server.ts            Server 工廠：宣告 ＋ 註冊 Tools
   log.ts               寫 stderr。記方法、耗時、結果，不記呼叫的內容
-  declarations.ts      Server 對自己的宣告：serverInfo、capabilities
-  protocol/
-    versions.ts        支援的版本
-    errors.ts          錯誤碼
-    messages.ts        JSON-RPC 訊息型別與建構
-    parse.ts           一行文字 → 訊息
-    meta.ts            檢查每則請求的 `_meta`
-    results.ts         `resultType` 與清單的快取提示
-    router.ts          請求 → handler，以及所有請求都要過的版本關卡
-    handle.ts          一行進、一行出。不碰 stream
-    methods/
-      discover.ts      `server/discover`
-      toolsList.ts     `tools/list`
-      toolsCall.ts     `tools/call`
-  transport/
-    stdio.ts           行框架與 IO。不認識 JSON，也不認識 MCP
+  declarations.ts      Server 對自己的宣告：serverInfo、capabilities、快取提示、版本
   tools/
-    definition.ts      一個 Tool 長什麼樣子
+    definition.ts      一個 Tool 長什麼樣子，以及怎麼掛到 Server 上
     registry.ts        Tool 清單。加 Tool 只動這裡
     remedy.ts          五個 Remedy
     result.ts          工具結果外殼：成功與失敗
@@ -61,7 +48,8 @@ compose.yaml           PostgreSQL ＋ 接上它的 Server
 ```
 
 測試分兩層：`src/**/*.test.ts` 不跨 wire 邊界，`test/wire.test.ts` 測 Client 真正看得到的
-東西——stdout 乾不乾淨、stdin 關閉會不會結束、一行一則。
+東西。協定的實作是 SDK 的，所以 Acceptance 層測的不是它對不對，而是「我們把它接成了
+什麼」——講哪一版、菜單上有誰、清單多久算新鮮、log 有沒有汙染協定通道。
 
 ## 建置與執行
 
@@ -90,7 +78,7 @@ npm run inspect:cli -- --method tools/call --tool-name get_weather --tool-arg ci
 ```
 
 兩個指令都帶了 `--protocol-era modern`。Inspector 對臨時指定的 target **預設走 legacy**，
-那會送 `initialize`，本 Server 沒有握手，只會回 `-32602`。`auto` 也可以：它先探測再決定。
+那會送 `initialize`，本 Server 不做雙版相容，只會回 `-32022`。`auto` 也可以：它先探測再決定。
 
 ### Docker
 
@@ -141,26 +129,33 @@ node --env-file=.env dist/main.js
 寫一個增刪改查的 Tool：
 
 ```ts
+import { z } from 'zod';
 import { query, withTransaction } from '../db/pool.js';
+import { defineTool } from './definition.js';
 import { Remedy } from './remedy.js';
 import { ok, failed } from './result.js';
-import type { ToolDefinition } from './definition.js';
 
-export const listCustomers: ToolDefinition = {
+export const listCustomers = defineTool({
   name: 'list_customers',
   description: 'Customers, newest first.',
-  inputSchema: { type: 'object', properties: { limit: { type: 'integer' } } },
+  inputSchema: z.object({
+    limit: z.int().min(1).max(200).default(30),
+  }),
   annotations: { readOnlyHint: true },
-  call: async (args) => {
-    const limit = typeof args['limit'] === 'number' ? args['limit'] : 30;
-    const rows = await query('select id, name from customers order by id desc limit $1', [limit]);
-    return ok({ items: rows, count: rows.length });
+  call: async ({ limit }) => {
+    try {
+      const rows = await query('select id, name from customers order by id desc limit $1', [limit]);
+      return ok({ items: rows, count: rows.length });
+    } catch (error) {
+      return failed(Remedy.AskOperator, `Query failed: ${(error as Error).message}`);
+    }
   },
-};
+});
 ```
 
-多步驟的寫入用 `withTransaction`，不要自己 acquire 連線——忘記 release 是連線池最常見的死法。
-寫好之後把它加進 [`src/tools/registry.ts`](./src/tools/registry.ts) 的 `TOOLS`，協定層不必動。
+參數的形狀交給 schema，`call` 裡只處理「形狀對但做不到」的失敗。多步驟的寫入用
+`withTransaction`，不要自己 acquire 連線——忘記 release 是連線池最常見的死法。
+寫好之後把它加進 [`src/tools/registry.ts`](./src/tools/registry.ts) 的 `TOOLS`，其他地方不必動。
 失敗時回 `failed(Remedy.X, '...')`：環境壞掉是 `ASK_OPERATOR`，參數不對是 `FIX_REQUEST`。
 
 Log 走 stderr，協定訊息走 stdout。

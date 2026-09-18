@@ -18,7 +18,7 @@ FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 
-# 只裝 runtime 相依（目前是 pg）。typescript 與 tsx 留在建置階段。
+# 只裝 runtime 相依（MCP SDK、zod、pg）。typescript 與 tsx 留在建置階段。
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
