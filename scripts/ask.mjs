@@ -6,7 +6,11 @@
  *
  *   node scripts/ask.mjs server/discover
  *   node scripts/ask.mjs tools/list
- *   node scripts/ask.mjs tools/call '{"name":"list_labels","arguments":{}}'
+ *   node scripts/ask.mjs tools/call '{"name":"get_weather","arguments":{"city":"Taipei"}}'
+ *
+ * 預設問本機建好的 dist/main.js。要問別的地方（例如容器裡的 Server）就設 MCP_SERVER_CMD：
+ *
+ *   MCP_SERVER_CMD='docker run -i --rm project-mcp' node scripts/ask.mjs tools/list
  */
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -18,8 +22,11 @@ if (method === undefined) {
   process.exit(2);
 }
 
-const server = fileURLToPath(new URL('../dist/main.js', import.meta.url));
-const child = spawn(process.execPath, [server], { stdio: ['pipe', 'pipe', 'inherit'] });
+const override = process.env['MCP_SERVER_CMD'];
+const [command, ...commandArgs] = override === undefined
+  ? [process.execPath, fileURLToPath(new URL('../dist/main.js', import.meta.url))]
+  : override.split(' ').filter((part) => part !== '');
+const child = spawn(command, commandArgs, { stdio: ['pipe', 'pipe', 'inherit'] });
 
 child.stdin.write(`${JSON.stringify({
   jsonrpc: '2.0',

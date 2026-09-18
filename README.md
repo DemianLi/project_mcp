@@ -56,6 +56,8 @@ scripts/
   ask.mjs              對建好的 Server 問一句話
 test/
   wire.test.ts         Acceptance 層：啟動子行程，走 stdin／stdout
+Dockerfile             兩階段 image。不開 port，沒有 healthcheck
+compose.yaml           PostgreSQL ＋ 接上它的 Server
 ```
 
 測試分兩層：`src/**/*.test.ts` 不跨 wire 邊界，`test/wire.test.ts` 測 Client 真正看得到的
@@ -88,6 +90,30 @@ npm run inspect:cli -- --method tools/list
 
 Inspector 2.7.0 講到 2025-11-25，連線時送 `initialize`，本 Server 回
 `-32602 _meta is required on every request` 後它就停住。等它支援 2026-07-28 這兩個指令即可使用。
+
+### Docker
+
+```bash
+docker build -t project-mcp .
+docker run -i --rm project-mcp
+```
+
+`-i` 是必要的：Server 從 stdin 讀，沒有 stdin 就等於開機即關機。這個 image 不開 port、
+也沒有 healthcheck——stdio Server 沒有可以探測的端點，而往 stdout 寫探測結果會弄壞協定通道。
+
+`ask.mjs` 可以改問容器裡的 Server：
+
+```bash
+MCP_SERVER_CMD='docker run -i --rm project-mcp' npm run ask tools/list
+```
+
+要連資料庫就用 compose。Server 不是常駐服務，所以用 `run` 而不是 `up`，`-T` 關掉 TTY 讓
+stdin／stdout 維持乾淨的管子：
+
+```bash
+docker compose run --rm -T mcp
+docker compose up -d db      # 只要資料庫
+```
 
 ### 配置資料庫
 
